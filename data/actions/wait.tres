@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ActionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActionDef.gd" id="1_action"]
+
+[resource]
+script = ExtResource("1_action")
+id = "wait"
+display_name = "等待"
+short_name = "等待"
+kind = 3
+range = 1
+power = 1
+direction_mode = "facing"

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="DuplicatePacketModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/DuplicatePacketModifierDef.gd" id="1_modifier"]
+
+[resource]
+script = ExtResource("1_modifier")
+id = "echo_step"
+display_name = "回响步"
+description = "方向移动会额外复制一次移动包。"
+priority = 10
+max_generation_depth = 1
+packet_kind = "move"
+required_tag = "action_move"
+added_tag = "echo_move"
+duplicate_count = 1
+duplicate_scale = 1.0

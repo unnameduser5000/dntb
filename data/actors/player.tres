@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ActorDef" format=3 uid="uid://duaw43jj3lmtl"]
+
+[ext_resource type="Script" uid="uid://bipe8v25t6243" path="res://scripts/data/ActorDef.gd" id="1_player"]
+[ext_resource type="Resource" path="res://data/weapons/impact_shield.tres" id="2_weapon"]
+
+[resource]
+script = ExtResource("1_player")
+id = "player"
+display_name = "玩家"
+max_hp = 8
+max_san = 100
+atk = 2
+map_char = "@"
+team = "player"
+ai_type = "none"
+default_weapon = ExtResource("2_weapon")
+color = Color(0.43, 0.95, 0.72, 1)

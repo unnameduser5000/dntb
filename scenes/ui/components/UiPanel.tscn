@@ -1,0 +1,5 @@
+[gd_scene format=3]
+
+[node name="UiPanel" type="PanelContainer"]
+theme_type_variation = &"ScreenPanel"
+mouse_filter = 0

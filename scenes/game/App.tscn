@@ -1,0 +1,27 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/App.gd" id="1_app"]
+[ext_resource type="PackedScene" path="res://scenes/ui/AppBackground.tscn" id="2_background"]
+[ext_resource type="PackedScene" path="res://scenes/game/Game.tscn" id="3_game"]
+[ext_resource type="PackedScene" path="res://scenes/ui/MainMenu.tscn" id="4_main_menu"]
+[ext_resource type="PackedScene" path="res://scenes/ui/SettingsMenu.tscn" id="5_settings_menu"]
+[ext_resource type="PackedScene" path="res://scenes/ui/PauseMenu.tscn" id="6_pause_menu"]
+
+[node name="App" type="Node"]
+script = ExtResource("1_app")
+
+[node name="AppBackground" parent="." instance=ExtResource("2_background")]
+
+[node name="Game" parent="." instance=ExtResource("3_game")]
+show_title_on_ready = false
+
+[node name="MenuLayer" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="MainMenu" parent="MenuLayer" instance=ExtResource("4_main_menu")]
+
+[node name="SettingsMenu" parent="MenuLayer" instance=ExtResource("5_settings_menu")]
+visible = false
+
+[node name="PauseMenu" parent="MenuLayer" instance=ExtResource("6_pause_menu")]
+visible = false

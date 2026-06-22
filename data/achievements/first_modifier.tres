@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AchievementDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/AchievementDef.gd" id="1_achievement"]
+
+[resource]
+script = ExtResource("1_achievement")
+id = "first_modifier"
+display_name = "第一件遗物"
+description = "第一次获得会改写效果包的遗物。"
+category = "build"
+points = 5
+target = 1
+trigger_event = "modifier_gained"
+progress_per_event = 1

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AchievementDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/AchievementDef.gd" id="1_achievement"]
+
+[resource]
+script = ExtResource("1_achievement")
+id = "rooms_cleared"
+display_name = "清扫行动"
+description = "累计清理 3 个房间。"
+category = "run"
+points = 10
+target = 3
+trigger_event = "room_cleared"
+progress_per_event = 1

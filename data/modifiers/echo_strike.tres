@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="DuplicatePacketModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/DuplicatePacketModifierDef.gd" id="1_modifier"]
+
+[resource]
+script = ExtResource("1_modifier")
+id = "echo_strike"
+display_name = "回响刃"
+description = "攻击造成伤害时，额外复制一次 50% 伤害包。"
+priority = 10
+max_generation_depth = 2
+packet_kind = "damage"
+required_tag = "attack"
+added_tag = "echo_damage"
+duplicate_count = 1
+duplicate_scale = 0.5

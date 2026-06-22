@@ -1,0 +1,54 @@
+# Godot editor/cache folders
+.godot/
+.import/
+.mono/
+
+# Local export/build outputs
+/android/
+/build/
+/builds/
+/exports/
+/dist/
+*.pck
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.exe
+*.app
+*.dmg
+*.apk
+*.aab
+*.ipa
+
+# Export presets can contain local paths or credentials. Commit a sanitized
+# export_presets.example.cfg instead if shared export settings are needed.
+export.cfg
+export_presets.cfg
+
+# Runtime logs and local diagnostics
+*.log
+smoke_debug.log
+
+# OS metadata
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor/IDE local state
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+*.bak
+
+# Python/tooling caches sometimes produced by helper scripts
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# Keep Godot sidecar metadata tracked:
+# - *.import files describe imported source assets.
+# - *.gd.uid files keep script/resource identity stable across collaborators.

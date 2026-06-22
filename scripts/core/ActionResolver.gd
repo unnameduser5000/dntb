@@ -1,0 +1,377 @@
+class_name ActionResolver
+extends Node
+
+const CombatContextScript := preload("res://scripts/runtime/CombatContext.gd")
+const EffectPacketScript := preload("res://scripts/runtime/EffectPacket.gd")
+const EffectPipelineScript := preload("res://scripts/runtime/EffectPipeline.gd")
+
+signal actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i)
+signal actor_damaged(actor, amount: int)
+signal actor_died(actor)
+signal attack_missed(actor, target_cell: Vector2i)
+signal key_picked(actor, key_id: String, cell: Vector2i)
+signal rule_message(message: String)
+
+var effect_pipeline = EffectPipelineScript.new()
+
+func resolve(action, state) -> void:
+	if action == null or action.actor == null or action.def == null:
+		return
+
+	if action.actor.is_dead():
+		return
+
+	match action.def.kind:
+		ActionDef.ActionKind.MOVE:
+			_resolve_move(action, state)
+
+		ActionDef.ActionKind.ATTACK:
+			if action.def.id == "lunge":
+				_resolve_lunge(action, state)
+			else:
+				_resolve_attack(action, state)
+
+		ActionDef.ActionKind.TURN:
+			_resolve_turn(action, state)
+
+		ActionDef.ActionKind.WAIT:
+			_add_message(state, "%s 等待。" % action.actor.def.display_name)
+
+		ActionDef.ActionKind.GUARD:
+			_resolve_guard(action, state)
+
+func _resolve_move(action, state) -> void:
+	var actor = action.actor
+	var dir = _get_action_dir(action)
+	var distance = max(1, int(action.def.range))
+	if action.chosen_dir != Vector2i.ZERO:
+		actor.facing = dir
+
+	for step in range(distance):
+		var target_cell = actor.grid_pos + dir
+		if state.grid.is_blocked(target_cell):
+			_add_message(state, "%s 撞上墙，移动停止。" % actor.def.display_name)
+			return
+
+		var blocking_actor = state.grid.get_actor(target_cell)
+		if blocking_actor != null:
+			if not _resolve_move_collision(action, blocking_actor, dir, state):
+				_add_message(state, "%s 被挡住，移动停止。" % actor.def.display_name)
+			return
+
+		var move_packets: Array = apply_effect_move(actor, dir, state, action, [&"action_move"])
+		if not did_any_packet_move(move_packets):
+			return
+
+func _resolve_attack(action, state) -> void:
+	var actor = action.actor
+	var dir = _get_action_dir(action)
+	var attack_cells = _get_attack_cells(action)
+	var hit_any := false
+
+	for target_cell in attack_cells:
+		var target = state.grid.get_actor(target_cell)
+		if target == null or target.team == actor.team:
+			continue
+
+		hit_any = true
+		var damage: int = int(actor.atk) * int(action.def.power)
+		if not _resolve_weapon_attack_hit(action, target, target_cell, dir, damage, state):
+			apply_effect_damage(actor, target, damage, state, action, [&"attack"])
+
+	if not hit_any:
+		var miss_cell: Vector2i = actor.grid_pos + dir
+		if not _resolve_weapon_attack_miss(action, miss_cell, dir, state):
+			attack_missed.emit(actor, miss_cell)
+			_add_message(state, "%s 攻击落空。" % actor.def.display_name)
+
+func _resolve_lunge(action, state) -> void:
+	var actor = action.actor
+	var target_cell = actor.grid_pos + actor.facing
+	var target = state.grid.get_actor(target_cell)
+
+	if target != null and target.team != actor.team:
+		_add_message(state, "%s 突刺命中。" % actor.def.display_name)
+		var damage: int = int(actor.atk) * int(action.def.power)
+		if not _resolve_weapon_attack_hit(action, target, target_cell, actor.facing, damage, state):
+			apply_effect_damage(actor, target, damage, state, action, [&"attack", &"lunge"])
+		return
+
+	_resolve_move(action, state)
+
+func _resolve_turn(action, state) -> void:
+	var actor = action.actor
+	match action.def.id:
+		"turn_left":
+			actor.facing = Vector2i(actor.facing.y, -actor.facing.x)
+			_add_message(state, "%s 左转。" % actor.def.display_name)
+		"turn_right":
+			actor.facing = Vector2i(-actor.facing.y, actor.facing.x)
+			_add_message(state, "%s 右转。" % actor.def.display_name)
+		_:
+			var dir = _get_action_dir(action)
+			if dir != Vector2i.ZERO:
+				actor.facing = dir
+
+func _resolve_guard(action, state) -> void:
+	action.actor.guarded = true
+	_add_message(state, "%s 防御，下一次受伤 -1。" % action.actor.def.display_name)
+
+func _get_action_dir(action) -> Vector2i:
+	if action.chosen_dir != Vector2i.ZERO:
+		return action.chosen_dir
+
+	if action.def.id == "move_back":
+		return -action.actor.facing
+
+	return action.actor.facing
+
+func _get_attack_cells(action) -> Array[Vector2i]:
+	var actor = action.actor
+	var dir = _get_action_dir(action)
+	if action.def.id == "sweep":
+		var left := Vector2i(dir.y, -dir.x)
+		var right := Vector2i(-dir.y, dir.x)
+		return [
+			actor.grid_pos + left,
+			actor.grid_pos + dir,
+			actor.grid_pos + right,
+		]
+
+	var cells: Array[Vector2i] = []
+	for step in range(1, max(1, int(action.def.range)) + 1):
+		cells.append(actor.grid_pos + dir * step)
+	return cells
+
+func apply_damage(source, target, amount: int, state) -> Dictionary:
+	var result := {
+		"applied": false,
+		"amount": 0,
+		"killed": false,
+	}
+	if target == null:
+		return result
+
+	var damage = amount
+	if target.guarded:
+		damage = max(0, damage - 1)
+		target.guarded = false
+
+	if damage <= 0:
+		_add_message(state, "%s 挡下了伤害。" % target.def.display_name)
+		return result
+
+	target.hp -= damage
+	result["applied"] = true
+	result["amount"] = damage
+	actor_damaged.emit(target, damage)
+	_add_message(state, "%s 受到 %d 点伤害。" % [target.def.display_name, damage])
+
+	if target.is_dead():
+		result["killed"] = true
+		_kill_actor(target, state)
+	return result
+
+func apply_effect_damage(source, target, amount: int, state, action = null, extra_tags: Array = []) -> Array:
+	var packet = EffectPacketScript.make_damage(source, target, amount, action)
+	for tag in extra_tags:
+		packet.add_tag(tag)
+	return apply_effect_packets(source, [packet], state, {
+		"action": action,
+		"source": source,
+		"target": target,
+		"phase": "damage",
+	})
+
+func apply_effect_move(source, direction: Vector2i, state, action = null, extra_tags: Array = []) -> Array:
+	if source == null or direction == Vector2i.ZERO:
+		return []
+
+	var packet = EffectPacketScript.make_move(source, source.grid_pos + direction, action, true)
+	packet.direction = direction
+	for tag in extra_tags:
+		packet.add_tag(tag)
+	return apply_effect_packets(source, [packet], state, {
+		"action": action,
+		"direction": direction,
+		"phase": "move",
+	})
+
+func apply_effect_move_to_cell(source, target_cell: Vector2i, state, action = null, extra_tags: Array = []) -> Array:
+	if source == null:
+		return []
+
+	var packet = EffectPacketScript.make_move(source, target_cell, action, false)
+	for tag in extra_tags:
+		packet.add_tag(tag)
+	return apply_effect_packets(source, [packet], state, {
+		"action": action,
+		"target_cell": target_cell,
+		"phase": "move",
+	})
+
+func apply_effect_knockback(source, target, direction: Vector2i, distance: int, state, action = null, extra_tags: Array = []) -> Array:
+	if target == null or direction == Vector2i.ZERO or distance <= 0:
+		return []
+
+	var packet = EffectPacketScript.make_knockback(source, target, direction, distance, action)
+	for tag in extra_tags:
+		packet.add_tag(tag)
+	return apply_effect_packets(source, [packet], state, {
+		"action": action,
+		"target": target,
+		"direction": direction,
+		"phase": "knockback",
+	})
+
+func apply_effect_packets(source, packets: Array, state, context: Dictionary = {}) -> Array:
+	var modifiers := _get_effect_modifiers(source, state)
+	context["state"] = state
+	context["resolver"] = self
+	context["source"] = source
+	return effect_pipeline.process_and_execute(packets, modifiers, context, state, self)
+
+func did_any_packet_move(packets: Array) -> bool:
+	for packet in packets:
+		if packet != null and packet.kind == EffectPacketScript.KIND_MOVE and bool(packet.metadata.get("moved", false)):
+			return true
+	return false
+
+func get_total_knockback_moved(packets: Array) -> int:
+	var moved := 0
+	for packet in packets:
+		if packet != null and packet.kind == EffectPacketScript.KIND_KNOCKBACK:
+			moved += int(packet.metadata.get("moved_steps", 0))
+	return moved
+
+func _damage_actor(target, amount: int, state) -> void:
+	apply_damage(null, target, amount, state)
+
+func try_move_actor(actor, target_cell: Vector2i, state) -> bool:
+	var from_cell = actor.grid_pos
+	if state.grid.move_actor(actor, target_cell):
+		actor_moved.emit(actor, from_cell, target_cell)
+		return true
+	return false
+
+func try_knockback(actor, direction: Vector2i, distance: int, state) -> int:
+	if actor == null or direction == Vector2i.ZERO or distance <= 0:
+		return 0
+
+	var moved := 0
+	for step in range(distance):
+		var target_cell: Vector2i = actor.grid_pos + direction
+		if not state.grid.can_enter(target_cell):
+			break
+		if try_move_actor(actor, target_cell, state):
+			moved += 1
+
+	return moved
+
+func add_rule_message(message: String) -> void:
+	if message.is_empty():
+		return
+	rule_message.emit(message)
+
+func add_state_message(state, message: String) -> void:
+	_add_message(state, message)
+
+func _kill_actor(actor, state) -> void:
+	state.grid.remove_actor(actor)
+	actor_died.emit(actor)
+	_add_message(state, "%s 倒下。" % actor.def.display_name)
+	_check_battle_end(state)
+
+func _check_battle_end(state) -> void:
+	if state.is_safe_training:
+		return
+
+	if state.player == null or state.player.is_dead():
+		state.battle_finished = true
+		state.victory = false
+		_add_message(state, "玩家倒下了。")
+		return
+
+	if state.get_alive_enemies().is_empty():
+		state.battle_finished = true
+		state.victory = true
+		_add_message(state, "房间清空。")
+
+func _add_message(state, message: String) -> void:
+	state.add_message(message)
+	rule_message.emit(message)
+
+func _resolve_move_collision(action, target, direction: Vector2i, state) -> bool:
+	var actor = action.actor
+	if target == null or target.team == actor.team:
+		return false
+
+	var weapon = actor.active_weapon
+	if weapon == null or not weapon.has_method("resolve_move_collision"):
+		return false
+
+	var context = CombatContextScript.new()
+	context.setup_move_collision(state, action, actor, target, direction, max(1, int(action.chain_speed)))
+	return bool(weapon.resolve_move_collision(context, self))
+
+func _resolve_weapon_attack_hit(action, target, target_cell: Vector2i, direction: Vector2i, damage: int, state) -> bool:
+	var actor = action.actor
+	var weapon = actor.active_weapon
+	if weapon == null or not weapon.has_method("resolve_attack_hit"):
+		return false
+
+	var context = CombatContextScript.new()
+	context.setup_attack_hit(state, action, actor, target, target_cell, direction, damage, _get_action_momentum_speed(action))
+	return bool(weapon.resolve_attack_hit(context, self))
+
+func _resolve_weapon_attack_miss(action, target_cell: Vector2i, direction: Vector2i, state) -> bool:
+	var actor = action.actor
+	var weapon = actor.active_weapon
+	if weapon == null or not weapon.has_method("resolve_attack_miss"):
+		return false
+
+	var context = CombatContextScript.new()
+	context.setup_attack_miss(state, action, actor, target_cell, direction, _get_action_momentum_speed(action))
+	return bool(weapon.resolve_attack_miss(context, self))
+
+func resolve_action_chain_finished(actor, actions: Array, state) -> void:
+	if actor == null:
+		return
+
+	var weapon = actor.active_weapon
+	if weapon == null or not weapon.has_method("resolve_action_chain_finished"):
+		return
+
+	var context = CombatContextScript.new()
+	context.setup_action_chain_finished(state, actor, actions)
+	weapon.resolve_action_chain_finished(context, self)
+
+func _get_action_momentum_speed(action) -> int:
+	return maxi(1, int(action.momentum_speed))
+
+func _get_effect_modifiers(source, state) -> Array:
+	var modifiers: Array = []
+	if state != null:
+		for modifier in state.effect_modifiers:
+			if modifier != null:
+				modifiers.append(modifier)
+	if source != null:
+		for modifier in source.effect_modifiers:
+			if modifier != null:
+				modifiers.append(modifier)
+	return modifiers
+
+func on_actor_entered_cell(actor, state) -> void:
+	_try_pickup_key(actor, state)
+
+func _try_pickup_key(actor, state) -> void:
+	if actor.team != "player":
+		return
+
+	var key_id: String = state.pickup_key_at(actor.grid_pos)
+	if key_id.is_empty():
+		return
+
+	#state.add_key(key_id, 1)
+	key_picked.emit(actor, key_id, actor.grid_pos)
+	_add_message(state, "拾取了%s按键。" % state.key_name(key_id))
