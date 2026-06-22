@@ -1,0 +1,33 @@
+[gd_scene format=3 uid="uid://bkgotxojmrvrl"]
+
+[ext_resource type="Script" uid="uid://bkkfek3jfxnfo" path="res://scripts/view/Game.gd" id="1_game"]
+[ext_resource type="PackedScene" path="res://scenes/map/BoardView.tscn" id="2_board"]
+[ext_resource type="PackedScene" path="res://scenes/ui/BattleUI.tscn" id="3_ui"]
+[ext_resource type="Script" uid="uid://cav3smfev3ce0" path="res://scripts/core/TurnController.gd" id="4_turn"]
+[ext_resource type="Script" uid="uid://c3lo32kgwnugi" path="res://scripts/core/ActionResolver.gd" id="5_resolver"]
+[ext_resource type="Script" uid="uid://cqne6narnfi0v" path="res://scripts/core/EnemyPlanner.gd" id="6_enemy"]
+[ext_resource type="Script" uid="uid://doc2fh72prhd2" path="res://scripts/core/RunController.gd" id="7_run"]
+
+[node name="Game" type="Node" unique_id=1812376780]
+script = ExtResource("1_game")
+
+[node name="BoardView" parent="." unique_id=1210252255 instance=ExtResource("2_board")]
+anchors_preset = 0
+
+[node name="ActorRoot" type="Node2D" parent="." unique_id=1764485695]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1819777371]
+
+[node name="BattleUI" parent="CanvasLayer" unique_id=175595060 instance=ExtResource("3_ui")]
+
+[node name="TurnController" type="Node" parent="." unique_id=1343878795]
+script = ExtResource("4_turn")
+
+[node name="ActionResolver" type="Node" parent="." unique_id=243923883]
+script = ExtResource("5_resolver")
+
+[node name="EnemyPlanner" type="Node" parent="." unique_id=211924531]
+script = ExtResource("6_enemy")
+
+[node name="RunController" type="Node" parent="." unique_id=847994410]
+script = ExtResource("7_run")

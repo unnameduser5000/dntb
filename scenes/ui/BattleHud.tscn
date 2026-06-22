@@ -1,0 +1,71 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/BattleHud.gd" id="1_script"]
+[ext_resource type="Theme" path="res://scenes/ui/theme/UiTheme.tres" id="2_theme"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiPanel.tscn" id="3_panel"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiVitalBar.tscn" id="4_vital_bar"]
+
+[node name="BattleHud" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="Panel" parent="." instance=ExtResource("3_panel")]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 308.0
+offset_bottom = 192.0
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="Content" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 9
+
+[node name="Header" type="HBoxContainer" parent="Panel/Margin/Content"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Panel/Margin/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"BattleSectionTitle"
+text = "状态"
+
+[node name="TurnValue" type="Label" parent="Panel/Margin/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenHint"
+text = "回合 0"
+horizontal_alignment = 2
+
+[node name="HealthBar" parent="Panel/Margin/Content" instance=ExtResource("4_vital_bar")]
+layout_mode = 2
+label_text = "生命"
+current_value = 8
+maximum_value = 8
+
+[node name="SanBar" parent="Panel/Margin/Content" instance=ExtResource("4_vital_bar")]
+layout_mode = 2
+label_text = "SAN"
+current_value = 100
+maximum_value = 100
+bar_theme_variant = &"VitalSanBar"
+
+[node name="RoomValue" type="Label" parent="Panel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenHint"
+text = "准备进入房间"

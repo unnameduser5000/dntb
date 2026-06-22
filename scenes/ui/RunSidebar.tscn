@@ -1,0 +1,111 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/RunSidebar.gd" id="1_script"]
+[ext_resource type="Theme" path="res://scenes/ui/theme/UiTheme.tres" id="2_theme"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiPanel.tscn" id="3_panel"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiButton.tscn" id="4_button"]
+
+[node name="RunSidebar" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="DrawerPanel" parent="." instance=ExtResource("3_panel")]
+unique_name_in_owner = true
+layout_mode = 0
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 20.0
+offset_top = -190.0
+offset_right = 328.0
+offset_bottom = 190.0
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="DrawerPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="Content" type="VBoxContainer" parent="DrawerPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="DrawerPanel/Margin/Content"]
+layout_mode = 2
+theme_type_variation = &"ScreenTitle"
+theme_override_font_sizes/font_size = 22
+text = "远征"
+
+[node name="Tabs" type="HBoxContainer" parent="DrawerPanel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="StatusTab" parent="DrawerPanel/Margin/Content/Tabs" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PrimaryButton"
+text = "状态"
+
+[node name="InventoryTab" parent="DrawerPanel/Margin/Content/Tabs" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "背包"
+
+[node name="DrawerTabs" type="TabContainer" parent="DrawerPanel/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 235)
+layout_mode = 2
+theme_override_colors/font_selected_color = Color(0.86, 0.91, 0.93, 1)
+theme_override_colors/font_unselected_color = Color(0.47, 0.53, 0.56, 1)
+tabs_visible = false
+
+[node name="Status" type="VBoxContainer" parent="DrawerPanel/Margin/Content/DrawerTabs"]
+layout_mode = 2
+theme_override_constants/separation = 8
+metadata/_tab_index = 0
+
+[node name="StatusText" type="Label" parent="DrawerPanel/Margin/Content/DrawerTabs/Status"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BattleMessage"
+autowrap_mode = 3
+text = "行动库：0 张"
+
+[node name="StatusHint" type="Label" parent="DrawerPanel/Margin/Content/DrawerTabs/Status"]
+layout_mode = 2
+theme_type_variation = &"ScreenHint"
+autowrap_mode = 3
+text = "状态页用于放置成长、任务、角色特性等低频信息。"
+
+[node name="Inventory" type="ScrollContainer" parent="DrawerPanel/Margin/Content/DrawerTabs"]
+layout_mode = 2
+metadata/_tab_index = 1
+
+[node name="InventoryList" type="VBoxContainer" parent="DrawerPanel/Margin/Content/DrawerTabs/Inventory"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="DrawerToggle" parent="." instance=ExtResource("4_button")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(38, 54)
+layout_mode = 0
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 328.0
+offset_top = -27.0
+offset_right = 366.0
+offset_bottom = 27.0
+theme_type_variation = &"PrimaryButton"
+text = "›"

@@ -1,0 +1,97 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/SettingsMenu.gd" id="1_script"]
+[ext_resource type="Theme" path="res://scenes/ui/theme/UiTheme.tres" id="2_theme"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiPanel.tscn" id="3_panel"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiButton.tscn" id="4_button"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiOptionRow.tscn" id="5_option_row"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiToggleRow.tscn" id="6_toggle_row"]
+
+[node name="SettingsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="Panel" parent="." instance=ExtResource("3_panel")]
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -250.0
+offset_top = -310.0
+offset_right = 250.0
+offset_bottom = 310.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 26
+
+[node name="Content" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Panel/Margin/Content"]
+layout_mode = 2
+theme_type_variation = &"ScreenTitle"
+text = "设置"
+horizontal_alignment = 1
+
+[node name="Description" type="Label" parent="Panel/Margin/Content"]
+layout_mode = 2
+theme_type_variation = &"ScreenSubtitle"
+text = "显示选项会自动保存，并在下次启动时恢复。"
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+
+[node name="ResolutionRow" parent="Panel/Margin/Content" instance=ExtResource("5_option_row")]
+layout_mode = 2
+label_text = "分辨率"
+
+[node name="FullscreenRow" parent="Panel/Margin/Content" instance=ExtResource("6_toggle_row")]
+layout_mode = 2
+label_text = "显示模式"
+
+[node name="ControlsTitle" type="Label" parent="Panel/Margin/Content"]
+layout_mode = 2
+theme_type_variation = &"FieldLabel"
+text = "移动按键"
+
+[node name="ControlsHint" type="Label" parent="Panel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenHint"
+text = "WASD 默认控制上下左右。点击方向按钮后按下新按键即可改键。"
+autowrap_mode = 3
+
+[node name="KeyBindingsContainer" type="VBoxContainer" parent="Panel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ResetBindingsButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "重置移动按键"
+
+[node name="FooterSpacer" type="Control" parent="Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+
+[node name="BackButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "返回主菜单"

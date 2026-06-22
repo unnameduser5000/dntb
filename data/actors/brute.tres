@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ActorDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActorDef.gd" id="1_brute"]
+
+[resource]
+script = ExtResource("1_brute")
+id = "brute"
+display_name = "重甲怪"
+max_hp = 4
+atk = 2
+move_range = 1
+map_char = "B"
+team = "enemy"
+ai_type = "melee_chaser"
+default_drop_key = ""
+color = Color(0.9, 0.28, 0.22, 1)

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AchievementDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/AchievementDef.gd" id="1_achievement"]
+
+[resource]
+script = ExtResource("1_achievement")
+id = "first_key"
+display_name = "键位收藏家"
+description = "第一次拾取地图上的按键。"
+category = "keys"
+points = 5
+target = 1
+trigger_event = "key_picked"
+progress_per_event = 1

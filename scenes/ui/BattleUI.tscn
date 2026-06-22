@@ -1,0 +1,240 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/BattleUI.gd" id="1_script"]
+[ext_resource type="Theme" path="res://scenes/ui/theme/UiTheme.tres" id="2_theme"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiPanel.tscn" id="3_panel"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiButton.tscn" id="4_button"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiStatRow.tscn" id="5_stat_row"]
+[ext_resource type="PackedScene" path="res://scenes/ui/BattleHud.tscn" id="6_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui/RunSidebar.tscn" id="7_sidebar"]
+
+[node name="BattleUI" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="BattleHud" parent="." instance=ExtResource("6_hud")]
+unique_name_in_owner = true
+
+[node name="RunSidebar" parent="." instance=ExtResource("7_sidebar")]
+unique_name_in_owner = true
+
+[node name="BattlePanel" parent="." instance=ExtResource("3_panel")]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 0
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -382.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="BattlePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="Content" type="VBoxContainer" parent="BattlePanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="BattlePanel/Margin/Content"]
+layout_mode = 2
+theme_type_variation = &"ScreenTitle"
+theme_override_font_sizes/font_size = 24
+text = "行动编排"
+
+[node name="HpRow" parent="BattlePanel/Margin/Content" instance=ExtResource("5_stat_row")]
+layout_mode = 2
+label_text = "生命"
+
+[node name="RoomRow" parent="BattlePanel/Margin/Content" instance=ExtResource("5_stat_row")]
+layout_mode = 2
+label_text = "房间"
+
+[node name="EnemyRow" parent="BattlePanel/Margin/Content" instance=ExtResource("5_stat_row")]
+layout_mode = 2
+label_text = "敌人"
+
+[node name="TurnRow" parent="BattlePanel/Margin/Content" instance=ExtResource("5_stat_row")]
+layout_mode = 2
+label_text = "回合"
+
+[node name="QueueTitle" type="Label" parent="BattlePanel/Margin/Content"]
+visible = false
+layout_mode = 2
+theme_type_variation = &"BattleSectionTitle"
+text = "队列"
+
+[node name="QueueRow" type="HBoxContainer" parent="BattlePanel/Margin/Content"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="QueueSlot1" type="Label" parent="BattlePanel/Margin/Content/QueueRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 34)
+layout_mode = 2
+theme_type_variation = &"QueueSlot"
+text = "-"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="QueueSlot2" type="Label" parent="BattlePanel/Margin/Content/QueueRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 34)
+layout_mode = 2
+theme_type_variation = &"QueueSlot"
+text = "-"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="QueueSlot3" type="Label" parent="BattlePanel/Margin/Content/QueueRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 34)
+layout_mode = 2
+theme_type_variation = &"QueueSlot"
+text = "-"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CommandRow" type="HBoxContainer" parent="BattlePanel/Margin/Content"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ExecuteButton" parent="BattlePanel/Margin/Content/CommandRow" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"PrimaryButton"
+text = "执行"
+
+[node name="ClearButton" parent="BattlePanel/Margin/Content/CommandRow" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "清空"
+
+[node name="ActionTitle" type="Label" parent="BattlePanel/Margin/Content"]
+layout_mode = 2
+theme_type_variation = &"BattleSectionTitle"
+text = "按键槽：拖拽编排"
+
+[node name="ActionList" type="GridContainer" parent="BattlePanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 1
+
+[node name="KeyPoolTitle" type="Label" parent="BattlePanel/Margin/Content"]
+layout_mode = 2
+theme_type_variation = &"BattleSectionTitle"
+text = "备用按键"
+
+[node name="KeyPoolContainer" type="VBoxContainer" parent="BattlePanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RestContinueButton" parent="BattlePanel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+text = "整理完成，继续前进"
+
+[node name="IntentTitle" type="Label" parent="BattlePanel/Margin/Content"]
+layout_mode = 2
+theme_type_variation = &"BattleSectionTitle"
+text = "敌人意图"
+
+[node name="IntentList" type="VBoxContainer" parent="BattlePanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="MessageTitle" type="Label" parent="BattlePanel/Margin/Content"]
+layout_mode = 2
+theme_type_variation = &"BattleSectionTitle"
+text = "事件"
+
+[node name="MessageList" type="VBoxContainer" parent="BattlePanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Overlay" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="Dim" type="ColorRect" parent="Overlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.28)
+mouse_filter = 2
+
+[node name="Panel" parent="Overlay" instance=ExtResource("3_panel")]
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -230.0
+offset_top = -150.0
+offset_right = 230.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="Overlay/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 26
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 26
+
+[node name="Content" type="VBoxContainer" parent="Overlay/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="OverlayTitle" type="Label" parent="Overlay/Panel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenTitle"
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 1
+
+[node name="OverlayBody" type="Label" parent="Overlay/Panel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenSubtitle"
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="OverlayButtons" type="VBoxContainer" parent="Overlay/Panel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8

@@ -1,0 +1,344 @@
+[gd_resource type="Theme" format=3 uid="uid://8htuqnbinqhe"]
+
+[sub_resource type="StyleBoxFlat" id="StyleSecondaryHover"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.24, 0.3, 0.35, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.48, 0.59, 0.66, 0.78)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="StyleSecondaryNormal"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.12, 0.18, 0.23, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.47, 0.54, 0.6)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="StyleSecondaryPressed"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.09, 0.14, 0.19, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.47, 0.54, 0.6)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardDanger"]
+bg_color = Color(0.42, 0.08, 0.07, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardEnemy"]
+bg_color = Color(1, 0.35, 0.3, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardExitLocked"]
+bg_color = Color(0.08, 0.13, 0.22, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardExitOpen"]
+bg_color = Color(0.33, 0.58, 1, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardFloor"]
+bg_color = Color(0.16, 0.14, 0.11, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardItem"]
+bg_color = Color(0.95, 0.75, 0.25, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardPlayer"]
+bg_color = Color(0.43, 0.95, 0.72, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardPreviewMove"]
+bg_color = Color(0.22, 0.43, 0.9, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardPreviewAttack"]
+bg_color = Color(0.96, 0.58, 0.12, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardWall"]
+bg_color = Color(0.27, 0.24, 0.18, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StylePrimaryHover"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.24, 0.55, 0.61, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.56, 0.82, 0.88, 0.9)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="StylePrimaryNormal"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.12, 0.43, 0.49, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.7, 0.76, 0.7)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="StylePrimaryPressed"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.1, 0.33, 0.39, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.7, 0.76, 0.7)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="StyleQueueSlot"]
+bg_color = Color(0.2, 0.17, 0.13, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.38, 0.33, 0.25, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StylePanel"]
+bg_color = Color(0.055, 0.075, 0.1, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.65, 0.72, 0.55)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+shadow_color = Color(0, 0, 0, 0.42)
+shadow_size = 16
+shadow_offset = Vector2(0, 8)
+
+[sub_resource type="StyleBoxFlat" id="StyleOptionHover"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.24, 0.3, 0.35, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.48, 0.59, 0.66, 0.78)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="StyleOptionNormal"]
+content_margin_left = 14.0
+content_margin_right = 14.0
+bg_color = Color(0.12, 0.18, 0.23, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.47, 0.54, 0.6)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="StyleVitalTrack"]
+bg_color = Color(0.05, 0.07, 0.09, 0.88)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleHealthFill"]
+bg_color = Color(0.26, 0.83, 0.48, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleSanFill"]
+bg_color = Color(0.38, 0.63, 0.95, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleSanLowFill"]
+bg_color = Color(0.75, 0.43, 0.92, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[resource]
+default_font_size = 16
+ActionCard/base_type = &"Button"
+ActionCard/colors/font_color = Color(0.86, 0.91, 0.93, 1)
+ActionCard/font_sizes/font_size = 16
+ActionCard/styles/hover = SubResource("StyleSecondaryHover")
+ActionCard/styles/normal = SubResource("StyleSecondaryNormal")
+ActionCard/styles/pressed = SubResource("StyleSecondaryPressed")
+BattleIntent/base_type = &"Label"
+BattleIntent/colors/font_color = Color(1, 0.68, 0.58, 1)
+BattleMessage/base_type = &"Label"
+BattleMessage/colors/font_color = Color(0.76, 0.72, 0.64, 1)
+BattleSectionTitle/base_type = &"Label"
+BattleSectionTitle/colors/font_color = Color(0.96, 0.91, 0.8, 1)
+BattleSectionTitle/font_sizes/font_size = 15
+BattleStatLabel/base_type = &"Label"
+BattleStatLabel/colors/font_color = Color(0.74, 0.76, 0.72, 1)
+BattleStatValue/base_type = &"Label"
+BattleStatValue/colors/font_color = Color(0.95, 0.96, 0.9, 1)
+BoardDangerCell/base_type = &"Label"
+BoardDangerCell/colors/font_color = Color(1, 0.7, 0.62, 1)
+BoardDangerCell/font_sizes/font_size = 14
+BoardDangerCell/styles/normal = SubResource("StyleBoardDanger")
+BoardEnemyCell/base_type = &"Label"
+BoardEnemyCell/colors/font_color = Color(0.18, 0.03, 0.03, 1)
+BoardEnemyCell/font_sizes/font_size = 14
+BoardEnemyCell/styles/normal = SubResource("StyleBoardEnemy")
+BoardExitLockedCell/base_type = &"Label"
+BoardExitLockedCell/colors/font_color = Color(0.55, 0.62, 0.78, 1)
+BoardExitLockedCell/font_sizes/font_size = 14
+BoardExitLockedCell/styles/normal = SubResource("StyleBoardExitLocked")
+BoardExitOpenCell/base_type = &"Label"
+BoardExitOpenCell/colors/font_color = Color(0.03, 0.07, 0.17, 1)
+BoardExitOpenCell/font_sizes/font_size = 14
+BoardExitOpenCell/styles/normal = SubResource("StyleBoardExitOpen")
+BoardFloorCell/base_type = &"Label"
+BoardFloorCell/colors/font_color = Color(0.43, 0.39, 0.32, 0.38)
+BoardFloorCell/font_sizes/font_size = 14
+BoardFloorCell/styles/normal = SubResource("StyleBoardFloor")
+BoardItemCell/base_type = &"Label"
+BoardItemCell/colors/font_color = Color(0.12, 0.08, 0, 1)
+BoardItemCell/font_sizes/font_size = 14
+BoardItemCell/styles/normal = SubResource("StyleBoardItem")
+BoardPlayerCell/base_type = &"Label"
+BoardPlayerCell/colors/font_color = Color(0.05, 0.08, 0.07, 1)
+BoardPlayerCell/font_sizes/font_size = 14
+BoardPlayerCell/styles/normal = SubResource("StyleBoardPlayer")
+BoardPreviewAttackCell/base_type = &"Label"
+BoardPreviewAttackCell/colors/font_color = Color(0.16, 0.06, 0, 1)
+BoardPreviewAttackCell/font_sizes/font_size = 14
+BoardPreviewAttackCell/styles/normal = SubResource("StyleBoardPreviewAttack")
+BoardPreviewMoveCell/base_type = &"Label"
+BoardPreviewMoveCell/colors/font_color = Color(0.94, 0.97, 1, 1)
+BoardPreviewMoveCell/font_sizes/font_size = 14
+BoardPreviewMoveCell/styles/normal = SubResource("StyleBoardPreviewMove")
+BoardWallCell/base_type = &"Label"
+BoardWallCell/colors/font_color = Color(0.83, 0.74, 0.58, 1)
+BoardWallCell/font_sizes/font_size = 14
+BoardWallCell/styles/normal = SubResource("StyleBoardWall")
+FieldLabel/base_type = &"Label"
+FieldLabel/colors/font_color = Color(0.78, 0.83, 0.82, 1)
+FieldLabel/font_sizes/font_size = 16
+PrimaryButton/base_type = &"Button"
+PrimaryButton/colors/font_color = Color(0.94, 0.98, 0.98, 1)
+PrimaryButton/font_sizes/font_size = 18
+PrimaryButton/styles/hover = SubResource("StylePrimaryHover")
+PrimaryButton/styles/normal = SubResource("StylePrimaryNormal")
+PrimaryButton/styles/pressed = SubResource("StylePrimaryPressed")
+QueueSlot/base_type = &"Label"
+QueueSlot/colors/font_color = Color(0.96, 0.91, 0.8, 1)
+QueueSlot/font_sizes/font_size = 14
+QueueSlot/styles/normal = SubResource("StyleQueueSlot")
+ScreenEyebrow/base_type = &"Label"
+ScreenEyebrow/colors/font_color = Color(0.52, 0.78, 0.84, 1)
+ScreenEyebrow/font_sizes/font_size = 13
+ScreenHint/base_type = &"Label"
+ScreenHint/colors/font_color = Color(0.47, 0.53, 0.56, 1)
+ScreenHint/font_sizes/font_size = 12
+ScreenPanel/base_type = &"PanelContainer"
+ScreenPanel/styles/panel = SubResource("StylePanel")
+ScreenSubtitle/base_type = &"Label"
+ScreenSubtitle/colors/font_color = Color(0.69, 0.73, 0.75, 1)
+ScreenTitle/base_type = &"Label"
+ScreenTitle/colors/font_color = Color(0.93, 0.96, 0.9, 1)
+ScreenTitle/font_sizes/font_size = 32
+SecondaryButton/base_type = &"Button"
+SecondaryButton/colors/font_color = Color(0.86, 0.91, 0.93, 1)
+SecondaryButton/font_sizes/font_size = 18
+SecondaryButton/styles/hover = SubResource("StyleSecondaryHover")
+SecondaryButton/styles/normal = SubResource("StyleSecondaryNormal")
+SecondaryButton/styles/pressed = SubResource("StyleSecondaryPressed")
+SettingOption/base_type = &"OptionButton"
+SettingOption/colors/font_color = Color(0.86, 0.91, 0.93, 1)
+SettingOption/font_sizes/font_size = 17
+SettingOption/styles/hover = SubResource("StyleOptionHover")
+SettingOption/styles/normal = SubResource("StyleOptionNormal")
+VitalHealthBar/base_type = &"ProgressBar"
+VitalHealthBar/styles/background = SubResource("StyleVitalTrack")
+VitalHealthBar/styles/fill = SubResource("StyleHealthFill")
+VitalSanBar/base_type = &"ProgressBar"
+VitalSanBar/styles/background = SubResource("StyleVitalTrack")
+VitalSanBar/styles/fill = SubResource("StyleSanFill")
+VitalSanLowBar/base_type = &"ProgressBar"
+VitalSanLowBar/styles/background = SubResource("StyleVitalTrack")
+VitalSanLowBar/styles/fill = SubResource("StyleSanLowFill")

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ActorDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActorDef.gd" id="1_monster"]
+
+[resource]
+script = ExtResource("1_monster")
+id = "slime"
+display_name = "史莱姆"
+max_hp = 2
+atk = 1
+move_range = 1
+map_char = "S"
+team = "enemy"
+ai_type = "melee_chaser"
+default_drop_key = ""
+color = Color(1, 0.35, 0.3, 1)

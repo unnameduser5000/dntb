@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ScalePacketModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ScalePacketModifierDef.gd" id="1_modifier"]
+
+[resource]
+script = ExtResource("1_modifier")
+id = "force_prism"
+display_name = "力场棱镜"
+description = "冲击产生的击退距离翻倍。"
+priority = 10
+max_generation_depth = 3
+packet_kind = "knockback"
+required_tag = "impact"
+multiplier = 2.0
+added_tag = "force_scaled"

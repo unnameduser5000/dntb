@@ -1,0 +1,18 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/BoardView.gd" id="1_board"]
+[ext_resource type="Theme" path="res://scenes/ui/theme/UiTheme.tres" id="2_theme"]
+[ext_resource type="PackedScene" path="res://scenes/map/BoardCell.tscn" id="3_cell"]
+
+[node name="BoardView" type="Control"]
+layout_mode = 3
+theme = ExtResource("2_theme")
+script = ExtResource("1_board")
+cell_size = 52
+board_origin = Vector2(380, 120)
+
+[node name="AsciiGrid" type="GridContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+theme_override_constants/h_separation = 1
+theme_override_constants/v_separation = 1

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AchievementDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/AchievementDef.gd" id="1_achievement"]
+
+[resource]
+script = ExtResource("1_achievement")
+id = "first_clear"
+display_name = "第一次通关"
+description = "完成一次完整流程。"
+category = "run"
+points = 25
+target = 1
+trigger_event = "run_cleared"
+progress_per_event = 1
