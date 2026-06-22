@@ -53,6 +53,6 @@ Please read CONTRIBUTING.md before opening a pull request. In short:
 
 ## License
 
-This repository is released under the MIT License unless a file states otherwise. See LICENSE.
+This repository is released under the Apache License 2.0 unless a file states otherwise. See LICENSE.
 
 Third-party code under addons/ may carry its own license; keep those notices intact.
