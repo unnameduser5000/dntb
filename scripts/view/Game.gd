@@ -810,7 +810,7 @@ func _register_save_provider() -> void:
 
 func get_save_data() -> Dictionary:
 	_ensure_action_helpers()
-	var key_program_save := _action_program.get_save_data()
+	var key_program_save: Dictionary = _action_program.get_save_data()
 	return {
 		"current_map_node_index": _current_map_node_index,
 		"current_room_index": _current_room_index,
