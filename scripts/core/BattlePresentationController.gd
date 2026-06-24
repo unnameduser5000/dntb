@@ -1,0 +1,289 @@
+class_name BattlePresentationController
+extends RefCounted
+
+const ActorViewScene := preload("res://scenes/actors/ActorView.tscn")
+
+var board_view
+var actor_root
+var actor_views: Dictionary = {}
+var animation_enabled: bool = true
+var action_pause_duration: float = 0.04
+
+
+func setup(board, root: Node) -> void:
+	board_view = board
+	actor_root = root
+	animation_enabled = DisplayServer.get_name() != "headless"
+
+
+func reset_for_state(state) -> void:
+	clear_views()
+	sync_views(state, true)
+
+
+func should_wait_for_presentation() -> bool:
+	return animation_enabled
+
+
+func clear_views() -> void:
+	for actor_id in actor_views.keys():
+		var view = actor_views[actor_id]
+		if is_instance_valid(view):
+			view.queue_free()
+	actor_views.clear()
+
+
+func sync_views(state, snap_positions: bool = true) -> void:
+	if state == null:
+		clear_views()
+		return
+
+	var alive_ids: Dictionary = {}
+	for actor in state.actors:
+		if actor == null or actor.is_dead():
+			continue
+		alive_ids[int(actor.id)] = true
+		var view = _ensure_actor_view(actor)
+		if view != null:
+			_bind_actor_view(view, actor)
+			if snap_positions:
+				view.position = _grid_to_actor_world(actor.grid_pos)
+
+	var stale_ids: Array = []
+	for actor_id in actor_views.keys():
+		if not alive_ids.has(int(actor_id)):
+			stale_ids.append(actor_id)
+
+	for actor_id in stale_ids:
+		var stale_view = actor_views[actor_id]
+		if is_instance_valid(stale_view):
+			stale_view.queue_free()
+		actor_views.erase(actor_id)
+
+
+func handle_actor_moved(actor, _from_cell: Vector2i, to_cell: Vector2i) -> void:
+	var view = _ensure_actor_view(actor)
+	if view == null:
+		return
+	_bind_actor_view(view, actor)
+	if not animation_enabled:
+		view.position = _grid_to_actor_world(to_cell)
+		return
+	_play_view_move(view, _grid_to_actor_world(to_cell))
+
+
+func handle_actor_damaged(actor, _amount: int) -> void:
+	var view = _ensure_actor_view(actor)
+	if view == null:
+		return
+	_bind_actor_view(view, actor)
+	if not animation_enabled:
+		return
+	_play_view_hit(view)
+
+
+func handle_actor_died(actor) -> void:
+	if actor == null:
+		return
+	var actor_id := int(actor.id)
+	var view = actor_views.get(actor_id)
+	if view == null or not is_instance_valid(view):
+		return
+	if animation_enabled:
+		var tween: Tween = _play_view_die(view)
+		if tween == null:
+			view.queue_free()
+			actor_views.erase(actor_id)
+			return
+		tween.finished.connect(func() -> void:
+			if is_instance_valid(view):
+				view.queue_free()
+			actor_views.erase(actor_id)
+		)
+		return
+	view.queue_free()
+	actor_views.erase(actor_id)
+
+
+func handle_action_started(action) -> void:
+	if not animation_enabled:
+		return
+	var actor = null if action == null else action.actor
+	var view = _ensure_actor_view(actor)
+	if view == null:
+		return
+	_bind_actor_view(view, actor)
+	_play_view_action_start(view)
+
+
+func play_action_started(action) -> void:
+	if not animation_enabled:
+		return
+	var actor = null if action == null else action.actor
+	var view = _ensure_actor_view(actor)
+	if view == null:
+		return
+	_bind_actor_view(view, actor)
+	await _await_tween(_play_view_action_start(view))
+
+
+func play_action_finished(_action) -> void:
+	if not animation_enabled or action_pause_duration <= 0.0:
+		return
+	var timer: SceneTreeTimer = _make_timer(action_pause_duration)
+	if timer != null:
+		await timer.timeout
+
+
+func play_frames(frames: Array) -> void:
+	for frame in frames:
+		if frame == null:
+			continue
+		match String(frame.get("kind", "")):
+			"actor_moved":
+				await _play_actor_moved(frame)
+			"actor_damaged":
+				await _play_actor_damaged(frame)
+			"actor_died":
+				await _play_actor_died(frame)
+			_:
+				pass
+
+
+func _ensure_actor_view(actor) -> Node2D:
+	if actor == null or actor_root == null:
+		return null
+
+	var actor_id := int(actor.id)
+	var view = actor_views.get(actor_id)
+	if view == null or not is_instance_valid(view):
+		view = _instantiate_actor_view(actor)
+		if view == null:
+			return null
+		view.name = "ActorView_%d" % actor_id
+		actor_root.add_child(view)
+		actor_views[actor_id] = view
+
+	_bind_actor_view(view, actor)
+	return view
+
+
+func _grid_to_actor_world(cell: Vector2i) -> Vector2:
+	if board_view == null:
+		return Vector2.ZERO
+	var cell_size := float(board_view.cell_size)
+	return board_view.grid_to_world(cell) + Vector2(cell_size * 0.5, cell_size * 0.5)
+
+
+func _play_actor_moved(frame: Dictionary) -> void:
+	var actor = frame.get("actor")
+	var view = _ensure_actor_view(actor)
+	if view == null:
+		return
+	_bind_actor_view(view, actor)
+	var to_cell: Vector2i = frame.get("to_cell", Vector2i.ZERO)
+	if not animation_enabled:
+		view.position = _grid_to_actor_world(to_cell)
+		return
+	await _await_tween(_play_view_move(view, _grid_to_actor_world(to_cell)))
+
+
+func _play_actor_damaged(frame: Dictionary) -> void:
+	var actor = frame.get("actor")
+	var view = _ensure_actor_view(actor)
+	if view == null:
+		return
+	_bind_actor_view(view, actor)
+	if not animation_enabled:
+		return
+	await _await_tween(_play_view_hit(view))
+
+
+func _play_actor_died(frame: Dictionary) -> void:
+	var actor = frame.get("actor")
+	if actor == null:
+		return
+	var actor_id := int(actor.id)
+	var view = actor_views.get(actor_id)
+	if view == null or not is_instance_valid(view):
+		return
+	if animation_enabled:
+		var tween: Tween = _play_view_die(view)
+		if tween != null:
+			await tween.finished
+	if is_instance_valid(view):
+		view.queue_free()
+	actor_views.erase(actor_id)
+
+
+func _instantiate_actor_view(actor) -> Node2D:
+	var actor_scene: PackedScene = ActorViewScene
+	if actor != null and actor.def != null and actor.def.view_scene != null:
+		actor_scene = actor.def.view_scene
+
+	var instance = actor_scene.instantiate()
+	if instance is Node2D:
+		return instance
+
+	if instance is Node:
+		instance.free()
+
+	if actor_scene != ActorViewScene:
+		push_warning("Actor view scene for %s must inherit Node2D; using default ActorView." % String(actor.def.id))
+		var fallback = ActorViewScene.instantiate()
+		if fallback is Node2D:
+			return fallback
+
+	return null
+
+
+func _bind_actor_view(view: Node2D, actor) -> void:
+	if view != null and view.has_method("bind"):
+		view.call("bind", actor)
+
+
+func _play_view_move(view: Node2D, to_pos: Vector2) -> Tween:
+	if view != null and view.has_method("play_move"):
+		var tween = view.call("play_move", to_pos)
+		if tween is Tween:
+			return tween
+	if view != null:
+		view.position = to_pos
+	return null
+
+
+func _play_view_hit(view: Node2D) -> Tween:
+	if view != null and view.has_method("play_hit"):
+		var tween = view.call("play_hit")
+		if tween is Tween:
+			return tween
+	return null
+
+
+func _play_view_die(view: Node2D) -> Tween:
+	if view != null and view.has_method("play_die"):
+		var tween = view.call("play_die")
+		if tween is Tween:
+			return tween
+	return null
+
+
+func _play_view_action_start(view: Node2D) -> Tween:
+	if view != null and view.has_method("play_action_start"):
+		var tween = view.call("play_action_start")
+		if tween is Tween:
+			return tween
+	return null
+
+
+func _await_tween(tween: Tween) -> void:
+	if tween == null:
+		return
+	await tween.finished
+
+
+func _make_timer(duration: float) -> SceneTreeTimer:
+	var main_loop = Engine.get_main_loop()
+	if main_loop is SceneTree:
+		return main_loop.create_timer(duration)
+	return null

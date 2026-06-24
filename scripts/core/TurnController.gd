@@ -11,6 +11,7 @@ var state
 var resolver
 var enemy_planner
 var player_plan: Array = []
+var presentation_controller = null
 
 func start_battle(new_state) -> void:
 	state = new_state
@@ -23,7 +24,10 @@ func submit_player_plan(plan: Array) -> void:
 
 	player_plan = plan
 	_prepare_action_chain(player_plan)
-	execute_turn()
+	if _should_wait_for_presentation():
+		_execute_turn_async()
+	else:
+		execute_turn()
 
 func execute_turn() -> void:
 	state.phase = "executing"
@@ -34,12 +38,14 @@ func execute_turn() -> void:
 
 		action_started.emit(action)
 		resolver.resolve(action, state)
+		_clear_pending_presentation_frames()
 		action_finished.emit(action)
 
 		if _check_battle_end():
 			return
 
 	_resolve_action_chain_finished(player_plan)
+	_clear_pending_presentation_frames()
 	if _check_battle_end():
 		return
 
@@ -51,19 +57,13 @@ func execute_turn() -> void:
 
 			action_started.emit(action)
 			resolver.resolve(action, state)
+			_clear_pending_presentation_frames()
 			action_finished.emit(action)
 
 			if _check_battle_end():
 				return
 
-	state.clear_temporary_flags()
-	state.turn_count += 1
-	var curse_service = get_node_or_null("/root/CurseService")
-	if curse_service != null and not state.is_safe_training:
-		curse_service.tick_turn()
-	state.phase = "planning"
-	turn_finished.emit()
-	planning_started.emit()
+	_finish_turn_cycle()
 
 func _check_battle_end() -> bool:
 	if not state.battle_finished:
@@ -134,3 +134,83 @@ func _get_actions_for_actor(plan: Array, actor) -> Array:
 		if action != null and action.actor == actor:
 			result.append(action)
 	return result
+
+func _should_wait_for_presentation() -> bool:
+	return presentation_controller != null \
+		and presentation_controller.has_method("should_wait_for_presentation") \
+		and bool(presentation_controller.should_wait_for_presentation())
+
+func _execute_turn_async() -> void:
+	await _run_turn_with_presentation()
+
+func _run_turn_with_presentation() -> void:
+	state.phase = "executing"
+
+	var player_interrupted: bool = await _execute_action_sequence_with_presentation(player_plan)
+	if player_interrupted:
+		return
+
+	_resolve_action_chain_finished(player_plan)
+	await _play_pending_presentation_frames()
+	if _check_battle_end():
+		return
+
+	if enemy_planner != null:
+		var enemy_plan: Array = enemy_planner.make_enemy_actions(state)
+		var enemy_interrupted: bool = await _execute_action_sequence_with_presentation(enemy_plan)
+		if enemy_interrupted:
+			return
+
+	_finish_turn_cycle()
+
+func _execute_action_sequence_with_presentation(actions: Array) -> bool:
+	for action in actions:
+		if action == null or action.actor == null or action.actor.is_dead():
+			continue
+
+		action_started.emit(action)
+		await _play_action_started(action)
+		resolver.resolve(action, state)
+		await _play_pending_presentation_frames()
+		action_finished.emit(action)
+		await _play_action_finished(action)
+
+		if _check_battle_end():
+			return true
+
+	return false
+
+func _play_action_started(action) -> void:
+	if presentation_controller == null or not presentation_controller.has_method("play_action_started"):
+		return
+	await presentation_controller.play_action_started(action)
+
+func _play_action_finished(action) -> void:
+	if presentation_controller == null or not presentation_controller.has_method("play_action_finished"):
+		return
+	await presentation_controller.play_action_finished(action)
+
+func _play_pending_presentation_frames() -> void:
+	if resolver == null or not resolver.has_method("consume_presentation_frames"):
+		return
+
+	var frames: Array = resolver.consume_presentation_frames()
+	if frames.is_empty():
+		return
+	if presentation_controller == null or not presentation_controller.has_method("play_frames"):
+		return
+	await presentation_controller.play_frames(frames)
+
+func _clear_pending_presentation_frames() -> void:
+	if resolver != null and resolver.has_method("clear_presentation_frames"):
+		resolver.clear_presentation_frames()
+
+func _finish_turn_cycle() -> void:
+	state.clear_temporary_flags()
+	state.turn_count += 1
+	var curse_service = get_node_or_null("/root/CurseService")
+	if curse_service != null and not state.is_safe_training:
+		curse_service.tick_turn()
+	state.phase = "planning"
+	turn_finished.emit()
+	planning_started.emit()

@@ -4,3 +4,6 @@
 
 [node name="ActorView" type="Node2D"]
 script = ExtResource("1_actor")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+centered = true
