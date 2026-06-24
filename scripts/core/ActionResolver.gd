@@ -13,6 +13,7 @@ signal key_picked(actor, key_id: String, cell: Vector2i)
 signal rule_message(message: String)
 
 var effect_pipeline = EffectPipelineScript.new()
+var _presentation_frames: Array = []
 
 func resolve(action, state) -> void:
 	if action == null or action.actor == null or action.def == null:
@@ -165,6 +166,11 @@ func apply_damage(source, target, amount: int, state) -> Dictionary:
 	result["applied"] = true
 	result["amount"] = damage
 	actor_damaged.emit(target, damage)
+	_presentation_frames.append({
+		"kind": "actor_damaged",
+		"actor": target,
+		"amount": damage,
+	})
 	_add_message(state, "%s 受到 %d 点伤害。" % [target.def.display_name, damage])
 
 	if target.is_dead():
@@ -237,6 +243,14 @@ func did_any_packet_move(packets: Array) -> bool:
 			return true
 	return false
 
+func consume_presentation_frames() -> Array:
+	var result: Array = _presentation_frames.duplicate(true)
+	_presentation_frames.clear()
+	return result
+
+func clear_presentation_frames() -> void:
+	_presentation_frames.clear()
+
 func get_total_knockback_moved(packets: Array) -> int:
 	var moved := 0
 	for packet in packets:
@@ -251,6 +265,12 @@ func try_move_actor(actor, target_cell: Vector2i, state) -> bool:
 	var from_cell = actor.grid_pos
 	if state.grid.move_actor(actor, target_cell):
 		actor_moved.emit(actor, from_cell, target_cell)
+		_presentation_frames.append({
+			"kind": "actor_moved",
+			"actor": actor,
+			"from_cell": from_cell,
+			"to_cell": target_cell,
+		})
 		return true
 	return false
 
@@ -279,6 +299,10 @@ func add_state_message(state, message: String) -> void:
 func _kill_actor(actor, state) -> void:
 	state.grid.remove_actor(actor)
 	actor_died.emit(actor)
+	_presentation_frames.append({
+		"kind": "actor_died",
+		"actor": actor,
+	})
 	_add_message(state, "%s 倒下。" % actor.def.display_name)
 	_check_battle_end(state)
 

@@ -8,6 +8,7 @@ const ActorStateScript := preload("res://scripts/runtime/ActorState.gd")
 const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 const ActionProgramControllerScript := preload("res://scripts/core/ActionProgramController.gd")
 const ActionPreviewServiceScript := preload("res://scripts/core/ActionPreviewService.gd")
+const BattlePresentationControllerScript := preload("res://scripts/core/BattlePresentationController.gd")
 
 const PLAYER_DEF := preload("res://data/actors/player.tres")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
@@ -152,6 +153,7 @@ var _modifier_by_id: Dictionary = {}
 var _run_modifier_ids: Array[String] = []
 var _action_program
 var _action_preview
+var _battle_presentation
 # 兼容测试/调试观察口：真实数据由 ActionProgramController 持有。
 var _key_slots: Dictionary = {}
 var _loose_key_tokens: Array[String] = []
@@ -180,10 +182,13 @@ func _ready() -> void:
 	_action_program.setup(_action_by_id, ACTION_MOVE_KEY)
 	_action_preview = ActionPreviewServiceScript.new()
 	_action_preview.setup(_action_by_id)
+	_battle_presentation = BattlePresentationControllerScript.new()
+	_battle_presentation.setup(board_view, $ActorRoot)
 	_sync_key_program_mirror()
 
 	turn_controller.resolver = resolver
 	turn_controller.enemy_planner = enemy_planner
+	turn_controller.presentation_controller = _battle_presentation
 	enemy_planner.enemies_are_static = false
 	enemy_planner.move_action = ACTION_MOVE_FORWARD
 	enemy_planner.attack_action = ACTION_ATTACK
@@ -285,6 +290,8 @@ func _start_room(room_index: int) -> void:
 	state = _create_room_state(room_index)
 	_clear_key_slot_preview(false)
 	_apply_run_modifiers_to_player()
+	if _battle_presentation != null:
+		_battle_presentation.reset_for_state(state)
 	enemy_planner.enemies_are_static = false
 	turn_controller.start_battle(state)
 	battle_ui.set_available_actions(_player_deck)
@@ -300,6 +307,8 @@ func _start_rest_node(node: Dictionary) -> void:
 	state = _create_rest_state(node)
 	_clear_key_slot_preview(false)
 	_apply_run_modifiers_to_player()
+	if _battle_presentation != null:
+		_battle_presentation.reset_for_state(state)
 	enemy_planner.enemies_are_static = true
 	turn_controller.start_battle(state)
 	battle_ui.set_available_actions(_player_deck)
@@ -436,6 +445,8 @@ func _refresh_views() -> void:
 		return
 
 	_update_enemy_preview()
+	if _battle_presentation != null:
+		_battle_presentation.sync_views(state, not _battle_presentation.should_wait_for_presentation())
 	board_view.render(state)
 	battle_ui.update_state(state)
 

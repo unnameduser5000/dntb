@@ -1,0 +1,38 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/ActorPresentationSandbox.gd" id="1_sandbox"]
+
+[node name="ActorPresentationSandbox" type="Node2D"]
+script = ExtResource("1_sandbox")
+
+[node name="PreviewRoot" type="Node2D" parent="."]
+
+[node name="DemoTimer" type="Timer" parent="."]
+wait_time = 0.85
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Overlay" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="InfoLabel" type="Label" parent="CanvasLayer/Overlay"]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 660.0
+offset_bottom = 108.0
+autowrap_mode = 3
+
+[node name="CaptionRoot" type="Control" parent="CanvasLayer/Overlay"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2

@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="ActorDef" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="ActorDef" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/ActorDef.gd" id="1_monster"]
+[ext_resource type="PackedScene" path="res://scenes/actors/EnemyActorView.tscn" id="2_view"]
 
 [resource]
 script = ExtResource("1_monster")
@@ -13,4 +14,5 @@ map_char = "S"
 team = "enemy"
 ai_type = "melee_chaser"
 default_drop_key = ""
+view_scene = ExtResource("2_view")
 color = Color(1, 0.35, 0.3, 1)
