@@ -326,9 +326,9 @@ func _init() -> void:
 	var world_game = GameScene.instantiate()
 	root.add_child(world_game)
 	await process_frame
-	world_game.start_run()
+	world_game.start_world_slice_debug()
 	await process_frame
-	_require(world_game.state.map_node_kind == "world_slice", "default run entry creates the world slice state")
+	_require(world_game.state.map_node_kind == "world_slice", "world slice debug entry creates the world slice state")
 	_require(world_game.state.grid.width >= 30 and world_game.state.grid.height >= 30, "world slice uses a larger grid than the room demo")
 	_require(world_game.state.player != null, "world slice creates a player")
 	_require(world_game.state.get_alive_enemies().size() == 4, "world slice creates four test enemies")
@@ -457,7 +457,7 @@ func _init() -> void:
 
 	await _start_seeded_combat_run(game, "modifier-reward")
 	game._current_rewards = game._build_rewards()
-	game._on_reward_chosen(1)
+	game._on_reward_chosen(0)
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "modifier reward advances to post-practice rest")
 	game._on_rest_continue_requested()

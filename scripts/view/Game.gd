@@ -269,7 +269,7 @@ func _connect_signals() -> void:
 	resolver.actor_moved.connect(_on_actor_moved)
 
 func start_run() -> void:
-	start_world_slice_debug()
+	_start_new_run(Time.get_datetime_string_from_system())
 
 
 func start_run_legacy() -> void:
