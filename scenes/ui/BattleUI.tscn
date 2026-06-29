@@ -45,77 +45,82 @@ theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
-[node name="Content" type="VBoxContainer" parent="BattlePanel/Margin"]
+[node name="Scroll" type="ScrollContainer" parent="BattlePanel/Margin"]
 layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Content" type="VBoxContainer" parent="BattlePanel/Margin/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 12
 
-[node name="Title" type="Label" parent="BattlePanel/Margin/Content"]
+[node name="Title" type="Label" parent="BattlePanel/Margin/Scroll/Content"]
 layout_mode = 2
 theme_type_variation = &"ScreenTitle"
 theme_override_font_sizes/font_size = 24
 text = "行动编排"
 
-[node name="HpRow" parent="BattlePanel/Margin/Content" instance=ExtResource("5_stat_row")]
+[node name="HpRow" parent="BattlePanel/Margin/Scroll/Content" instance=ExtResource("5_stat_row")]
 layout_mode = 2
 label_text = "生命"
 
-[node name="RoomRow" parent="BattlePanel/Margin/Content" instance=ExtResource("5_stat_row")]
+[node name="RoomRow" parent="BattlePanel/Margin/Scroll/Content" instance=ExtResource("5_stat_row")]
 layout_mode = 2
 label_text = "房间"
 
-[node name="EnemyRow" parent="BattlePanel/Margin/Content" instance=ExtResource("5_stat_row")]
+[node name="EnemyRow" parent="BattlePanel/Margin/Scroll/Content" instance=ExtResource("5_stat_row")]
 layout_mode = 2
 label_text = "敌人"
 
-[node name="TurnRow" parent="BattlePanel/Margin/Content" instance=ExtResource("5_stat_row")]
+[node name="TurnRow" parent="BattlePanel/Margin/Scroll/Content" instance=ExtResource("5_stat_row")]
 layout_mode = 2
 label_text = "回合"
 
-[node name="ActionTitle" type="Label" parent="BattlePanel/Margin/Content"]
+[node name="ActionTitle" type="Label" parent="BattlePanel/Margin/Scroll/Content"]
 layout_mode = 2
 theme_type_variation = &"BattleSectionTitle"
 text = "按键槽：拖拽编排"
 
-[node name="ActionList" type="GridContainer" parent="BattlePanel/Margin/Content"]
+[node name="ActionList" type="GridContainer" parent="BattlePanel/Margin/Scroll/Content"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
 columns = 2
 
-[node name="KeyPoolTitle" type="Label" parent="BattlePanel/Margin/Content"]
+[node name="KeyPoolTitle" type="Label" parent="BattlePanel/Margin/Scroll/Content"]
 layout_mode = 2
 theme_type_variation = &"BattleSectionTitle"
 text = "备用按键"
 
-[node name="KeyPoolContainer" type="VBoxContainer" parent="BattlePanel/Margin/Content"]
+[node name="KeyPoolContainer" type="VBoxContainer" parent="BattlePanel/Margin/Scroll/Content"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="RestContinueButton" parent="BattlePanel/Margin/Content" instance=ExtResource("4_button")]
+[node name="RestContinueButton" parent="BattlePanel/Margin/Scroll/Content" instance=ExtResource("4_button")]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 theme_type_variation = &"PrimaryButton"
 text = "整理完成，继续前进"
 
-[node name="IntentTitle" type="Label" parent="BattlePanel/Margin/Content"]
+[node name="IntentTitle" type="Label" parent="BattlePanel/Margin/Scroll/Content"]
 layout_mode = 2
 theme_type_variation = &"BattleSectionTitle"
 text = "敌人意图"
 
-[node name="IntentList" type="VBoxContainer" parent="BattlePanel/Margin/Content"]
+[node name="IntentList" type="VBoxContainer" parent="BattlePanel/Margin/Scroll/Content"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 5
 
-[node name="MessageTitle" type="Label" parent="BattlePanel/Margin/Content"]
+[node name="MessageTitle" type="Label" parent="BattlePanel/Margin/Scroll/Content"]
 layout_mode = 2
 theme_type_variation = &"BattleSectionTitle"
 text = "事件"
 
-[node name="MessageList" type="VBoxContainer" parent="BattlePanel/Margin/Content"]
+[node name="MessageList" type="VBoxContainer" parent="BattlePanel/Margin/Scroll/Content"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 5
