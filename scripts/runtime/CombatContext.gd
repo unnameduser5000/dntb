@@ -1,6 +1,20 @@
 class_name CombatContext
 extends RefCounted
 
+## CombatContext is the weapon-hook view of the current combat moment.
+## It packages the already-resolved base action state into a stable shape for
+## weapon logic so weapons do not need to read GameState internals directly.
+##
+## Current notable fields:
+## - direction:
+##   executable world-space direction for this hook
+## - speed:
+##   chain momentum / repeated-direction speed prepared by TurnController
+## - damage:
+##   base direct-hit damage before a weapon hook replaces it
+## - chain_actions:
+##   the actor's full chain when resolve_action_chain_finished() is called
+
 var state
 var action
 var source

@@ -1,6 +1,6 @@
 # DNTB
 
-DNTB is a Godot 4 tactical roguelite prototype about programmable movement keys, grid combat, action tokens, relic-like modifiers, and short run progression.
+DNTB is a Godot 4 tactical roguelite prototype about programmable direction keys, derived weapon techniques, grid combat, relic-like modifiers, and short run progression.
 
 The project is early-stage and intentionally small. The current focus is keeping gameplay systems easy to inspect, test, and refactor.
 
@@ -25,14 +25,14 @@ The project includes a headless smoke test scene tree script:
 
     godot --headless --path . --script res://scripts/tests/SmokeTest.gd
 
-This test covers the current combat loop, programmable key slots, rewards, modifiers, and achievement events.
+This test covers the current combat loop, programmable key slots, direction-chain weapon techniques, rewards, modifiers, and achievement events.
 
 ## Repository layout
 
 - addons/ - third-party Godot addons. Dialogue Manager keeps its own license.
 - art/ - project art notes and future art assets.
 - audio/ - future audio assets.
-- data/ - Godot resources for actors, actions, modifiers, rewards, and achievements.
+- data/ - Godot resources for actors, actions, technique patterns, modifiers, rewards, and achievements.
 - scenes/ - Godot scenes.
 - scripts/core/ - gameplay services and runtime controllers.
 - scripts/data/ - Resource classes and data definitions.

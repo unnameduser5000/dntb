@@ -1,13 +1,11 @@
-[gd_resource type="Resource" script_class="ActionDef" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="ActionDef" format=3 uid="uid://cy2iwwo12a0s2"]
 
-[ext_resource type="Script" path="res://scripts/data/ActionDef.gd" id="1_action"]
+[ext_resource type="Script" uid="uid://rjseunlf48yp" path="res://scripts/data/ActionDef.gd" id="1_action"]
 
 [resource]
 script = ExtResource("1_action")
 id = "move_back"
 display_name = "后退"
 short_name = "后退"
-kind = 0
-range = 1
-power = 1
 direction_mode = "facing"
+combo_symbol = &"B"

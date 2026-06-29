@@ -2,18 +2,24 @@ class_name BattlePresentationController
 extends RefCounted
 
 const ActorViewScene := preload("res://scenes/actors/ActorView.tscn")
+const BattleEffectControllerScript := preload("res://scripts/core/BattleEffectController.gd")
 
 var board_view
 var actor_root
+var effect_root
 var actor_views: Dictionary = {}
 var animation_enabled: bool = true
 var action_pause_duration: float = 0.04
+var effect_controller = null
 
 
-func setup(board, root: Node) -> void:
+func setup(board, root: Node, new_effect_root: Node = null) -> void:
 	board_view = board
 	actor_root = root
+	effect_root = new_effect_root
 	animation_enabled = DisplayServer.get_name() != "headless"
+	effect_controller = BattleEffectControllerScript.new()
+	effect_controller.setup(board_view, effect_root)
 
 
 func reset_for_state(state) -> void:
@@ -31,6 +37,8 @@ func clear_views() -> void:
 		if is_instance_valid(view):
 			view.queue_free()
 	actor_views.clear()
+	if effect_controller != null and effect_controller.has_method("clear_effects"):
+		effect_controller.clear_effects()
 
 
 func sync_views(state, snap_positions: bool = true) -> void:
@@ -77,6 +85,12 @@ func handle_actor_damaged(actor, _amount: int) -> void:
 	if view == null:
 		return
 	_bind_actor_view(view, actor)
+	if effect_controller != null and effect_controller.has_method("play_frame"):
+		effect_controller.play_frame({
+			"kind": "actor_damaged",
+			"actor": actor,
+			"amount": _amount,
+		})
 	if not animation_enabled:
 		return
 	_play_view_hit(view)
@@ -89,6 +103,11 @@ func handle_actor_died(actor) -> void:
 	var view = actor_views.get(actor_id)
 	if view == null or not is_instance_valid(view):
 		return
+	if effect_controller != null and effect_controller.has_method("play_frame"):
+		effect_controller.play_frame({
+			"kind": "actor_died",
+			"actor": actor,
+		})
 	if animation_enabled:
 		var tween: Tween = _play_view_die(view)
 		if tween == null:
@@ -113,6 +132,8 @@ func handle_action_started(action) -> void:
 	if view == null:
 		return
 	_bind_actor_view(view, actor)
+	if effect_controller != null and effect_controller.has_method("play_action_started"):
+		effect_controller.play_action_started(action)
 	_play_view_action_start(view)
 
 
@@ -124,6 +145,8 @@ func play_action_started(action) -> void:
 	if view == null:
 		return
 	_bind_actor_view(view, actor)
+	if effect_controller != null and effect_controller.has_method("play_action_started"):
+		effect_controller.play_action_started(action)
 	await _await_tween(_play_view_action_start(view))
 
 
@@ -139,6 +162,8 @@ func play_frames(frames: Array) -> void:
 	for frame in frames:
 		if frame == null:
 			continue
+		if effect_controller != null and effect_controller.has_method("play_frame"):
+			effect_controller.play_frame(frame)
 		match String(frame.get("kind", "")):
 			"actor_moved":
 				await _play_actor_moved(frame)
@@ -146,6 +171,8 @@ func play_frames(frames: Array) -> void:
 				await _play_actor_damaged(frame)
 			"actor_died":
 				await _play_actor_died(frame)
+			"attack_missed", "move_collision":
+				pass
 			_:
 				pass
 

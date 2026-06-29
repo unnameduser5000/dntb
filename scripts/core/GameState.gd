@@ -9,6 +9,7 @@ const KEY_NAMES := {
 }
 
 var grid
+var map_data = null
 var actors: Array = []
 var player
 var turn_count: int = 0
@@ -27,8 +28,23 @@ var danger_cells: Array = []
 var enemy_intents: Array = []
 var preview_move_cells: Array = []
 var preview_attack_cells: Array = []
+var visible_cells: Array[Vector2i] = []
+var explored_cells: Array[Vector2i] = []
+var reveal_all_debug: bool = false
+var last_visibility_recompute_reason: String = ""
+var fov_radius: int = 6
 var effect_modifiers: Array = []
 var is_safe_training: bool = false
+var is_world_slice: bool = false
+var action_trace = null
+## Battle execution reads unlocked technique ids from state so combo /
+## chain-finished systems do not need to reach back into Game.gd run fields.
+## Reserved for future weapon mastery / sealed-technique rules.
+## Current combo availability comes from the equipped weapon itself.
+var unlocked_weapon_technique_ids: Array[String] = []
+## Latest recognized weapon-combo matches per actor, refreshed when that
+## actor's action chain reaches its chain-finished timing.
+var weapon_combo_matches_by_actor: Dictionary = {}
 
 func add_actor(actor) -> void:
 	actors.append(actor)
@@ -43,6 +59,13 @@ func get_alive_enemies() -> Array:
 	return result
 
 func key_name(key_id: String) -> String:
+	match key_id:
+		"TL":
+			return "宸﹁浆"
+		"TR":
+			return "鍙宠浆"
+		"J":
+			return "璺宠穬"
 	return String(KEY_NAMES.get(key_id, key_id))
 
 func drop_key_at(cell: Vector2i, key_id: String) -> void:
@@ -66,3 +89,33 @@ func add_message(message: String) -> void:
 func clear_temporary_flags() -> void:
 	for actor in actors:
 		actor.guarded = false
+
+
+func clear_visibility() -> void:
+	visible_cells.clear()
+	explored_cells.clear()
+	last_visibility_recompute_reason = ""
+
+
+func set_unlocked_weapon_technique_ids(technique_ids: Array[String]) -> void:
+	unlocked_weapon_technique_ids = technique_ids.duplicate()
+
+
+func set_weapon_combo_matches_for_actor(actor_id: int, matches: Array) -> void:
+	weapon_combo_matches_by_actor[actor_id] = matches.duplicate(true)
+
+
+func clear_weapon_combo_matches() -> void:
+	weapon_combo_matches_by_actor.clear()
+
+
+func get_weapon_combo_matches_for_actor(actor_id: int, trigger_timing: int = -1) -> Array:
+	var cached_matches = weapon_combo_matches_by_actor.get(actor_id, [])
+	if trigger_timing < 0:
+		return cached_matches.duplicate(true)
+
+	var filtered: Array = []
+	for match_data in cached_matches:
+		if int(match_data.get("trigger_timing", -1)) == trigger_timing:
+			filtered.append(match_data.duplicate(true))
+	return filtered

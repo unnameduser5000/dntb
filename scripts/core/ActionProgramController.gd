@@ -1,15 +1,30 @@
 class_name ActionProgramController
 extends RefCounted
 
-const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
+## Thin wrapper around KeyProgram.
+## This controller owns only the editable input-program layer:
+## - slot existence
+## - slot token order
+## - spare/pool token management
+##
+## Current design:
+## - there are exactly four physical slots: U / D / L / R
+## - reset_default_slots() builds the absolute starter preset
+## - reset_starter_slots(preset_id) applies a specific starter preset
+## - TL / TR / F remain programmable tokens and can be added later
 
-const POOL_SLOT_ID := "POOL"
-const KEY_ORDER := ["U", "D", "L", "R"]
-const KEY_NAMES := {
+const STARTER_PRESET_ABSOLUTE := "absolute"
+const STARTER_PRESET_RELATIVE := "relative"
+
+const SLOT_ORDER: Array[String] = ["U", "D", "L", "R"]
+const TOKEN_NAMES := {
 	"U": "上",
 	"D": "下",
 	"L": "左",
 	"R": "右",
+	"F": "前进",
+	"TL": "左转",
+	"TR": "右转",
 }
 const KEY_DIRECTIONS := {
 	"U": Vector2i.UP,
@@ -17,146 +32,124 @@ const KEY_DIRECTIONS := {
 	"L": Vector2i.LEFT,
 	"R": Vector2i.RIGHT,
 }
+const ACTION_TOKENS: Array[String] = ["F", "TL", "TR"]
+## Shared token-drop pool for future room / reward sources.
+## This keeps mixed drops aligned with the same legal token set as the
+## program editor and save/load layer.
+const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "TL", "TR"]
+const KeyProgramScript := preload("res://scripts/runtime/KeyProgram.gd")
 
-var action_by_id: Dictionary = {}
-var move_key_action: Resource
-var key_slots: Dictionary = {}
-var loose_key_tokens: Array[String] = []
+var key_program = null
 
 
-func setup(actions: Dictionary, direction_move_action: Resource) -> void:
-	action_by_id = actions
-	move_key_action = direction_move_action
+func setup() -> void:
+	if key_program == null:
+		key_program = KeyProgramScript.new()
 	reset_default_slots()
 
 
-# 按键编程模型：
-# - 实体按键槽固定为 U/D/L/R，由玩家的键盘映射触发。
-# - 槽内保存的是行动 token；U/D/L/R token 是最基础的方向移动。
-# - 突刺、横扫等奖励行动也作为 token 进入备用池，再拖入按键槽。
 func reset_default_slots() -> void:
-	key_slots.clear()
-	for key_id in KEY_ORDER:
-		key_slots[key_id] = [key_id]
-	loose_key_tokens.clear()
+	_apply_starter_preset(STARTER_PRESET_ABSOLUTE)
+
+
+func reset_starter_slots(preset_id: String) -> void:
+	_apply_starter_preset(preset_id)
 
 
 func has_slot(slot_id: String) -> bool:
-	return key_slots.has(slot_id)
+	return key_program != null and key_program.has_slot(slot_id)
 
 
 func get_slot(slot_id: String) -> Array:
-	return key_slots.get(slot_id, [])
-
-
-func build_plan(token_ids: Array, actor) -> Array:
-	var plan: Array = []
-	for raw_token_id in token_ids:
-		var token_id := String(raw_token_id)
-		var action = make_action_from_token(token_id, actor)
-		if action != null:
-			plan.append(action)
-	return plan
-
-
-func make_action_from_token(token_id: String, actor):
-	if is_direction_token(token_id):
-		if move_key_action == null:
-			return null
-		var direction: Vector2i = KEY_DIRECTIONS.get(token_id, Vector2i.ZERO)
-		var move_action = ActionInstanceScript.new()
-		move_action.actor = actor
-		move_action.def = move_key_action
-		move_action.chosen_dir = direction
-		move_action.key_id = token_id
-		return move_action
-
-	var action_def = action_by_id.get(token_id)
-	if action_def == null:
-		return null
-
-	var action = ActionInstanceScript.new()
-	action.actor = actor
-	action.def = action_def
-	action.key_id = token_id
-	return action
+	return [] if key_program == null else key_program.get_chain_for_key(slot_id)
 
 
 func move_token(source_slot_id: String, source_index: int, target_slot_id: String) -> Dictionary:
-	var source = _get_token_container(source_slot_id)
-	var target = _get_token_container(target_slot_id)
-	if source == null or target == null:
+	if key_program == null:
 		return {"moved": false, "token_id": ""}
-	if source_index < 0 or source_index >= source.size():
-		return {"moved": false, "token_id": ""}
-
-	var token_id := String(source[source_index])
-	source.remove_at(source_index)
-	target.append(token_id)
-	return {"moved": true, "token_id": token_id}
+	return key_program.move_token(source_slot_id, source_index, target_slot_id)
 
 
 func add_token_to_pool(token_id: String, allow_duplicates: bool = false) -> bool:
 	if token_id.is_empty():
 		return false
-	if not allow_duplicates and has_token(token_id):
+	if not is_program_token(token_id):
 		return false
-	loose_key_tokens.append(token_id)
-	return true
+	if key_program == null:
+		return false
+	return key_program.add_pool_token(token_id, allow_duplicates)
 
 
 func has_token(token_id: String) -> bool:
-	for slot_id in KEY_ORDER:
-		for existing_token_id in key_slots.get(slot_id, []):
-			if String(existing_token_id) == token_id:
-				return true
-	for existing_token_id in loose_key_tokens:
-		if String(existing_token_id) == token_id:
-			return true
-	return false
+	return key_program != null and key_program.has_token(token_id)
 
 
 func token_display_name(token_id: String, state = null) -> String:
 	if is_direction_token(token_id):
-		var key_name := String(KEY_NAMES.get(token_id, token_id))
+		var token_name := String(TOKEN_NAMES.get(token_id, token_id))
 		if state != null and state.has_method("key_name"):
-			key_name = state.key_name(token_id)
-		return "%s移动" % key_name
+			token_name = state.key_name(token_id)
+		return "%s键" % token_name
+	if token_id == "F":
+		return "前进"
+	if token_id == "TL":
+		return "左转"
+	if token_id == "TR":
+		return "右转"
 
-	var action = action_by_id.get(token_id)
-	if action != null:
-		return String(action.display_name)
 	return token_id
 
 
 func get_save_data() -> Dictionary:
-	return {
-		"key_slots": key_slots.duplicate(true),
-		"loose_key_tokens": loose_key_tokens.duplicate(),
-	}
+	return {} if key_program == null else key_program.get_save_data()
 
 
 func load_save_data(data: Dictionary) -> void:
-	key_slots.clear()
-	var raw_slots = data.get("key_slots", {})
-	for key_id in KEY_ORDER:
-		key_slots[key_id] = []
-		var source_keys = raw_slots.get(key_id, [key_id]) if typeof(raw_slots) == TYPE_DICTIONARY else [key_id]
-		for raw_token_id in source_keys:
-			key_slots[key_id].append(String(raw_token_id))
-
-	loose_key_tokens.clear()
-	for raw_token_id in data.get("loose_key_tokens", []):
-		loose_key_tokens.append(String(raw_token_id))
+	if key_program == null:
+		key_program = KeyProgramScript.new()
+	key_program.load_save_data(data, all_program_tokens(), SLOT_ORDER)
 
 
 func is_direction_token(token_id: String) -> bool:
 	return KEY_DIRECTIONS.has(token_id)
 
 
-func _get_token_container(slot_id: String):
-	if slot_id == POOL_SLOT_ID:
-		return loose_key_tokens
-	if not key_slots.has(slot_id):
-		return null
-	return key_slots[slot_id]
+func is_program_token(token_id: String) -> bool:
+	return is_direction_token(token_id) or ACTION_TOKENS.has(token_id)
+
+
+func all_program_tokens() -> Array[String]:
+	return TOKEN_DROP_POOL.duplicate()
+
+
+func get_key_slots() -> Dictionary:
+	return {} if key_program == null else key_program.slots.duplicate(true)
+
+
+func get_pool_tokens() -> Array[String]:
+	return [] if key_program == null else key_program.pool_tokens.duplicate()
+
+
+func get_token_drop_pool() -> Array[String]:
+	return TOKEN_DROP_POOL.duplicate()
+
+
+func _apply_starter_preset(preset_id: String) -> void:
+	_ensure_key_program()
+	key_program.setup_default(SLOT_ORDER)
+	match preset_id:
+		STARTER_PRESET_RELATIVE:
+			key_program.slots["U"] = ["F"]
+			key_program.slots["D"] = ["TR", "TR", "F"]
+			key_program.slots["L"] = ["TL", "F"]
+			key_program.slots["R"] = ["TR", "F"]
+		_:
+			key_program.slots["U"] = ["U"]
+			key_program.slots["D"] = ["D"]
+			key_program.slots["L"] = ["L"]
+			key_program.slots["R"] = ["R"]
+
+
+func _ensure_key_program() -> void:
+	if key_program == null:
+		key_program = KeyProgramScript.new()

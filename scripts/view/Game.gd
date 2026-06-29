@@ -5,10 +5,11 @@ extends Node
 const GameStateScript := preload("res://scripts/core/GameState.gd")
 const GridModelScript := preload("res://scripts/core/GridModel.gd")
 const ActorStateScript := preload("res://scripts/runtime/ActorState.gd")
-const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 const ActionProgramControllerScript := preload("res://scripts/core/ActionProgramController.gd")
 const ActionPreviewServiceScript := preload("res://scripts/core/ActionPreviewService.gd")
+const DirectionalTechniqueResolverScript := preload("res://scripts/core/DirectionalTechniqueResolver.gd")
 const BattlePresentationControllerScript := preload("res://scripts/core/BattlePresentationController.gd")
+const WorldSliceControllerScript := preload("res://scripts/core/WorldSliceController.gd")
 
 const PLAYER_DEF := preload("res://data/actors/player.tres")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
@@ -19,12 +20,16 @@ const ACTION_MOVE_FORWARD := preload("res://data/actions/move_forward.tres")
 const ACTION_MOVE_BACK := preload("res://data/actions/move_back.tres")
 const ACTION_TURN_LEFT := preload("res://data/actions/turn_left.tres")
 const ACTION_TURN_RIGHT := preload("res://data/actions/turn_right.tres")
+const ACTION_JUMP := preload("res://data/actions/jump.tres")
 const ACTION_ATTACK := preload("res://data/actions/attack.tres")
 const ACTION_WAIT := preload("res://data/actions/wait.tres")
 const ACTION_GUARD := preload("res://data/actions/guard.tres")
 const ACTION_LUNGE := preload("res://data/actions/lunge.tres")
 const ACTION_SWEEP := preload("res://data/actions/sweep.tres")
 const ACTION_MOVE_KEY := preload("res://data/actions/move_key.tres")
+const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
+const WEAPON_TECHNIQUE_LUNGE := preload("res://data/weapon_techniques/impact_lunge.tres")
+const WEAPON_TECHNIQUE_SWEEP := preload("res://data/weapon_techniques/impact_sweep.tres")
 
 const MOD_ECHO_STRIKE := preload("res://data/modifiers/echo_strike.tres")
 const MOD_ECHO_STEP := preload("res://data/modifiers/echo_step.tres")
@@ -147,16 +152,16 @@ var _run_player_max_san := 100
 var _run_player_san := 100
 var _run_player_atk := 2
 var _run_seed = ""
-var _player_deck: Array = []
 var _action_by_id: Dictionary = {}
 var _modifier_by_id: Dictionary = {}
+var _weapon_technique_by_id: Dictionary = {}
 var _run_modifier_ids: Array[String] = []
+var _run_weapon_technique_ids: Array[String] = []
 var _action_program
 var _action_preview
+var _directional_techniques
 var _battle_presentation
-# 兼容测试/调试观察口：真实数据由 ActionProgramController 持有。
-var _key_slots: Dictionary = {}
-var _loose_key_tokens: Array[String] = []
+var _world_slice_controller
 var _current_rewards: Array = []
 var _key_program_editable := false
 
@@ -166,6 +171,7 @@ func _ready() -> void:
 		"move_back": ACTION_MOVE_BACK,
 		"turn_left": ACTION_TURN_LEFT,
 		"turn_right": ACTION_TURN_RIGHT,
+		"jump": ACTION_JUMP,
 		"attack": ACTION_ATTACK,
 		"wait": ACTION_WAIT,
 		"guard": ACTION_GUARD,
@@ -178,13 +184,20 @@ func _ready() -> void:
 		"echo_step": MOD_ECHO_STEP,
 		"force_prism": MOD_FORCE_PRISM,
 	}
+	_weapon_technique_by_id = {
+		"lunge": WEAPON_TECHNIQUE_LUNGE,
+		"sweep": WEAPON_TECHNIQUE_SWEEP,
+	}
 	_action_program = ActionProgramControllerScript.new()
-	_action_program.setup(_action_by_id, ACTION_MOVE_KEY)
+	_action_program.setup()
 	_action_preview = ActionPreviewServiceScript.new()
-	_action_preview.setup(_action_by_id)
+	_action_preview.setup()
+	_directional_techniques = DirectionalTechniqueResolverScript.new()
+	_directional_techniques.setup(_action_by_id, ACTION_MOVE_KEY)
 	_battle_presentation = BattlePresentationControllerScript.new()
-	_battle_presentation.setup(board_view, $ActorRoot)
-	_sync_key_program_mirror()
+	_battle_presentation.setup(board_view, $ActorRoot, $EffectRoot)
+	_world_slice_controller = WorldSliceControllerScript.new()
+	_refresh_key_program_ui()
 
 	turn_controller.resolver = resolver
 	turn_controller.enemy_planner = enemy_planner
@@ -202,6 +215,22 @@ func _ready() -> void:
 		battle_ui.show_title()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if state != null and bool(state.is_world_slice):
+		if event is InputEventKey and event.pressed and not event.echo:
+			if event.keycode == KEY_V:
+				if _world_slice_controller != null:
+					_world_slice_controller.set_reveal_all_debug(state, not bool(state.reveal_all_debug), "debug_toggle")
+					_refresh_views()
+					get_viewport().set_input_as_handled()
+					return
+			if event.keycode == KEY_F5:
+				if _world_slice_controller != null:
+					_world_slice_controller.reset_world_slice(state)
+					turn_controller.start_battle(state)
+					_refresh_views()
+					get_viewport().set_input_as_handled()
+					return
+
 	if state == null or state.phase != "planning" or state.battle_finished:
 		return
 
@@ -209,7 +238,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if input_service == null:
 		return
 
-	var action_name: String = input_service.get_pressed_move_action(event)
+	var action_name: String = input_service.get_pressed_program_action(event)
 	if action_name.is_empty():
 		return
 
@@ -220,11 +249,11 @@ func _unhandled_input(event: InputEvent) -> void:
 func set_game_visible(is_visible: bool) -> void:
 	board_view.visible = is_visible
 	$ActorRoot.visible = is_visible
+	$EffectRoot.visible = is_visible
 	battle_ui.visible = is_visible
 
 func _connect_signals() -> void:
 	battle_ui.start_requested.connect(start_run)
-	battle_ui.plan_submitted.connect(_on_plan_submitted)
 	battle_ui.reward_chosen.connect(_on_reward_chosen)
 	battle_ui.restart_requested.connect(start_run)
 	battle_ui.key_token_move_requested.connect(_on_key_token_move_requested)
@@ -237,12 +266,73 @@ func _connect_signals() -> void:
 	turn_controller.battle_finished.connect(_on_battle_finished)
 	resolver.rule_message.connect(func(_message: String) -> void: _refresh_views())
 	resolver.key_picked.connect(_on_key_picked)
+	resolver.actor_moved.connect(_on_actor_moved)
 
 func start_run() -> void:
+	start_world_slice_debug()
+
+
+func start_run_legacy() -> void:
 	_start_new_run(Time.get_datetime_string_from_system())
+
+
+func start_room_chain_legacy() -> void:
+	start_run_legacy()
 
 func start_seeded_run(seed_value) -> void:
 	_start_new_run(seed_value)
+
+
+func start_world_slice_debug() -> void:
+	_ensure_action_helpers()
+	state = _world_slice_controller.create_demo_state() if _world_slice_controller != null else null
+	if state == null:
+		return
+	_current_rewards = []
+	_key_program_editable = true
+	_current_room_index = int(state.room_index)
+	_current_map_node_index = int(state.map_node_index)
+	_run_modifier_ids.clear()
+	_run_weapon_technique_ids.clear()
+	_action_program.reset_starter_slots("absolute")
+	for token_id in ["R", "R", "R", "U", "F", "F", "TL", "TR"]:
+		_action_program.add_token_to_pool(token_id, true)
+	_refresh_key_program_ui()
+	_refresh_inventory_ui()
+	if _battle_presentation != null and state != null:
+		_battle_presentation.reset_for_state(state)
+	enemy_planner.enemies_are_static = false
+	turn_controller.start_battle(state)
+	battle_ui.set_key_program_editable(true)
+	if board_view != null:
+		board_view.cell_size = 26
+		board_view.board_origin = Vector2(380, 120)
+		board_view.position = board_view.board_origin
+	battle_ui.show_battle()
+	_refresh_world_visibility("init")
+	_refresh_views()
+
+
+func start_weapon_combo_lab_debug() -> void:
+	_next_actor_id = 0
+	_current_room_index = 0
+	_current_map_node_index = 0
+	_run_modifier_ids.clear()
+	_run_weapon_technique_ids.clear()
+	state = _create_weapon_combo_lab_state()
+	if state == null:
+		return
+	_current_rewards = []
+	_key_program_editable = true
+	_refresh_key_program_ui()
+	_refresh_inventory_ui()
+	if _battle_presentation != null:
+		_battle_presentation.reset_for_state(state)
+	enemy_planner.enemies_are_static = true
+	turn_controller.start_battle(state)
+	battle_ui.set_key_program_editable(true)
+	battle_ui.show_battle()
+	_refresh_views()
 
 func _start_new_run(seed_value) -> void:
 	_current_room_index = 0
@@ -259,17 +349,38 @@ func _start_new_run(seed_value) -> void:
 	var curse_service = get_node_or_null("/root/CurseService")
 	if curse_service != null:
 		curse_service.reset_run()
-	_player_deck = [
-		ACTION_MOVE_FORWARD,
-		ACTION_TURN_LEFT,
-		ACTION_TURN_RIGHT,
-		ACTION_ATTACK,
-		ACTION_WAIT,
-	]
 	_run_modifier_ids.clear()
+	_run_weapon_technique_ids.clear()
 	_setup_default_key_slots()
 	_refresh_inventory_ui()
 	_start_map_node(_current_map_node_index)
+
+
+func _create_weapon_combo_lab_state():
+	var new_state = GameStateScript.new()
+	new_state.grid = GridModelScript.new()
+	new_state.grid.setup(10, 10)
+	new_state.room_index = 0
+	new_state.room_name = "Weapon Combo Lab"
+	new_state.map_node_index = 0
+	new_state.map_node_kind = "weapon_combo_lab"
+	new_state.map_node_label = "Weapon Combo Lab"
+	new_state.is_safe_training = true
+	new_state.exit_cell = Vector2i(-99, -99)
+	new_state.set_unlocked_weapon_technique_ids(_run_weapon_technique_ids)
+	_add_room_walls(new_state.grid, {"walls": []})
+
+	var player = _add_actor(new_state, PLAYER_DEF, Vector2i(4, 4))
+	player.facing = Vector2i.RIGHT
+	player.active_weapon = IMPACT_SHIELD
+	_ensure_action_helpers()
+	_action_program.reset_starter_slots("relative")
+
+	_add_actor(new_state, SLIME_DEF, Vector2i(5, 4))
+	_add_actor(new_state, SLIME_DEF, Vector2i(4, 5))
+	_add_actor(new_state, BRUTE_DEF, Vector2i(6, 6))
+	new_state.add_message("Weapon combo lab ready.")
+	return new_state
 
 func _start_map_node(node_index: int) -> void:
 	_current_map_node_index = clampi(node_index, 0, MAP_NODES.size() - 1)
@@ -294,7 +405,6 @@ func _start_room(room_index: int) -> void:
 		_battle_presentation.reset_for_state(state)
 	enemy_planner.enemies_are_static = false
 	turn_controller.start_battle(state)
-	battle_ui.set_available_actions(_player_deck)
 	battle_ui.set_key_program_editable(false)
 	_refresh_key_program_ui()
 	_refresh_inventory_ui()
@@ -311,35 +421,16 @@ func _start_rest_node(node: Dictionary) -> void:
 		_battle_presentation.reset_for_state(state)
 	enemy_planner.enemies_are_static = true
 	turn_controller.start_battle(state)
-	battle_ui.set_available_actions(_player_deck)
 	battle_ui.set_key_program_editable(true)
 	_refresh_key_program_ui()
 	_refresh_inventory_ui()
 	battle_ui.show_rest_site(String(node.get("label", "休息处")), "这里可以拖拽调整行动 token 与按键槽，也可以直接按 WASD 在安全沙盘里试招。整理好后继续前进。")
 	_refresh_views()
 
-func _on_plan_submitted(action_ids: Array) -> void:
-	if state == null or state.phase != "planning":
-		return
-
-	var plan: Array = []
-	for action_id in action_ids:
-		var action_def = _action_by_id.get(String(action_id))
-		if action_def == null:
-			continue
-
-		var action = ActionInstanceScript.new()
-		action.actor = state.player
-		action.def = action_def
-		plan.append(action)
-
-	if not plan.is_empty():
-		turn_controller.submit_player_plan(plan)
-
 func _submit_key_chain(key_id: String) -> void:
 	_clear_key_slot_preview(false)
 	var curse_service = get_node_or_null("/root/CurseService")
-	if curse_service != null and not _is_safe_training_state():
+	if curse_service != null and not _is_safe_training_state() and not _is_world_slice_state():
 		var allowed: bool = curse_service.register_key_pressed(key_id, {
 			"room_index": state.room_index,
 			"turn_count": state.turn_count,
@@ -421,6 +512,10 @@ func _is_current_boss_node() -> bool:
 func _is_safe_training_state() -> bool:
 	return state != null and state.is_safe_training
 
+
+func _is_world_slice_state() -> bool:
+	return state != null and bool(state.is_world_slice)
+
 func _advance_to_next_map_node(choice_index: int = 0) -> void:
 	var next_nodes := _current_map_next_nodes()
 	if next_nodes.is_empty():
@@ -445,10 +540,27 @@ func _refresh_views() -> void:
 		return
 
 	_update_enemy_preview()
+	board_view.render(state)
 	if _battle_presentation != null:
 		_battle_presentation.sync_views(state, not _battle_presentation.should_wait_for_presentation())
-	board_view.render(state)
 	battle_ui.update_state(state)
+
+
+func _on_actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i) -> void:
+	if state == null or _world_slice_controller == null:
+		return
+	if not bool(state.is_world_slice):
+		return
+	_world_slice_controller.on_actor_moved(state, actor, from_cell, to_cell)
+	_refresh_views()
+
+
+func _refresh_world_visibility(reason: String) -> void:
+	if state == null or _world_slice_controller == null:
+		return
+	if not bool(state.is_world_slice):
+		return
+	_world_slice_controller.recompute_visibility(state, reason)
 
 func _update_enemy_preview() -> void:
 	if state.phase != "planning" or state.battle_finished:
@@ -477,6 +589,7 @@ func _create_room_state(room_index: int):
 	new_state.map_node_kind = String(_current_map_node().get("kind", MAP_NODE_COMBAT))
 	new_state.map_node_label = String(_current_map_node().get("label", new_state.room_name))
 	new_state.exit_cell = Vector2i(-99, -99)
+	new_state.set_unlocked_weapon_technique_ids(_run_weapon_technique_ids)
 
 	_add_room_walls(new_state.grid, room)
 	_add_room_keys(new_state, room)
@@ -505,6 +618,7 @@ func _create_rest_state(node: Dictionary):
 	new_state.map_node_label = new_state.room_name
 	new_state.is_safe_training = true
 	new_state.exit_cell = Vector2i(-99, -99)
+	new_state.set_unlocked_weapon_technique_ids(_run_weapon_technique_ids)
 	_add_room_walls(new_state.grid, {"walls": []})
 
 	var player = _add_actor(new_state, PLAYER_DEF, Vector2i(3, 3))
@@ -573,28 +687,19 @@ func _enemy_def(id: String):
 func _build_rewards() -> Array:
 	if _current_room_index == 0:
 		return [
-			{"name": "获得行动：突刺", "kind": "add_action", "action": ACTION_LUNGE},
 			{"name": "获得遗物：回响刃", "kind": "add_modifier", "modifier": MOD_ECHO_STRIKE},
+			{"name": "获得遗物：回响步", "kind": "add_modifier", "modifier": MOD_ECHO_STEP},
 			{"name": "最大生命 +2", "kind": "max_hp", "value": 2},
 		]
 
 	return [
-		{"name": "获得行动：横扫", "kind": "add_action", "action": ACTION_SWEEP},
 		{"name": "获得遗物：回响步", "kind": "add_modifier", "modifier": MOD_ECHO_STEP},
 		{"name": "获得遗物：力场棱镜", "kind": "add_modifier", "modifier": MOD_FORCE_PRISM},
+		{"name": "攻击 +1", "kind": "attack", "value": 1},
 	]
 
 func _apply_reward(reward: Dictionary) -> void:
 	match String(reward["kind"]):
-		"add_action":
-			var action = reward["action"]
-			if not _player_has_action(action.id):
-				_player_deck.append(action)
-				_add_action_token_to_pool(String(action.id))
-				_record_achievement_event("action_reward_gained", {
-					"action_id": action.id,
-					"action_name": action.display_name,
-				})
 		"add_modifier":
 			var modifier = reward.get("modifier")
 			if _add_run_modifier(modifier):
@@ -610,12 +715,6 @@ func _apply_reward(reward: Dictionary) -> void:
 		"heal":
 			_run_player_hp = min(_run_player_max_hp, _run_player_hp + int(reward["value"]))
 	_refresh_inventory_ui()
-
-func _player_has_action(action_id: String) -> bool:
-	for action in _player_deck:
-		if action.id == action_id:
-			return true
-	return false
 
 func _add_run_modifier(modifier) -> bool:
 	if modifier == null:
@@ -648,6 +747,14 @@ func _apply_modifier_to_actor(actor, modifier) -> void:
 func _modifier_for_id(modifier_id: String):
 	return _modifier_by_id.get(modifier_id)
 
+func _weapon_combo_techniques_for_weapon(weapon) -> Array:
+	if weapon == null:
+		return []
+	var raw_techniques = weapon.get("combo_techniques")
+	if raw_techniques is Array:
+		return raw_techniques
+	return []
+
 func _modifier_inventory_labels() -> Array[String]:
 	var labels: Array[String] = []
 	for modifier_id in _run_modifier_ids:
@@ -658,36 +765,63 @@ func _modifier_inventory_labels() -> Array[String]:
 			labels.append(modifier_id)
 	return labels
 
+func _weapon_technique_inventory_labels() -> Array[String]:
+	var labels: Array[String] = []
+	if state == null or state.player == null or state.player.active_weapon == null:
+		return labels
+
+	var weapon = state.player.active_weapon
+	labels.append("当前武器：%s" % String(weapon.display_name))
+	labels.append("Weapon techniques:")
+	for technique in _weapon_combo_techniques_for_weapon(weapon):
+		if technique == null:
+			continue
+		labels.append("- %s：%s" % [String(technique.display_name), _technique_pattern_summary(technique)])
+	return labels
+
+func _inventory_labels() -> Array[String]:
+	var labels: Array[String] = []
+	labels.append_array(_weapon_technique_inventory_labels())
+	labels.append_array(_modifier_inventory_labels())
+	return labels
+
 func _refresh_inventory_ui() -> void:
 	if is_instance_valid(battle_ui):
-		battle_ui.set_inventory_items(_modifier_inventory_labels())
+		battle_ui.set_inventory_items(_inventory_labels())
 
 # 按键编程模型：
-# - 每个实体按键槽（U/D/L/R）保存一串行动 token。
-# - U/D/L/R token 是最基础的方向移动行动。
-# - 突刺、横扫等奖励行动也会作为 token 进入备用池。
-# - 玩家按下某个实体按键时，会依次执行该槽里的 token。
+# - 每个实体按键槽（U/D/L/R）只保存自然输入 token，也就是方向键本身。
+# - 玩家按下某个实体按键时，会先取出该槽中的方向链，再解析为实际行动。
+# - 突刺、横扫这类招式不是能直接拖进槽里的基础动作，而是武器读取
+#   ActionTrace 之后触发的 follow-up technique。
+# - 因此按键编程层只管理方向 token；战斗里真正的武器技判定以真实执行
+#   结果为准，而不是以休息房里的方向链文本为准。
 # - 只有在休息点可以调整 token 与键槽，战斗中行动编码锁定。
+# Key-program layer notes:
+# - slots store absolute move tokens plus explicit control tokens
+# - slot execution expands those tokens into base actions
+# - weapon techniques remain ActionTrace-driven follow-ups
+# - rest previews may predict those follow-ups, but battle triggering reads the
+#   real executed trace only
 func _ensure_action_helpers() -> void:
 	if _action_program == null:
 		_action_program = ActionProgramControllerScript.new()
-		_action_program.setup(_action_by_id, ACTION_MOVE_KEY)
+		_action_program.setup()
 	if _action_preview == null:
 		_action_preview = ActionPreviewServiceScript.new()
-		_action_preview.setup(_action_by_id)
-
-
-func _sync_key_program_mirror() -> void:
-	if _action_program == null:
-		return
-	_key_slots = _action_program.key_slots
-	_loose_key_tokens = _action_program.loose_key_tokens
+		_action_preview.setup()
+	if _directional_techniques == null:
+		_directional_techniques = DirectionalTechniqueResolverScript.new()
+	_directional_techniques.setup(_action_by_id, ACTION_MOVE_KEY)
 
 
 func _setup_default_key_slots() -> void:
 	_ensure_action_helpers()
-	_action_program.reset_default_slots()
-	_sync_key_program_mirror()
+	var random_service = get_node_or_null("/root/RandomService")
+	var preset_id := "absolute"
+	if random_service != null and random_service.has_method("randi_range_value"):
+		preset_id = "relative" if int(random_service.randi_range_value(0, 1)) == 1 else "absolute"
+	_action_program.reset_starter_slots(preset_id)
 	_refresh_key_program_ui()
 
 
@@ -695,14 +829,7 @@ func _build_key_slot_plan(chain_keys: Array) -> Array:
 	if state == null or state.player == null:
 		return []
 	_ensure_action_helpers()
-	return _action_program.build_plan(chain_keys, state.player)
-
-
-func _make_action_from_token(token_id: String):
-	if state == null or state.player == null:
-		return null
-	_ensure_action_helpers()
-	return _action_program.make_action_from_token(token_id, state.player)
+	return _directional_techniques.build_plan(chain_keys, state.player)
 
 
 func _on_key_slot_preview_requested(slot_id: String) -> void:
@@ -741,7 +868,8 @@ func _clear_key_slot_preview(refresh: bool = true) -> void:
 
 func _build_key_slot_preview(token_ids: Array) -> Dictionary:
 	_ensure_action_helpers()
-	return _action_preview.build_preview(token_ids, state)
+	var preview_actions: Array = _directional_techniques.build_plan(token_ids, state.player)
+	return _action_preview.build_preview_from_actions(preview_actions, state, _run_weapon_technique_ids)
 
 
 func _on_key_token_move_requested(source_slot_id: String, source_index: int, target_slot_id: String) -> void:
@@ -757,7 +885,6 @@ func _on_key_token_move_requested(source_slot_id: String, source_index: int, tar
 		return
 
 	var token_id := String(result.get("token_id", ""))
-	_sync_key_program_mirror()
 	_refresh_key_program_ui()
 
 	if state != null:
@@ -766,19 +893,9 @@ func _on_key_token_move_requested(source_slot_id: String, source_index: int, tar
 		_refresh_views()
 
 
-func _get_key_token_container(slot_id: String):
-	_ensure_action_helpers()
-	if slot_id == KEY_TOKEN_POOL_SLOT_ID:
-		return _action_program.loose_key_tokens
-	if not _action_program.key_slots.has(slot_id):
-		return null
-	return _action_program.key_slots[slot_id]
-
-
 func _on_key_picked(_actor, key_id: String, _cell: Vector2i) -> void:
 	_ensure_action_helpers()
 	_action_program.add_token_to_pool(key_id, true)
-	_sync_key_program_mirror()
 	_record_achievement_event("key_picked", {
 		"key_id": key_id,
 		"room_index": state.room_index if state != null else -1,
@@ -788,21 +905,78 @@ func _on_key_picked(_actor, key_id: String, _cell: Vector2i) -> void:
 	_refresh_key_program_ui()
 
 
-func _add_action_token_to_pool(action_id: String) -> void:
-	_ensure_action_helpers()
-	if _action_program.add_token_to_pool(action_id):
-		_sync_key_program_mirror()
-		_refresh_key_program_ui()
-
-
-func _has_token_in_program(token_id: String) -> bool:
-	_ensure_action_helpers()
-	return _action_program.has_token(token_id)
-
-
 func _token_display_name(token_id: String) -> String:
 	_ensure_action_helpers()
 	return _action_program.token_display_name(token_id, state)
+
+func get_player_action_trace_symbols(count: int = -1) -> Array[StringName]:
+	if state == null or state.player == null or state.action_trace == null:
+		return []
+	return state.action_trace.get_recent_symbols_for_actor(int(state.player.id), count)
+
+
+func get_player_action_trace_debug_string(count: int = -1) -> String:
+	if state == null or state.player == null or state.action_trace == null:
+		return ""
+	return state.action_trace.debug_string_for_actor(int(state.player.id), count)
+
+
+## Rest-room preview is allowed to predict likely combo hits from the planned
+## key chain, but battle-time triggering still uses the real ActionTrace that
+## comes out of live execution.
+func get_predicted_weapon_combo_match_ids_for_tokens(token_ids: Array) -> Array[String]:
+	if state == null or state.player == null:
+		return []
+
+	var preview := _build_key_slot_preview(token_ids)
+	var result: Array[String] = []
+	for technique_id in preview.get("predicted_combo_match_ids", []):
+		result.append(String(technique_id))
+	return result
+
+
+## Combo queries now read the cached chain-finished result from GameState.
+## That keeps debug/UI inspection aligned with the real turn-resolution timing.
+func get_player_weapon_combo_matches(trigger_timing: int = -1) -> Array:
+	if state == null or state.player == null:
+		return []
+	return state.get_weapon_combo_matches_for_actor(int(state.player.id), trigger_timing)
+
+
+func get_player_weapon_combo_match_ids(trigger_timing: int = -1) -> Array[String]:
+	var result: Array[String] = []
+	for match_data in get_player_weapon_combo_matches(trigger_timing):
+		result.append(String(match_data.get("technique_id", "")))
+	return result
+
+
+func get_player_weapon_combo_debug_string(trigger_timing: int = -1) -> String:
+	var result: Array[String] = []
+	for match_data in get_player_weapon_combo_matches(trigger_timing):
+		var technique_id := String(match_data.get("technique_id", ""))
+		if technique_id.is_empty():
+			continue
+		result.append(technique_id)
+	return " -> ".join(result)
+
+
+func get_player_action_trace_move_dirs_debug_string(count: int = -1) -> String:
+	if state == null or state.player == null or state.action_trace == null:
+		return ""
+	var parts: Array[String] = []
+	for entry in state.action_trace.get_recent_entries_for_actor(int(state.player.id), count):
+		if entry == null:
+			continue
+		parts.append(_trace_move_dir_label(Vector2i(entry.move_dir)))
+	return " -> ".join(parts)
+
+
+func get_player_combo_debug_string(count: int = -1, trigger_timing: int = -1) -> String:
+	var trace_line := get_player_action_trace_debug_string(count)
+	var move_line := get_player_action_trace_move_dirs_debug_string(count)
+	var combo_line := get_player_weapon_combo_debug_string(trigger_timing)
+	return "Trace: %s\nMoveDirs: %s\nCombo: %s" % [trace_line, move_line, combo_line]
+
 
 func _record_achievement_event(event_id: String, meta: Dictionary = {}) -> void:
 	var achievement_service = get_node_or_null("/root/AchievementService")
@@ -811,8 +985,34 @@ func _record_achievement_event(event_id: String, meta: Dictionary = {}) -> void:
 
 func _refresh_key_program_ui() -> void:
 	if is_instance_valid(battle_ui):
-		battle_ui.set_available_actions(_player_deck)
-		battle_ui.set_key_program(_key_slots, _loose_key_tokens)
+		battle_ui.set_key_program(_action_program.get_key_slots(), _action_program.get_pool_tokens())
+
+
+func get_key_program_slots() -> Dictionary:
+	_ensure_action_helpers()
+	return _action_program.get_key_slots()
+
+
+func get_key_program_pool_tokens() -> Array[String]:
+	_ensure_action_helpers()
+	return _action_program.get_pool_tokens()
+
+
+func get_token_drop_pool() -> Array[String]:
+	_ensure_action_helpers()
+	return _action_program.get_token_drop_pool()
+
+
+func _trace_move_dir_label(direction: Vector2i) -> String:
+	if direction == Vector2i.UP:
+		return "U"
+	if direction == Vector2i.DOWN:
+		return "D"
+	if direction == Vector2i.LEFT:
+		return "L"
+	if direction == Vector2i.RIGHT:
+		return "R"
+	return "·"
 
 func _register_save_provider() -> void:
 	var save_service = get_node_or_null("/root/SaveService")
@@ -831,10 +1031,10 @@ func get_save_data() -> Dictionary:
 		"run_player_san": _run_player_san,
 		"run_player_atk": _run_player_atk,
 		"run_seed": _run_seed,
-		"player_deck": _player_deck.map(func(action): return action.id),
 		"run_modifier_ids": _run_modifier_ids,
+		"run_weapon_technique_ids": _run_weapon_technique_ids,
 		"key_slots": key_program_save["key_slots"],
-		"loose_key_tokens": key_program_save["loose_key_tokens"],
+		"pool_tokens": key_program_save["pool_tokens"],
 	}
 
 func load_save_data(data: Dictionary) -> void:
@@ -849,13 +1049,9 @@ func load_save_data(data: Dictionary) -> void:
 	_run_player_san = int(data.get("run_player_san", _run_player_max_san))
 	_run_player_atk = int(data.get("run_player_atk", PLAYER_DEF.atk))
 	_run_seed = data.get("run_seed", "")
-	_player_deck.clear()
-	for action_id in data.get("player_deck", []):
-		var action = _action_by_id.get(String(action_id))
-		if action != null:
-			_player_deck.append(action)
-	if _player_deck.is_empty():
-		_player_deck = [ACTION_MOVE_FORWARD, ACTION_TURN_LEFT, ACTION_TURN_RIGHT, ACTION_ATTACK, ACTION_WAIT]
+	_run_weapon_technique_ids.clear()
+	for technique_id in data.get("run_weapon_technique_ids", []):
+		_unlock_weapon_technique(String(technique_id))
 
 	_run_modifier_ids.clear()
 	for modifier_id in data.get("run_modifier_ids", []):
@@ -870,4 +1066,40 @@ func load_save_data(data: Dictionary) -> void:
 func _load_key_program(data: Dictionary) -> void:
 	_ensure_action_helpers()
 	_action_program.load_save_data(data)
-	_sync_key_program_mirror()
+	_refresh_key_program_ui()
+
+func _unlock_weapon_technique(technique_id: String) -> bool:
+	if technique_id.is_empty() or _run_weapon_technique_ids.has(technique_id):
+		return false
+	if not _is_known_weapon_technique_id(technique_id):
+		return false
+	_run_weapon_technique_ids.append(technique_id)
+	if state != null:
+		state.set_unlocked_weapon_technique_ids(_run_weapon_technique_ids)
+	return true
+
+func _has_unlocked_weapon_technique(technique_id: String) -> bool:
+	return _run_weapon_technique_ids.has(technique_id)
+
+func _is_known_weapon_technique_id(technique_id: String) -> bool:
+	return _weapon_technique_by_id.has(technique_id)
+
+func _technique_display_name(technique_id: String) -> String:
+	var technique = _weapon_technique_by_id.get(technique_id)
+	if technique != null:
+		return String(technique.display_name)
+	var action = _action_by_id.get(technique_id)
+	if action != null:
+		return String(action.display_name)
+	return technique_id
+
+func _technique_pattern_summary(technique) -> String:
+	if technique == null:
+		return ""
+	if int(technique.pattern_type) == int(WeaponTechniqueDef.PatternType.SAME_MOVE_DIRECTION):
+		return "same move direction x%d" % max(0, int(technique.required_move_count))
+
+	var parts: Array[String] = []
+	for symbol in technique.pattern:
+		parts.append(String(symbol))
+	return " -> ".join(parts)

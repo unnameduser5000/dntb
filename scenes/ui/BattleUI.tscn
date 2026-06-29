@@ -71,62 +71,6 @@ label_text = "敌人"
 layout_mode = 2
 label_text = "回合"
 
-[node name="QueueTitle" type="Label" parent="BattlePanel/Margin/Content"]
-visible = false
-layout_mode = 2
-theme_type_variation = &"BattleSectionTitle"
-text = "队列"
-
-[node name="QueueRow" type="HBoxContainer" parent="BattlePanel/Margin/Content"]
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="QueueSlot1" type="Label" parent="BattlePanel/Margin/Content/QueueRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(96, 34)
-layout_mode = 2
-theme_type_variation = &"QueueSlot"
-text = "-"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="QueueSlot2" type="Label" parent="BattlePanel/Margin/Content/QueueRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(96, 34)
-layout_mode = 2
-theme_type_variation = &"QueueSlot"
-text = "-"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="QueueSlot3" type="Label" parent="BattlePanel/Margin/Content/QueueRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(96, 34)
-layout_mode = 2
-theme_type_variation = &"QueueSlot"
-text = "-"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="CommandRow" type="HBoxContainer" parent="BattlePanel/Margin/Content"]
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="ExecuteButton" parent="BattlePanel/Margin/Content/CommandRow" instance=ExtResource("4_button")]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_type_variation = &"PrimaryButton"
-text = "执行"
-
-[node name="ClearButton" parent="BattlePanel/Margin/Content/CommandRow" instance=ExtResource("4_button")]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "清空"
-
 [node name="ActionTitle" type="Label" parent="BattlePanel/Margin/Content"]
 layout_mode = 2
 theme_type_variation = &"BattleSectionTitle"
@@ -137,7 +81,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
-columns = 1
+columns = 2
 
 [node name="KeyPoolTitle" type="Label" parent="BattlePanel/Margin/Content"]
 layout_mode = 2

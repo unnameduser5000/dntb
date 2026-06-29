@@ -1,69 +1,180 @@
 class_name ActionPreviewService
 extends RefCounted
 
-const KEY_DIRECTIONS := {
-	"U": Vector2i.UP,
-	"D": Vector2i.DOWN,
-	"L": Vector2i.LEFT,
-	"R": Vector2i.RIGHT,
-}
+const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
+const ActionTraceRecorderScript := preload("res://scripts/core/ActionTraceRecorder.gd")
+const WeaponComboResolverScript := preload("res://scripts/core/WeaponComboResolver.gd")
 
-var action_by_id: Dictionary = {}
+var _trace_recorder = ActionTraceRecorderScript.new()
+var _weapon_combo_resolver = WeaponComboResolverScript.new()
 
-
-func setup(actions: Dictionary) -> void:
-	action_by_id = actions
+func setup() -> void:
+	pass
 
 
-# 只做“预测显示”，不改变真实 GameState。
-# 注意：这里应尽量与 ActionResolver 的移动/攻击规则保持一致；
-# 后续如果行动规则复杂化，可以进一步抽成共享的 ActionQuery/Rules。
-func build_preview(token_ids: Array, state) -> Dictionary:
+# Preview builder for the already-resolved action queue.
+# It reads the current GameState as reference and projects move / attack cells
+# without feeding results back into live combat state.
+func build_preview_from_actions(actions: Array, state, unlocked_weapon_technique_ids: Array[String] = []) -> Dictionary:
 	var move_cells: Array[Vector2i] = []
 	var attack_cells: Array[Vector2i] = []
+	var trace_symbols: Array[StringName] = []
+	var trace_entries: Array = []
 	if state == null or state.player == null:
 		return {
 			"move_cells": move_cells,
 			"attack_cells": attack_cells,
+			"trace_symbols": trace_symbols,
+			"predicted_combo_matches": [],
+			"predicted_combo_match_ids": [],
 		}
 
 	var preview_pos: Vector2i = state.player.grid_pos
 	var preview_facing: Vector2i = state.player.facing
-	for raw_token_id in token_ids:
-		var token_id := String(raw_token_id)
-		if KEY_DIRECTIONS.has(token_id):
-			var move_dir: Vector2i = KEY_DIRECTIONS.get(token_id, Vector2i.ZERO)
-			preview_facing = move_dir
-			preview_pos = _preview_move(state, preview_pos, move_dir, move_cells, attack_cells)
+	# Preview replays the resolved action queue using a local facing snapshot.
+	# This mirrors runtime direction resolution closely enough to preview
+	# movement/attack cells while keeping the real GameState unchanged.
+	for action in actions:
+		if action == null or action.def == null:
 			continue
 
-		var action_def = action_by_id.get(token_id)
-		if action_def == null:
-			continue
+		var actor_before_cell: Vector2i = preview_pos
+		var actor_before_facing: Vector2i = preview_facing
+		var action_def = action.def
+		var action_id := String(action_def.id)
+		var action_dir: Vector2i = _resolve_action_direction(action, preview_facing)
+		var after_pos := preview_pos
 
 		match int(action_def.kind):
 			ActionDef.ActionKind.MOVE:
-				var move_dir: Vector2i = preview_facing
-				if token_id == "move_back":
-					move_dir = -preview_facing
-				preview_pos = _preview_move(state, preview_pos, move_dir, move_cells, attack_cells, max(1, int(action_def.range)))
+				if action_id == "move_key" and action_dir != Vector2i.ZERO:
+					preview_facing = action_dir
+				if action_id == "jump":
+					after_pos = _preview_jump(state, preview_pos, action_dir, move_cells, max(1, int(action_def.range)))
+				else:
+					after_pos = _preview_move(state, preview_pos, action_dir, move_cells, attack_cells, max(1, int(action_def.range)))
 			ActionDef.ActionKind.ATTACK:
-				if token_id == "lunge":
-					var lunge_cells := _preview_attack_cells(state, preview_pos, preview_facing, action_def)
+				if action_id == "lunge":
+					var lunge_cells := _preview_attack_cells(state, preview_pos, action_dir, action_def)
 					_add_unique_cells(attack_cells, lunge_cells)
 					if not _preview_hits_enemy(state, lunge_cells):
-						preview_pos = _preview_move(state, preview_pos, preview_facing, move_cells, attack_cells, max(1, int(action_def.range)))
+						after_pos = _preview_move(state, preview_pos, action_dir, move_cells, attack_cells, max(1, int(action_def.range)))
 				else:
-					_add_unique_cells(attack_cells, _preview_attack_cells(state, preview_pos, preview_facing, action_def))
+					_add_unique_cells(attack_cells, _preview_attack_cells(state, preview_pos, action_dir, action_def))
 			ActionDef.ActionKind.TURN:
-				preview_facing = _preview_turn(preview_facing, token_id)
+				preview_facing = _preview_turn(preview_facing, action_id)
 			_:
 				pass
+
+		var symbol := _trace_recorder.resolve_symbol_from_execution(
+			action,
+			actor_before_cell,
+			after_pos,
+			actor_before_facing,
+			preview_facing
+		)
+		if symbol != &"":
+			var move_delta := after_pos - actor_before_cell
+			trace_symbols.append(symbol)
+			trace_entries.append({
+				"action_id": action_id,
+				"symbol": symbol,
+				"moved": move_delta != Vector2i.ZERO,
+				"from_cell": actor_before_cell,
+				"to_cell": after_pos,
+				"move_delta": move_delta,
+				"move_dir": _trace_recorder.normalize_move_direction(move_delta),
+			})
+		preview_pos = after_pos
+
+	var predicted_combo_matches: Array = _weapon_combo_resolver.find_matches_for_entries(
+		state.player,
+		trace_entries,
+		unlocked_weapon_technique_ids,
+		WeaponTechniqueDef.TriggerTiming.AFTER_CHAIN
+	)
+	var predicted_combo_match_ids: Array[String] = []
+	for match_data in predicted_combo_matches:
+		predicted_combo_match_ids.append(String(match_data.get("technique_id", "")))
+
+	_append_predicted_combo_preview(
+		state,
+		predicted_combo_matches,
+		preview_pos,
+		preview_facing,
+		move_cells,
+		attack_cells
+	)
 
 	return {
 		"move_cells": move_cells,
 		"attack_cells": attack_cells,
+		"trace_symbols": trace_symbols,
+		"predicted_combo_matches": predicted_combo_matches,
+		"predicted_combo_match_ids": predicted_combo_match_ids,
 	}
+
+
+func _append_predicted_combo_preview(
+	state,
+	predicted_combo_matches: Array,
+	preview_pos: Vector2i,
+	preview_facing: Vector2i,
+	move_cells: Array[Vector2i],
+	attack_cells: Array[Vector2i]
+) -> void:
+	if predicted_combo_matches.is_empty():
+		return
+
+	var best_match: Dictionary = predicted_combo_matches[0]
+	var technique = best_match.get("technique")
+	if technique == null or not technique.has_method("resolved_action"):
+		return
+
+	var action_def = technique.resolved_action()
+	if action_def == null:
+		return
+
+	var action = ActionInstanceScript.new()
+	action.actor = state.player
+	action.def = action_def
+	action.key_id = "technique:%s" % String(best_match.get("technique_id", ""))
+	var matched_move_dir := Vector2i(best_match.get("matched_move_dir", Vector2i.ZERO))
+	if matched_move_dir != Vector2i.ZERO:
+		action.chosen_dir = matched_move_dir
+		action.previous_dir = matched_move_dir
+		action.momentum_dir = matched_move_dir
+	var action_id := String(action_def.id)
+	var action_dir: Vector2i = _resolve_action_direction(action, preview_facing)
+
+	match int(action_def.kind):
+		ActionDef.ActionKind.MOVE:
+			if action_id == "jump":
+				_preview_jump(state, preview_pos, action_dir, move_cells, max(1, int(action_def.range)))
+			else:
+				_preview_move(state, preview_pos, action_dir, move_cells, attack_cells, max(1, int(action_def.range)))
+		ActionDef.ActionKind.ATTACK:
+			if action_id == "lunge":
+				var lunge_cells := _preview_attack_cells(state, preview_pos, action_dir, action_def)
+				_add_unique_cells(attack_cells, lunge_cells)
+				if not _preview_hits_enemy(state, lunge_cells):
+					_preview_move(state, preview_pos, action_dir, move_cells, attack_cells, max(1, int(action_def.range)))
+			else:
+				_add_unique_cells(attack_cells, _preview_attack_cells(state, preview_pos, action_dir, action_def))
+		_:
+			pass
+
+
+func _resolve_action_direction(action, preview_facing: Vector2i) -> Vector2i:
+	# Preview follows the same direction priority as runtime ActionResolver:
+	# chosen_dir first, then backward-from-facing for move_back, then facing.
+	if action == null or action.def == null:
+		return preview_facing
+	if action.chosen_dir != Vector2i.ZERO:
+		return action.chosen_dir
+	if String(action.def.id) == "move_back":
+		return -preview_facing
+	return preview_facing
 
 
 func _preview_move(state, start_pos: Vector2i, direction: Vector2i, move_cells: Array[Vector2i], attack_cells: Array[Vector2i], distance: int = 1) -> Vector2i:
@@ -90,8 +201,20 @@ func _preview_move(state, start_pos: Vector2i, direction: Vector2i, move_cells: 
 	return current_pos
 
 
-func _preview_turn(facing: Vector2i, token_id: String) -> Vector2i:
-	match token_id:
+func _preview_jump(state, start_pos: Vector2i, direction: Vector2i, move_cells: Array[Vector2i], distance: int = 1) -> Vector2i:
+	if direction == Vector2i.ZERO:
+		return start_pos
+
+	var landing_cell: Vector2i = start_pos + direction * max(1, distance)
+	if not state.grid.can_enter(landing_cell):
+		return start_pos
+
+	_add_unique_cell(move_cells, landing_cell)
+	return landing_cell
+
+
+func _preview_turn(facing: Vector2i, action_id: String) -> Vector2i:
+	match action_id:
 		"turn_left":
 			return Vector2i(facing.y, -facing.x)
 		"turn_right":

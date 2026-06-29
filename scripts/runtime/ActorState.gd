@@ -11,6 +11,7 @@ var atk: int = 1
 var team: String = "enemy"
 var drop_key: String = ""
 var guarded: bool = false
+var revealed: bool = true
 var active_weapon: Resource
 var effect_modifiers: Array = []
 

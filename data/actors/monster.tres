@@ -15,4 +15,5 @@ team = "enemy"
 ai_type = "melee_chaser"
 default_drop_key = ""
 view_scene = ExtResource("2_view")
+view_offset = Vector2(0, -2)
 color = Color(1, 0.35, 0.3, 1)

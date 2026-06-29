@@ -1,6 +1,15 @@
 class_name EffectPacket
 extends RefCounted
 
+## EffectPacket is the executable unit that flows through EffectPipeline.
+##
+## Two fields are especially important for later modifier work:
+## - generation_depth:
+##   counts packet-copy generations produced through modify_packets()
+## - metadata["relative_step"]:
+##   for move packets, means target_cell should be interpreted as one step in
+##   packet.direction from the source's current position at execution time
+
 const SELF_PATH := "res://scripts/runtime/EffectPacket.gd"
 const KIND_DAMAGE := &"damage"
 const KIND_MOVE := &"move"
@@ -84,6 +93,8 @@ static func make_message(message: String, new_source = null, new_action = null):
 
 
 func copy(increment_depth: bool = false):
+	# increment_depth is used when a modifier creates a derived packet from an
+	# existing packet. This feeds max_generation_depth checks later.
 	var packet = get_script().new()
 	packet.kind = kind
 	packet.source = source
