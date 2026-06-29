@@ -15,6 +15,10 @@ signal rule_message(message: String)
 var effect_pipeline = EffectPipelineScript.new()
 var _presentation_frames: Array = []
 
+## ActionResolver remains the execution/rules layer.
+## It is the place where concrete actions become movement, damage, turn, and
+## guard results. Higher-level key-program editing and pattern recognition feed
+## into this layer and then let it stay focused on battle resolution.
 func resolve(action, state) -> void:
 	if action == null or action.actor == null or action.def == null:
 		return
@@ -45,6 +49,19 @@ func _resolve_move(action, state) -> void:
 	var actor = action.actor
 	var dir = _get_action_dir(action)
 	var distance = max(1, int(action.def.range))
+	if action.def.id == "jump":
+		_resolve_jump(action, state, actor, dir, distance)
+		return
+
+	# move_key currently uses chosen_dir and also snaps facing to that direction.
+	# This is the bridge between absolute input tokens and the current combat
+	# action model.
+	#
+	# In practice:
+	# - chosen_dir is interpreted as an absolute/world-space movement direction
+	# - move_key updates actor.facing to that same direction before stepping
+	# - later trace code can then compare chosen_dir against the pre-action
+	#   facing snapshot and derive F / B / SL / SR semantics
 	if action.chosen_dir != Vector2i.ZERO:
 		actor.facing = dir
 
@@ -63,6 +80,19 @@ func _resolve_move(action, state) -> void:
 		var move_packets: Array = apply_effect_move(actor, dir, state, action, [&"action_move"])
 		if not did_any_packet_move(move_packets):
 			return
+
+func _resolve_jump(action, state, actor, dir: Vector2i, distance: int) -> void:
+	if dir == Vector2i.ZERO:
+		return
+
+	var landing_cell: Vector2i = actor.grid_pos + dir * distance
+	if not state.grid.can_enter(landing_cell):
+		_add_message(state, "%s 的跳跃落点被挡住了。" % actor.def.display_name)
+		return
+
+	var move_packets: Array = apply_effect_move_to_cell(actor, landing_cell, state, action, [&"action_move", &"jump"])
+	if not did_any_packet_move(move_packets):
+		_add_message(state, "%s 的跳跃失败了。" % actor.def.display_name)
 
 func _resolve_attack(action, state) -> void:
 	var actor = action.actor
@@ -84,17 +114,38 @@ func _resolve_attack(action, state) -> void:
 		var miss_cell: Vector2i = actor.grid_pos + dir
 		if not _resolve_weapon_attack_miss(action, miss_cell, dir, state):
 			attack_missed.emit(actor, miss_cell)
+			_append_presentation_frame("attack_missed", {
+				"actor": actor,
+				"target_cell": miss_cell,
+				"direction": dir,
+				"speed": _get_action_momentum_speed(action),
+			})
 			_add_message(state, "%s 攻击落空。" % actor.def.display_name)
 
 func _resolve_lunge(action, state) -> void:
 	var actor = action.actor
-	var target_cell = actor.grid_pos + actor.facing
+	# Transitional note:
+	# lunge is still implemented as a concrete action resource and currently
+	# resolves from actor.facing at runtime. If future combo/technique work
+	# wants "chosen technique direction" to be authoritative, this is one of
+	# the places that will need to be revisited.
+	#
+	# Current consequence:
+	# - preview / derived-technique build may decide lunge from token pattern
+	# - runtime strike direction still comes from actor.facing at resolve time
+	var dir := _get_action_dir(action)
+	if dir == Vector2i.ZERO:
+		dir = actor.facing
+	else:
+		actor.facing = dir
+
+	var target_cell = actor.grid_pos + dir
 	var target = state.grid.get_actor(target_cell)
 
 	if target != null and target.team != actor.team:
 		_add_message(state, "%s 突刺命中。" % actor.def.display_name)
 		var damage: int = int(actor.atk) * int(action.def.power)
-		if not _resolve_weapon_attack_hit(action, target, target_cell, actor.facing, damage, state):
+		if not _resolve_weapon_attack_hit(action, target, target_cell, dir, damage, state):
 			apply_effect_damage(actor, target, damage, state, action, [&"attack", &"lunge"])
 		return
 
@@ -119,6 +170,10 @@ func _resolve_guard(action, state) -> void:
 	_add_message(state, "%s 防御，下一次受伤 -1。" % action.actor.def.display_name)
 
 func _get_action_dir(action) -> Vector2i:
+	# Direction priority:
+	# 1. chosen_dir when the action explicitly carries an absolute direction
+	# 2. backward relative to current facing for move_back
+	# 3. current facing for facing-based move / attack actions
 	if action.chosen_dir != Vector2i.ZERO:
 		return action.chosen_dir
 
@@ -166,8 +221,7 @@ func apply_damage(source, target, amount: int, state) -> Dictionary:
 	result["applied"] = true
 	result["amount"] = damage
 	actor_damaged.emit(target, damage)
-	_presentation_frames.append({
-		"kind": "actor_damaged",
+	_append_presentation_frame("actor_damaged", {
 		"actor": target,
 		"amount": damage,
 	})
@@ -251,6 +305,14 @@ func consume_presentation_frames() -> Array:
 func clear_presentation_frames() -> void:
 	_presentation_frames.clear()
 
+func _append_presentation_frame(kind: String, payload: Dictionary = {}) -> void:
+	if kind.is_empty():
+		return
+
+	var frame: Dictionary = payload.duplicate(true)
+	frame["kind"] = kind
+	_presentation_frames.append(frame)
+
 func get_total_knockback_moved(packets: Array) -> int:
 	var moved := 0
 	for packet in packets:
@@ -265,8 +327,7 @@ func try_move_actor(actor, target_cell: Vector2i, state) -> bool:
 	var from_cell = actor.grid_pos
 	if state.grid.move_actor(actor, target_cell):
 		actor_moved.emit(actor, from_cell, target_cell)
-		_presentation_frames.append({
-			"kind": "actor_moved",
+		_append_presentation_frame("actor_moved", {
 			"actor": actor,
 			"from_cell": from_cell,
 			"to_cell": target_cell,
@@ -299,8 +360,7 @@ func add_state_message(state, message: String) -> void:
 func _kill_actor(actor, state) -> void:
 	state.grid.remove_actor(actor)
 	actor_died.emit(actor)
-	_presentation_frames.append({
-		"kind": "actor_died",
+	_append_presentation_frame("actor_died", {
 		"actor": actor,
 	})
 	_add_message(state, "%s 倒下。" % actor.def.display_name)
@@ -308,6 +368,12 @@ func _kill_actor(actor, state) -> void:
 
 func _check_battle_end(state) -> void:
 	if state.is_safe_training:
+		return
+	if bool(state.is_world_slice):
+		if state.player == null or state.player.is_dead():
+			state.battle_finished = true
+			state.victory = false
+			_add_message(state, "鐜╁鍊掍笅浜嗐€?")
 		return
 
 	if state.player == null or state.player.is_dead():
@@ -329,6 +395,14 @@ func _resolve_move_collision(action, target, direction: Vector2i, state) -> bool
 	var actor = action.actor
 	if target == null or target.team == actor.team:
 		return false
+
+	_append_presentation_frame("move_collision", {
+		"source": actor,
+		"target": target,
+		"target_cell": target.grid_pos,
+		"direction": direction,
+		"speed": maxi(_get_action_momentum_speed(action), maxi(1, int(action.chain_speed))),
+	})
 
 	var weapon = actor.active_weapon
 	if weapon == null or not weapon.has_method("resolve_move_collision"):

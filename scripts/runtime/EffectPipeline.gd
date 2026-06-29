@@ -5,6 +5,23 @@ const EffectPacketScript := preload("res://scripts/runtime/EffectPacket.gd")
 const EffectEventScript := preload("res://scripts/runtime/EffectEvent.gd")
 const DEFAULT_MAX_EVENT_DEPTH := 3
 
+## EffectPipeline runs in two broad stages:
+##
+## 1. packet processing
+##    initial packets -> modifier.modify_packets() -> executable packets
+##
+## 2. packet execution + event reactions
+##    execute packets -> collect events -> modifier.react_to_event()
+##    -> process generated packets -> execute them -> repeat until depth limit
+##
+## Two recursion concepts live here:
+## - packet.generation_depth:
+##   follows packet copies produced through modify_packets()
+## - event.depth:
+##   follows reaction waves produced through react_to_event()
+##
+## They are related but separate and should not be merged mentally.
+
 
 func process_packets(initial_packets: Array, modifiers: Array, context: Dictionary = {}) -> Array:
 	var packets := _clean_packets(initial_packets)
@@ -17,6 +34,9 @@ func process_and_execute(initial_packets: Array, modifiers: Array, context: Dict
 	var sorted_modifiers := _sorted_modifiers(modifiers)
 	var executed_packets: Array = []
 	var event_queue: Array = []
+	# context max_event_depth is the global ceiling for reaction waves in this
+	# processing pass. Individual modifiers may impose a smaller local ceiling
+	# through modifier.max_event_depth.
 	var max_event_depth := int(context.get("max_event_depth", DEFAULT_MAX_EVENT_DEPTH))
 	var packets := _process_packets_with_modifiers(_clean_packets(initial_packets), sorted_modifiers, context)
 	_execute_packets_collect_events(packets, state, resolver, event_queue, executed_packets, 0)
@@ -137,6 +157,8 @@ func _process_packets_with_modifiers(packets: Array, sorted_modifiers: Array, co
 	for modifier in sorted_modifiers:
 		if modifier == null or not modifier.has_method("modify_packets"):
 			continue
+		# Each modifier sees the packet list produced by earlier modifiers in
+		# ascending priority order.
 		result = _clean_packets(modifier.modify_packets(result, context))
 		if result.is_empty():
 			break
@@ -148,6 +170,9 @@ func _collect_reaction_packets(event, sorted_modifiers: Array, context: Dictiona
 	for modifier in sorted_modifiers:
 		if modifier == null or not modifier.has_method("react_to_event"):
 			continue
+		# event.depth counts how many reaction waves deep this event already is.
+		# max_event_depth therefore limits follow-up chains from event listeners,
+		# not packet duplication done in modify_packets().
 		if int(event.depth) >= int(modifier.max_event_depth):
 			continue
 		var generated = modifier.react_to_event(event, context)

@@ -77,6 +77,20 @@ corner_radius_top_right = 2
 corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
 
+[sub_resource type="StyleBoxFlat" id="StyleBoardExplored"]
+bg_color = Color(0.09, 0.09, 0.1, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardUnseen"]
+bg_color = Color(0.02, 0.02, 0.03, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
 [sub_resource type="StyleBoxFlat" id="StyleBoardItem"]
 bg_color = Color(0.95, 0.75, 0.25, 1)
 corner_radius_top_left = 2
@@ -91,15 +105,15 @@ corner_radius_top_right = 2
 corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
 
-[sub_resource type="StyleBoxFlat" id="StyleBoardPreviewMove"]
-bg_color = Color(0.22, 0.43, 0.9, 1)
+[sub_resource type="StyleBoxFlat" id="StyleBoardPreviewAttack"]
+bg_color = Color(0.96, 0.58, 0.12, 1)
 corner_radius_top_left = 2
 corner_radius_top_right = 2
 corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
 
-[sub_resource type="StyleBoxFlat" id="StyleBoardPreviewAttack"]
-bg_color = Color(0.96, 0.58, 0.12, 1)
+[sub_resource type="StyleBoxFlat" id="StyleBoardPreviewMove"]
+bg_color = Color(0.22, 0.43, 0.9, 1)
 corner_radius_top_left = 2
 corner_radius_top_right = 2
 corner_radius_bottom_right = 2
@@ -276,10 +290,18 @@ BoardFloorCell/base_type = &"Label"
 BoardFloorCell/colors/font_color = Color(0.43, 0.39, 0.32, 0.38)
 BoardFloorCell/font_sizes/font_size = 14
 BoardFloorCell/styles/normal = SubResource("StyleBoardFloor")
+BoardExploredCell/base_type = &"Label"
+BoardExploredCell/colors/font_color = Color(0.33, 0.31, 0.28, 0.32)
+BoardExploredCell/font_sizes/font_size = 14
+BoardExploredCell/styles/normal = SubResource("StyleBoardExplored")
 BoardItemCell/base_type = &"Label"
 BoardItemCell/colors/font_color = Color(0.12, 0.08, 0, 1)
 BoardItemCell/font_sizes/font_size = 14
 BoardItemCell/styles/normal = SubResource("StyleBoardItem")
+BoardUnseenCell/base_type = &"Label"
+BoardUnseenCell/colors/font_color = Color(0, 0, 0, 0)
+BoardUnseenCell/font_sizes/font_size = 14
+BoardUnseenCell/styles/normal = SubResource("StyleBoardUnseen")
 BoardPlayerCell/base_type = &"Label"
 BoardPlayerCell/colors/font_color = Color(0.05, 0.08, 0.07, 1)
 BoardPlayerCell/font_sizes/font_size = 14

@@ -31,11 +31,20 @@ func update_visual() -> void:
 	_ensure_visual_nodes()
 	_apply_visual_layout()
 	if actor_state == null:
+		visible = false
 		if sprite != null:
 			sprite.visible = false
 		if glyph != null:
 			glyph.visible = true
 			glyph.text = "?"
+		return
+
+	visible = bool(actor_state.revealed)
+	if not visible:
+		if sprite != null:
+			sprite.visible = false
+		if glyph != null:
+			glyph.visible = false
 		return
 
 	var actor_color := _actor_color()

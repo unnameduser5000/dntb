@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/BattleEffect.gd" id="1_effect"]
+
+[node name="BattleDeathEffect" type="Node2D"]
+script = ExtResource("1_effect")
+effect_kind = "actor_died"
+duration = 0.28
+radius = 20.0
+line_width = 2.0
+primary_color = Color(1, 0.94, 0.84, 1)
+secondary_color = Color(0.64, 0.74, 0.88, 1)

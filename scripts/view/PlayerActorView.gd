@@ -3,6 +3,7 @@ extends ActorView
 
 @export var install_debug_frames_on_ready := true
 static var _debug_player_frames_cache: SpriteFrames
+@onready var facing_label: Label = $FacingLabel
 
 
 func _ready() -> void:
@@ -15,8 +16,35 @@ func _ready() -> void:
 		update_visual()
 
 
+func update_visual() -> void:
+	super()
+	_update_facing_label()
+
+
 func _sprite_tint(_actor_color: Color) -> Color:
 	return Color.WHITE
+
+
+func _update_facing_label() -> void:
+	if facing_label == null:
+		return
+	facing_label.visible = actor_state != null
+	if actor_state == null:
+		facing_label.text = ""
+		return
+	facing_label.text = _facing_arrow_text()
+
+
+func _facing_arrow_text() -> String:
+	if actor_state == null:
+		return ""
+	if actor_state.facing == Vector2i.UP:
+		return "^"
+	if actor_state.facing == Vector2i.DOWN:
+		return "v"
+	if actor_state.facing == Vector2i.LEFT:
+		return "<"
+	return ">"
 
 
 func _build_debug_player_frames() -> SpriteFrames:

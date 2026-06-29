@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="WeaponTechniqueDef" format=3 uid="uid://b6nq5qnkghusd"]
+
+[ext_resource type="Script" uid="uid://cc6dx40l5srqs" path="res://scripts/data/WeaponTechniqueDef.gd" id="1_technique"]
+[ext_resource type="Resource" path="res://data/actions/sweep.tres" id="2_action"]
+
+[resource]
+script = ExtResource("1_technique")
+id = "sweep"
+display_name = "横扫"
+pattern = Array[StringName]([&"TL", &"TR"])
+priority = 10
+action = ExtResource("2_action")

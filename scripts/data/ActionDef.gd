@@ -17,3 +17,4 @@ enum ActionKind {
 @export var range: int = 1
 @export var power: int = 1
 @export var direction_mode: String = "chosen"
+@export var combo_symbol: StringName = &""

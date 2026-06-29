@@ -71,19 +71,19 @@ func _build_key_binding_rows() -> void:
 	_binding_buttons.clear()
 
 	var labels := {
-		PlayerInputService.ACTION_UP: "上 / Up",
-		PlayerInputService.ACTION_DOWN: "下 / Down",
-		PlayerInputService.ACTION_LEFT: "左 / Left",
-		PlayerInputService.ACTION_RIGHT: "右 / Right",
+		PlayerInputService.ACTION_UP: "上 / Move Up",
+		PlayerInputService.ACTION_DOWN: "下 / Move Down",
+		PlayerInputService.ACTION_LEFT: "左 / Move Left",
+		PlayerInputService.ACTION_RIGHT: "右 / Move Right",
 	}
 
-	for action_name in PlayerInputService.MOVE_ACTIONS:
+	for action_name in PlayerInputService.get_program_actions():
 		var row := HBoxContainer.new()
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_theme_constant_override("separation", 12)
 
 		var label := Label.new()
-		label.text = labels[action_name]
+		label.text = labels.get(action_name, action_name)
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		label.theme_type_variation = &"FieldLabel"
 		row.add_child(label)
@@ -102,7 +102,7 @@ func _refresh_key_binding_rows() -> void:
 		return
 
 	if _pending_rebind_action.is_empty():
-		controls_hint.text = "WASD 默认控制上下左右。点击方向按钮后按下新按键即可改键。"
+		controls_hint.text = "WASD 默认控制上下左右，点击任意按键后再按新键即可改键。"
 	else:
 		controls_hint.text = "请按下新的按键；按 Esc 取消。"
 

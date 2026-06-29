@@ -1,6 +1,6 @@
 extends Node
 
-## Player movement input and rebinding.
+## Player programmable-key input and rebinding.
 ## Uses Godot InputMap instead of hard-coded key checks.
 
 signal binding_changed(action_name: String, keycode: int)
@@ -11,7 +11,7 @@ const ACTION_LEFT := "player_move_left"
 const ACTION_RIGHT := "player_move_right"
 const CONFIG_PATH := "user://input_bindings.cfg"
 
-const MOVE_ACTIONS := [
+const PROGRAM_ACTIONS := [
 	ACTION_UP,
 	ACTION_DOWN,
 	ACTION_LEFT,
@@ -19,24 +19,24 @@ const MOVE_ACTIONS := [
 ]
 
 const DEFAULT_KEYCODES := {
-	"player_move_up": KEY_W,
-	"player_move_down": KEY_S,
-	"player_move_left": KEY_A,
-	"player_move_right": KEY_D,
+	ACTION_UP: KEY_W,
+	ACTION_DOWN: KEY_S,
+	ACTION_LEFT: KEY_A,
+	ACTION_RIGHT: KEY_D,
 }
 
 const KEY_IDS := {
-	"player_move_up": "U",
-	"player_move_down": "D",
-	"player_move_left": "L",
-	"player_move_right": "R",
+	ACTION_UP: "U",
+	ACTION_DOWN: "D",
+	ACTION_LEFT: "L",
+	ACTION_RIGHT: "R",
 }
 
 const DIRECTIONS := {
-	"player_move_up": Vector2i.UP,
-	"player_move_down": Vector2i.DOWN,
-	"player_move_left": Vector2i.LEFT,
-	"player_move_right": Vector2i.RIGHT,
+	ACTION_UP: Vector2i.UP,
+	ACTION_DOWN: Vector2i.DOWN,
+	ACTION_LEFT: Vector2i.LEFT,
+	ACTION_RIGHT: Vector2i.RIGHT,
 }
 
 var _keycodes: Dictionary = {}
@@ -51,19 +51,19 @@ func load_bindings() -> void:
 	_keycodes.clear()
 	var config := ConfigFile.new()
 	var error := config.load(CONFIG_PATH)
-	for action_name in MOVE_ACTIONS:
+	for action_name in PROGRAM_ACTIONS:
 		_keycodes[action_name] = int(DEFAULT_KEYCODES[action_name])
 
 	if error != OK:
 		return
 
-	for action_name in MOVE_ACTIONS:
+	for action_name in PROGRAM_ACTIONS:
 		_keycodes[action_name] = int(config.get_value("bindings", action_name, _keycodes[action_name]))
 
 
 func save_bindings() -> void:
 	var config := ConfigFile.new()
-	for action_name in MOVE_ACTIONS:
+	for action_name in PROGRAM_ACTIONS:
 		config.set_value("bindings", action_name, int(_keycodes[action_name]))
 	var error := config.save(CONFIG_PATH)
 	if error != OK:
@@ -71,7 +71,7 @@ func save_bindings() -> void:
 
 
 func rebind_key(action_name: String, keycode: int) -> void:
-	if not MOVE_ACTIONS.has(action_name):
+	if not PROGRAM_ACTIONS.has(action_name):
 		return
 
 	_keycodes[action_name] = int(keycode)
@@ -81,7 +81,7 @@ func rebind_key(action_name: String, keycode: int) -> void:
 
 
 func reset_bindings() -> void:
-	for action_name in MOVE_ACTIONS:
+	for action_name in PROGRAM_ACTIONS:
 		_keycodes[action_name] = int(DEFAULT_KEYCODES[action_name])
 	_apply_bindings()
 	save_bindings()
@@ -91,15 +91,23 @@ func get_binding_label(action_name: String) -> String:
 	return OS.get_keycode_string(int(_keycodes.get(action_name, 0)))
 
 
-func get_pressed_move_action(event: InputEvent) -> String:
-	for action_name in MOVE_ACTIONS:
+func get_pressed_program_action(event: InputEvent) -> String:
+	for action_name in PROGRAM_ACTIONS:
 		if event.is_action_pressed(action_name):
 			return action_name
 	return ""
 
 
+func is_program_action(action_name: String) -> bool:
+	return PROGRAM_ACTIONS.has(action_name)
+
+
+func get_program_actions() -> Array[String]:
+	return PROGRAM_ACTIONS.duplicate()
+
+
 func is_move_action(action_name: String) -> bool:
-	return MOVE_ACTIONS.has(action_name)
+	return DIRECTIONS.has(action_name)
 
 
 func get_key_id_for_action(action_name: String) -> String:
@@ -119,7 +127,7 @@ func get_action_for_key_id(key_id: String) -> String:
 
 
 func _apply_bindings() -> void:
-	for action_name in MOVE_ACTIONS:
+	for action_name in PROGRAM_ACTIONS:
 		_apply_action_binding(action_name, int(_keycodes[action_name]))
 
 

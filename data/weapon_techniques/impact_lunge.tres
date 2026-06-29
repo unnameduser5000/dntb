@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="WeaponTechniqueDef" format=3 uid="uid://brdv1v0haax80"]
+
+[ext_resource type="Script" uid="uid://cc6dx40l5srqs" path="res://scripts/data/WeaponTechniqueDef.gd" id="1_technique"]
+[ext_resource type="Resource" path="res://data/actions/lunge.tres" id="2_action"]
+
+[resource]
+script = ExtResource("1_technique")
+id = "lunge"
+display_name = "突刺"
+pattern_type = 1
+required_move_count = 2
+priority = 20
+action = ExtResource("2_action")

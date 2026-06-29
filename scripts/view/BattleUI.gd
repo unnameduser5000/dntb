@@ -2,7 +2,6 @@ class_name BattleUI
 extends Control
 
 signal start_requested
-signal plan_submitted(action_ids: Array)
 signal reward_chosen(index: int)
 signal restart_requested
 signal key_token_move_requested(source_slot_id: String, source_index: int, target_slot_id: String)
@@ -10,7 +9,6 @@ signal key_slot_preview_requested(slot_id: String)
 signal key_slot_preview_cleared(slot_id: String)
 signal rest_continue_requested
 
-const QUEUE_SIZE := 3
 const KEY_POOL_ID := "POOL"
 const KEY_ORDER := ["U", "D", "L", "R"]
 const KEY_NAMES := {
@@ -19,7 +17,6 @@ const KEY_NAMES := {
 	"L": "左",
 	"R": "右",
 }
-const UiButtonScene := preload("res://scenes/ui/components/UiButton.tscn")
 const UiActionCardScene := preload("res://scenes/ui/components/UiActionCard.tscn")
 const UiKeySlotScript := preload("res://scripts/view/UiKeySlot.gd")
 const UiKeyTokenScript := preload("res://scripts/view/UiKeyToken.gd")
@@ -30,7 +27,6 @@ const UiKeyTokenScript := preload("res://scripts/view/UiKeyToken.gd")
 @onready var _run_sidebar: RunSidebar = %RunSidebar
 @onready var _key_slot_grid: GridContainer = %ActionList
 @onready var _key_pool_container: VBoxContainer = %KeyPoolContainer
-@onready var _queue_labels = [%QueueSlot1, %QueueSlot2, %QueueSlot3]
 @onready var _message_list: VBoxContainer = %MessageList
 @onready var _intent_list: VBoxContainer = %IntentList
 @onready var _action_title: Label = $BattlePanel/Margin/Content/ActionTitle
@@ -38,43 +34,32 @@ const UiKeyTokenScript := preload("res://scripts/view/UiKeyToken.gd")
 @onready var _room_value: Label = $BattlePanel/Margin/Content/RoomRow/Value
 @onready var _enemy_value: Label = $BattlePanel/Margin/Content/EnemyRow/Value
 @onready var _turn_value: Label = $BattlePanel/Margin/Content/TurnRow/Value
-@onready var _execute_button: Button = %ExecuteButton
-@onready var _clear_button: Button = %ClearButton
 @onready var _rest_continue_button: Button = %RestContinueButton
 @onready var _overlay_title: Label = %OverlayTitle
 @onready var _overlay_body: Label = %OverlayBody
 @onready var _overlay_buttons: VBoxContainer = %OverlayButtons
 
-var _current_plan: Array[String] = []
-var _available_actions: Array = []
 var _slot_chains: Dictionary = {}
-var _loose_keys: Array[String] = []
+var _pool_tokens: Array[String] = []
 var _key_program_editable := false
 
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	_execute_button.pressed.connect(_submit_plan)
-	_clear_button.pressed.connect(_clear_plan)
 	_rest_continue_button.pressed.connect(func() -> void: rest_continue_requested.emit())
-	_key_slot_grid.columns = 1
+	_key_slot_grid.columns = 2
 	show_title()
 
 
-func _unhandled_input(event: InputEvent) -> void:
+func _unhandled_input(_event: InputEvent) -> void:
 	pass
 
 
-func set_available_actions(actions: Array) -> void:
-	_available_actions = actions
-	_run_sidebar.set_action_count(_available_actions.size())
-
-
-func set_key_program(slot_chains: Dictionary, loose_keys: Array) -> void:
+func set_key_program(slot_chains: Dictionary, pool_tokens: Array) -> void:
 	_slot_chains = _duplicate_key_program(slot_chains)
-	_loose_keys.clear()
-	for key_id in loose_keys:
-		_loose_keys.append(String(key_id))
+	_pool_tokens.clear()
+	for token_id in pool_tokens:
+		_pool_tokens.append(String(token_id))
 	_refresh_key_program()
 
 
@@ -100,14 +85,13 @@ func update_state(state) -> void:
 	_turn_value.text = str(state.turn_count)
 	_refresh_messages(state.messages)
 	_refresh_intents(state.enemy_intents)
-	_refresh_queue()
 
 
 func show_title() -> void:
 	_panel.visible = false
 	_hud.visible = false
 	_run_sidebar.visible = false
-	_show_overlay("别按那个键", "盒装小样：编排 3 个行动，执行一回合，清房间拿奖励。", [
+	_show_overlay("别按那个键", "在休息点编排四个键槽，进战斗后按键执行，真实结果再驱动武器连招。", [
 		{"text": "开始游戏", "callback": func() -> void: start_requested.emit()},
 	])
 
@@ -119,7 +103,6 @@ func show_battle() -> void:
 	_run_sidebar.visible = true
 	_rest_continue_button.visible = false
 	_action_title.text = "按键槽：战斗中锁定"
-	_clear_plan()
 
 
 func show_rest_site(title: String, body: String = "") -> void:
@@ -128,10 +111,9 @@ func show_rest_site(title: String, body: String = "") -> void:
 	_hud.visible = true
 	_run_sidebar.visible = true
 	_rest_continue_button.visible = true
-	_action_title.text = "%s：可拖拽调整按键槽" % title
+	_action_title.text = "%s：可拖拽调整四个键槽" % title
 	if not body.is_empty():
 		_add_screen_message(body)
-	_clear_plan()
 
 
 func show_reward(rewards: Array) -> void:
@@ -143,7 +125,7 @@ func show_reward(rewards: Array) -> void:
 			"callback": _emit_reward_chosen.bind(index),
 		})
 
-	_show_overlay("选择奖励", "房间清空。选一个奖励进入下一房间。", buttons)
+	_show_overlay("选择奖励", "房间清空。选一个奖励继续前进。", buttons)
 
 
 func show_result(victory: bool) -> void:
@@ -185,7 +167,7 @@ func _refresh_key_program() -> void:
 	for child in _key_pool_container.get_children():
 		child.queue_free()
 
-	_key_pool_container.add_child(_make_slot_panel(KEY_POOL_ID, "备用行动 token（拾取/奖励获得）", _loose_keys))
+	_key_pool_container.add_child(_make_slot_panel(KEY_POOL_ID, "备用 token（拾取/奖励获得）", _pool_tokens))
 
 
 func _make_slot_panel(slot_id: String, title: String, keys: Array) -> PanelContainer:
@@ -218,7 +200,7 @@ func _make_slot_panel(slot_id: String, title: String, keys: Array) -> PanelConta
 
 	if keys.is_empty():
 		var empty := Label.new()
-		empty.text = "空：按键无映射" if slot_id != KEY_POOL_ID else "暂无备用行动"
+		empty.text = "空：按键无映射" if slot_id != KEY_POOL_ID else "暂无备用 token"
 		empty.theme_type_variation = &"ScreenHint"
 		row.add_child(empty)
 		return panel
@@ -256,39 +238,6 @@ func _emit_reward_chosen(index: int) -> void:
 	reward_chosen.emit(index)
 
 
-func _add_action_to_plan(action) -> void:
-	if _current_plan.size() >= QUEUE_SIZE:
-		return
-
-	_current_plan.append(action.id)
-	_refresh_queue()
-
-
-func _submit_plan() -> void:
-	if _current_plan.is_empty():
-		return
-
-	var submitted := _current_plan.duplicate()
-	_clear_plan()
-	plan_submitted.emit(submitted)
-
-
-func _clear_plan() -> void:
-	_current_plan.clear()
-	_refresh_queue()
-
-
-func _refresh_queue() -> void:
-	for index in range(_queue_labels.size()):
-		var label: Label = _queue_labels[index]
-		if index < _current_plan.size():
-			label.text = _display_name_for_id(_current_plan[index])
-		else:
-			label.text = "-"
-
-	_execute_button.disabled = _current_plan.is_empty()
-
-
 func _refresh_messages(messages: Array[String]) -> void:
 	for child in _message_list.get_children():
 		child.queue_free()
@@ -324,19 +273,6 @@ func _refresh_intents(intents: Array) -> void:
 		_intent_list.add_child(label)
 
 
-func _display_name_for_id(action_id: String) -> String:
-	for action in _available_actions:
-		if action.id == action_id:
-			return _action_label(action)
-	return action_id
-
-
-func _action_label(action) -> String:
-	if action.short_name != "":
-		return action.short_name
-	return action.display_name
-
-
 func _duplicate_key_program(slot_chains: Dictionary) -> Dictionary:
 	var result := {}
 	for key_id in KEY_ORDER:
@@ -351,9 +287,16 @@ func _key_name(key_id: String) -> String:
 
 
 func _token_label(token_id: String) -> String:
-	if KEY_NAMES.has(token_id):
+	match token_id:
+		"TL":
+			return "左转"
+		"TR":
+			return "右转"
+		"J":
+			return "跳跃"
+	if KEY_ORDER.has(token_id) or KEY_NAMES.has(token_id):
 		return _key_name(token_id)
-	return _display_name_for_id(token_id)
+	return token_id
 
 
 func _binding_label(key_id: String) -> String:
