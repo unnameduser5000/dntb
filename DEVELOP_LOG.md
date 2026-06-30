@@ -1,5 +1,15 @@
 # Develop Log
 
+## 2026-06-30 Battle UI inventory/debug split
+
+- Moved the run inventory from the old left drawer into a dedicated backpack
+  panel opened by the bottom-right `背包` button.
+- Moved event history and debug status into the bottom-right `菜单` panel so
+  `BattlePanel` stays focused on key-slot programming and enemy intent.
+- Added a unified player position / facing box to `BattleHud`, and boxed the
+  in-world facing marker over the player sprite to reduce visual separation
+  during movement.
+
 ## 2026-06-29 256x256 building stamp stabilization and map generation cost trim
 
 - Kept the first-pass footprint placement architecture, but made it more diagnosable and less brute-force on larger maps.
