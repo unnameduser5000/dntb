@@ -777,3 +777,10 @@ Validation:
 - The base tavern pattern now includes a few interior blocker props using
   existing rock/statue semantics so taverns read more like real structures with
   occupied space instead of empty shells.
+
+## 2026-06-30 Default startup switches to world slice
+
+- Default play now enters the world-slice path instead of the old room-chain
+  demo flow.
+- The world-slice sandbox default size is now 256x256 so the first playable
+  entry matches the larger-map work better.

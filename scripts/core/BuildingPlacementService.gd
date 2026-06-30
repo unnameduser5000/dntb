@@ -23,6 +23,12 @@ const STAGE_SCAN_BUDGET_MULTIPLIER_GLOBAL := 3
 const CANDIDATE_GRID_STRIDE_SMALL := 2
 const CANDIDATE_GRID_STRIDE_MEDIUM := 4
 const CANDIDATE_GRID_STRIDE_LARGE := 8
+const CONTEXT_SAMPLE_LIMIT_GLOBAL_SMALL := 1024
+const CONTEXT_SAMPLE_LIMIT_GLOBAL_MEDIUM := 2048
+const CONTEXT_SAMPLE_LIMIT_GLOBAL_LARGE := 4096
+const CONTEXT_SAMPLE_LIMIT_LOCAL_SMALL := 2048
+const CONTEXT_SAMPLE_LIMIT_LOCAL_MEDIUM := 4096
+const CONTEXT_SAMPLE_LIMIT_LOCAL_LARGE := 8192
 
 var pattern_library = BuildingPatternLibraryScript.new()
 var stamp_service = PatternStampServiceScript.new()
@@ -42,14 +48,14 @@ func place_buildings(map_data, rng: RandomNumberGenerator, config = null, anchor
 		return report
 
 	var placement_rules := _build_placement_rules(map_data, config)
-	var placement_context := _build_placement_context(map_data)
+	var placement_context := _build_placement_context(map_data, rng)
 	var resolved_anchors := {
 		BuildingPatternLibraryScript.POI_TYPE_TAVERN: Vector2i(anchor_cells.get(BuildingPatternLibraryScript.POI_TYPE_TAVERN, map_data.tavern_cell)),
 		BuildingPatternLibraryScript.POI_TYPE_CHALLENGE: Vector2i(anchor_cells.get(BuildingPatternLibraryScript.POI_TYPE_CHALLENGE, _first_or_invalid_cell(map_data.challenge_cells))),
 		BuildingPatternLibraryScript.POI_TYPE_RUIN: Vector2i(anchor_cells.get(BuildingPatternLibraryScript.POI_TYPE_RUIN, _first_or_invalid_cell(map_data.ruin_cells))),
 		BuildingPatternLibraryScript.POI_TYPE_CHEST: Vector2i(anchor_cells.get(BuildingPatternLibraryScript.POI_TYPE_CHEST, _first_or_invalid_cell(map_data.chest_cells))),
 		BuildingPatternLibraryScript.POI_TYPE_EGG: Vector2i(anchor_cells.get(BuildingPatternLibraryScript.POI_TYPE_EGG, _first_or_invalid_cell(map_data.easter_egg_cells))),
-		BuildingPatternLibraryScript.POI_TYPE_SHRINE: Vector2i(anchor_cells.get(BuildingPatternLibraryScript.POI_TYPE_SHRINE, _pick_shrine_anchor(map_data))),
+		BuildingPatternLibraryScript.POI_TYPE_SHRINE: Vector2i(anchor_cells.get(BuildingPatternLibraryScript.POI_TYPE_SHRINE, _pick_shrine_anchor(map_data, placement_context))),
 	}
 	for poi_type in POI_ORDER:
 		var target_count: int = int(placement_rules.get(poi_type, {}).get("count", 0))
@@ -126,6 +132,7 @@ func _place_single_poi(map_data, poi_type: String, rng: RandomNumberGenerator, p
 					continue
 				var poi_record := _build_poi_record(map_data, poi_type, pattern_def, result)
 				map_data.register_poi_record(poi_record)
+				_refresh_cached_poi_entries(map_data, placement_context)
 				result["poi_record"] = poi_record.duplicate(true)
 				result["poi_type"] = poi_type
 				result["search_stage"] = String(stage.get("id", ""))
@@ -162,7 +169,7 @@ func _score_candidates(map_data, poi_type: String, patterns: Array[Dictionary], 
 			continue
 		for origin in _candidate_origins(map_data, size, anchor_cell, placement_context, stage, rng):
 			var center: Vector2i = origin + Vector2i(int(size.x / 2), int(size.y / 2))
-			var score: float = _score_position(map_data, poi_type, pattern_def, center, rule)
+			var score: float = _score_position(map_data, poi_type, pattern_def, center, rule, placement_context)
 			if score <= -INF / 2.0:
 				continue
 			result.append({
@@ -244,7 +251,9 @@ func _revert_stamp(map_data, stamp_result: Dictionary) -> void:
 
 func _candidate_origins(map_data, size: Vector2i, anchor_cell: Vector2i, placement_context: Dictionary, stage: Dictionary, rng: RandomNumberGenerator) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
-	var centers: Array[Vector2i] = _build_stage_candidate_centers(map_data, anchor_cell, stage, rng)
+	var centers: Array[Vector2i] = _candidate_centers_from_context(anchor_cell, placement_context, stage, rng)
+	if centers.is_empty():
+		centers = _build_stage_candidate_centers(map_data, anchor_cell, stage, rng)
 	var half_size := Vector2i(int(size.x / 2), int(size.y / 2))
 	var seen: Dictionary = {}
 	var x_max: int = max(0, map_data.width - size.x)
@@ -259,6 +268,26 @@ func _candidate_origins(map_data, size: Vector2i, anchor_cell: Vector2i, placeme
 		seen[origin] = true
 		result.append(origin)
 	return result
+
+
+func _candidate_centers_from_context(anchor_cell: Vector2i, placement_context: Dictionary, stage: Dictionary, rng: RandomNumberGenerator) -> Array[Vector2i]:
+	if placement_context.is_empty():
+		return []
+	var global_search: bool = bool(stage.get("global_search", false))
+	var source_key: String = "global_candidate_cells" if global_search else "local_candidate_cells"
+	var source: Array[Vector2i] = _vector2i_array_from_any(placement_context.get(source_key, []))
+	if source.is_empty():
+		return []
+	var radius: int = int(stage.get("radius", -1))
+	var sample_limit: int = int(stage.get("sample_limit", 64))
+	var sampled: Array[Vector2i] = _sample_candidate_centers(source, anchor_cell, radius, sample_limit, rng)
+	if not sampled.is_empty():
+		return sampled
+	if not global_search:
+		var fallback_source: Array[Vector2i] = _vector2i_array_from_any(placement_context.get("global_candidate_cells", []))
+		if not fallback_source.is_empty():
+			return _sample_candidate_centers(fallback_source, anchor_cell, radius, sample_limit, rng)
+	return []
 
 
 func _build_stage_candidate_centers(map_data, anchor_cell: Vector2i, stage: Dictionary, rng: RandomNumberGenerator) -> Array[Vector2i]:
@@ -314,7 +343,7 @@ func _build_stage_candidate_centers(map_data, anchor_cell: Vector2i, stage: Dict
 	return _sample_candidate_centers(result, anchor_cell, radius, sample_limit, rng)
 
 
-func _score_position(map_data, poi_type: String, pattern_def: Dictionary, center: Vector2i, rule: Dictionary) -> float:
+func _score_position(map_data, poi_type: String, pattern_def: Dictionary, center: Vector2i, rule: Dictionary, placement_context: Dictionary = {}) -> float:
 	if not map_data.is_in_bounds(center):
 		return -INF
 	var distance_from_spawn: float = center.distance_to(map_data.player_spawn)
@@ -323,7 +352,7 @@ func _score_position(map_data, poi_type: String, pattern_def: Dictionary, center
 	if distance_from_spawn < min_distance or distance_from_spawn > max_distance:
 		return -INF
 
-	if _too_close_to_other_pois(map_data, center, poi_type, rule):
+	if _too_close_to_other_pois(map_data, center, poi_type, rule, placement_context):
 		return -INF
 
 	var map_cell = map_data.get_cell(center)
@@ -333,7 +362,7 @@ func _score_position(map_data, poi_type: String, pattern_def: Dictionary, center
 	if not _area_supports_pattern(map_data, center, Vector2i(pattern_def.get("size", Vector2i.ZERO)), pattern_def):
 		return -INF
 
-	var terrain_score: float = _terrain_preference_score(map_data, center, pattern_def)
+	var terrain_score: float = _terrain_preference_score(map_data, center, pattern_def, placement_context)
 	if terrain_score <= -10.0:
 		return -INF
 	var terraform_report: Dictionary = _score_terraform_window(map_data, center, Vector2i(pattern_def.get("size", Vector2i.ZERO)), pattern_def)
@@ -352,7 +381,7 @@ func _score_position(map_data, poi_type: String, pattern_def: Dictionary, center
 	return score
 
 
-func _terrain_preference_score(map_data, center: Vector2i, pattern_def: Dictionary) -> float:
+func _terrain_preference_score(map_data, center: Vector2i, pattern_def: Dictionary, placement_context: Dictionary = {}) -> float:
 	var map_cell = map_data.get_cell(center)
 	if map_cell == null:
 		return -10.0
@@ -370,13 +399,13 @@ func _terrain_preference_score(map_data, center: Vector2i, pattern_def: Dictiona
 				if _adjacent_terrain_count(map_data, center, [MapCellScript.TerrainType.MOUNTAIN, MapCellScript.TerrainType.PEAK]) >= 1:
 					score = maxf(score, 1.8)
 			BuildingPatternLibraryScript.TERRAIN_PREF_RUIN_EDGE:
-				if _adjacent_poi_type_count(map_data, center, "ruin") >= 1:
+				if _adjacent_poi_type_count(map_data, center, "ruin", placement_context) >= 1:
 					score = maxf(score, 1.8)
 	return score if score > 0.0 else -10.0
 
 
-func _too_close_to_other_pois(map_data, center: Vector2i, poi_type: String, rule: Dictionary) -> bool:
-	for entry in map_data.get_all_poi_entries():
+func _too_close_to_other_pois(map_data, center: Vector2i, poi_type: String, rule: Dictionary, placement_context: Dictionary = {}) -> bool:
+	for entry in _cached_poi_entries(map_data, placement_context):
 		var other_kind: String = String(entry.get("kind", ""))
 		if other_kind == "player_spawn":
 			continue
@@ -519,9 +548,9 @@ func _adjacent_terrain_count(map_data, cell: Vector2i, terrain_types: Array) -> 
 	return count
 
 
-func _adjacent_poi_type_count(map_data, cell: Vector2i, poi_type: String) -> int:
+func _adjacent_poi_type_count(map_data, cell: Vector2i, poi_type: String, placement_context: Dictionary = {}) -> int:
 	var count: int = 0
-	for entry in map_data.get_all_poi_entries():
+	for entry in _cached_poi_entries(map_data, placement_context):
 		if String(entry.get("kind", "")) != poi_type:
 			continue
 		if cell.distance_to(Vector2i(entry.get("cell", Vector2i(-1, -1)))) <= 10.0:
@@ -535,10 +564,12 @@ func _first_or_invalid_cell(cells: Array) -> Vector2i:
 	return Vector2i(cells[0])
 
 
-func _pick_shrine_anchor(map_data) -> Vector2i:
+func _pick_shrine_anchor(map_data, placement_context: Dictionary = {}) -> Vector2i:
 	if map_data == null:
 		return Vector2i(-1, -1)
-	var walkable: Array[Vector2i] = map_data.get_walkable_cells()
+	var walkable: Array[Vector2i] = _vector2i_array_from_any(placement_context.get("global_candidate_cells", []))
+	if walkable.is_empty():
+		walkable = map_data.get_walkable_cells()
 	if walkable.is_empty():
 		return Vector2i(-1, -1)
 	var best: Vector2i = Vector2i(-1, -1)
@@ -556,14 +587,46 @@ func _pick_shrine_anchor(map_data) -> Vector2i:
 	return best
 
 
-func _build_placement_context(map_data) -> Dictionary:
+func _refresh_cached_poi_entries(map_data, placement_context: Dictionary) -> void:
+	if placement_context == null:
+		return
+	placement_context["poi_entries"] = _build_cached_poi_entries(map_data)
+
+
+func _cached_poi_entries(map_data, placement_context: Dictionary) -> Array[Dictionary]:
+	if placement_context != null and placement_context.has("poi_entries"):
+		return _vector_dictionary_array_from_any(placement_context.get("poi_entries", []))
+	return _build_cached_poi_entries(map_data)
+
+
+func _build_cached_poi_entries(map_data) -> Array[Dictionary]:
+	var entries: Array[Dictionary] = []
+	if map_data == null:
+		return entries
+	if map_data.player_spawn != Vector2i(-1, -1):
+		entries.append({"kind": "player_spawn", "cell": map_data.player_spawn})
+	for record in map_data.get_poi_records():
+		entries.append({
+			"kind": String(record.get("type", "")),
+			"cell": Vector2i(record.get("interaction_cell", Vector2i(-1, -1))),
+		})
+	return entries
+
+
+func _build_placement_context(map_data, rng: RandomNumberGenerator = null) -> Dictionary:
+	var walkable: Array[Vector2i] = map_data.get_walkable_cells()
 	var reachable: Dictionary = connectivity_service.flood_fill_walkable(map_data, map_data.player_spawn)
 	var reachable_cells: Array[Vector2i] = []
 	for cell in reachable.keys():
 		reachable_cells.append(cell)
+	if reachable_cells.is_empty():
+		reachable_cells = walkable.duplicate()
 	return {
-		"walkable_cells": map_data.get_walkable_cells().duplicate(),
-		"reachable_cells": reachable_cells if not reachable_cells.is_empty() else map_data.get_walkable_cells().duplicate(),
+		"walkable_cells": walkable.duplicate(),
+		"reachable_cells": reachable_cells.duplicate(),
+		"global_candidate_cells": _sample_cells(walkable, _placement_context_global_limit(map_data), rng),
+		"local_candidate_cells": _sample_cells(reachable_cells, _placement_context_local_limit(map_data), rng),
+		"poi_entries": _build_cached_poi_entries(map_data),
 	}
 
 
@@ -620,6 +683,56 @@ func _sample_candidate_centers(source_cells: Array[Vector2i], anchor_cell: Vecto
 	for index in range(sample_limit):
 		var picked_index: int = mini(filtered.size() - 1, int(floor(offset + float(index) * step)))
 		result.append(filtered[picked_index])
+	return result
+
+
+func _sample_cells(cells: Array[Vector2i], limit: int, rng: RandomNumberGenerator = null) -> Array[Vector2i]:
+	if cells.is_empty() or limit <= 0:
+		return []
+	if cells.size() <= limit:
+		return cells.duplicate()
+	var result: Array[Vector2i] = []
+	var step: float = float(cells.size()) / float(limit)
+	var offset: float = rng.randf() * step if rng != null else 0.0
+	for index in range(limit):
+		var picked_index: int = mini(cells.size() - 1, int(floor(offset + float(index) * step)))
+		result.append(cells[picked_index])
+	return result
+
+
+func _placement_context_global_limit(map_data) -> int:
+	if map_data == null:
+		return CONTEXT_SAMPLE_LIMIT_GLOBAL_SMALL
+	var area: int = max(1, map_data.width * map_data.height)
+	if area >= 1024 * 1024:
+		return CONTEXT_SAMPLE_LIMIT_GLOBAL_LARGE
+	if area >= 512 * 512:
+		return CONTEXT_SAMPLE_LIMIT_GLOBAL_MEDIUM
+	return CONTEXT_SAMPLE_LIMIT_GLOBAL_SMALL
+
+
+func _placement_context_local_limit(map_data) -> int:
+	if map_data == null:
+		return CONTEXT_SAMPLE_LIMIT_LOCAL_SMALL
+	var area: int = max(1, map_data.width * map_data.height)
+	if area >= 1024 * 1024:
+		return CONTEXT_SAMPLE_LIMIT_LOCAL_LARGE
+	if area >= 512 * 512:
+		return CONTEXT_SAMPLE_LIMIT_LOCAL_MEDIUM
+	return CONTEXT_SAMPLE_LIMIT_LOCAL_SMALL
+
+
+func _vector2i_array_from_any(source_value) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for value in Array(source_value):
+		result.append(Vector2i(value))
+	return result
+
+
+func _vector_dictionary_array_from_any(source_value) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value in Array(source_value):
+		result.append(Dictionary(value))
 	return result
 
 

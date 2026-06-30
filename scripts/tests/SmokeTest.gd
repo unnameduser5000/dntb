@@ -343,7 +343,7 @@ func _init() -> void:
 	_require(world_game.state.map_node_kind == "world_slice", "world slice entry creates the world slice state")
 	_require(not world_game._battle_presentation.debug_wait_for_presentation_completion(), "world slice defaults to non-blocking layered presentation")
 	_require(world_game._battle_presentation.debug_current_timing_profile_name() == "world_slice_fast", "world slice defaults to the fast timing profile")
-	_require(world_game.state.grid.width >= 30 and world_game.state.grid.height >= 30, "world slice uses a larger grid than the room demo")
+	_require(world_game.state.grid.width >= 256 and world_game.state.grid.height >= 256, "world slice defaults to a 256x256 grid")
 	_require(world_game.state.map_data != null, "world slice creates map data")
 	_require(world_game.state.player != null, "world slice creates a player")
 	_require(world_game.state.get_alive_enemies().size() >= 4, "world slice creates at least the initial test enemies")
