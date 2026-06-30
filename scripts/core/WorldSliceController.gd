@@ -13,7 +13,7 @@ const SLIME_DEF := preload("res://data/actors/monster.tres")
 const BRUTE_DEF := preload("res://data/actors/brute.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 
-const WORLD_GRID_SIZE := Vector2i(128, 128)
+const WORLD_GRID_SIZE := Vector2i(256, 256)
 const DEFAULT_FOV_RADIUS := 8
 const REQUIRED_ENEMY_COUNT := 4
 const STREAM_DESIRED_ACTIVE_ENEMY_COUNT := 10

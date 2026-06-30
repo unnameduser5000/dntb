@@ -29,13 +29,14 @@ func place_pois(map_data, rng: RandomNumberGenerator, config = null) -> void:
 	if walkable.is_empty():
 		return
 	var walkable_sample: Array[Vector2i] = _sample_cells(walkable, _anchor_sample_limit(map_data, 768), rng)
+	var walkable_fallback_sample: Array[Vector2i] = _sample_cells(walkable, _anchor_fallback_limit(map_data, 2048), rng)
 
 	var taken: Dictionary = {}
 	var spawn_cell: Vector2i = _pick_player_spawn(map_data, walkable_sample, config)
 	if spawn_cell == Vector2i(-1, -1):
-		spawn_cell = _pick_player_spawn(map_data, walkable, config)
+		spawn_cell = _pick_player_spawn(map_data, walkable_fallback_sample, config)
 	if spawn_cell == Vector2i(-1, -1):
-		spawn_cell = _pick_nearest_available(walkable, Vector2i(map_data.width / 2, map_data.height / 2), taken)
+		spawn_cell = _pick_nearest_available(walkable_fallback_sample, Vector2i(map_data.width / 2, map_data.height / 2), taken)
 	if spawn_cell == Vector2i(-1, -1):
 		return
 
@@ -47,12 +48,13 @@ func place_pois(map_data, rng: RandomNumberGenerator, config = null) -> void:
 	for cell in reachable.keys():
 		reachable_cells.append(cell)
 	if reachable_cells.is_empty():
-		reachable_cells = walkable.duplicate()
+		reachable_cells = walkable_fallback_sample.duplicate()
 	var reachable_sample: Array[Vector2i] = _sample_cells(reachable_cells, _anchor_sample_limit(map_data, 640), rng)
+	var reachable_fallback_sample: Array[Vector2i] = _sample_cells(reachable_cells, _anchor_fallback_limit(map_data, 1664), rng)
 
 	var tavern_cell: Vector2i = _pick_tavern(map_data, reachable_sample, spawn_cell, taken)
 	if tavern_cell == Vector2i(-1, -1):
-		tavern_cell = _pick_tavern(map_data, reachable_cells, spawn_cell, taken)
+		tavern_cell = _pick_tavern(map_data, reachable_fallback_sample, spawn_cell, taken)
 	if tavern_cell != Vector2i(-1, -1):
 		map_data.set_tavern_cell(tavern_cell)
 		taken[tavern_cell] = true
@@ -60,7 +62,7 @@ func place_pois(map_data, rng: RandomNumberGenerator, config = null) -> void:
 	for _index in range(int(config.challenge_count) if config != null else 1):
 		var challenge_cell: Vector2i = _pick_challenge_entrance(map_data, walkable_sample, spawn_cell, taken)
 		if challenge_cell == Vector2i(-1, -1):
-			challenge_cell = _pick_challenge_entrance(map_data, walkable, spawn_cell, taken)
+			challenge_cell = _pick_challenge_entrance(map_data, walkable_fallback_sample, spawn_cell, taken)
 		if challenge_cell == Vector2i(-1, -1):
 			break
 		map_data.add_challenge_cell(challenge_cell)
@@ -69,7 +71,7 @@ func place_pois(map_data, rng: RandomNumberGenerator, config = null) -> void:
 	for _index in range(int(config.chest_count) if config != null else 1):
 		var chest_cell: Vector2i = _pick_chest(map_data, walkable_sample, spawn_cell, taken)
 		if chest_cell == Vector2i(-1, -1):
-			chest_cell = _pick_chest(map_data, walkable, spawn_cell, taken)
+			chest_cell = _pick_chest(map_data, walkable_fallback_sample, spawn_cell, taken)
 		if chest_cell == Vector2i(-1, -1):
 			break
 		map_data.add_chest_cell(chest_cell)
@@ -78,7 +80,7 @@ func place_pois(map_data, rng: RandomNumberGenerator, config = null) -> void:
 	for _index in range(int(config.ruin_count) if config != null else 1):
 		var ruin_cell: Vector2i = _pick_ruin(map_data, walkable_sample, spawn_cell, taken)
 		if ruin_cell == Vector2i(-1, -1):
-			ruin_cell = _pick_ruin(map_data, walkable, spawn_cell, taken)
+			ruin_cell = _pick_ruin(map_data, walkable_fallback_sample, spawn_cell, taken)
 		if ruin_cell == Vector2i(-1, -1):
 			break
 		map_data.add_ruin_cell(ruin_cell)
@@ -87,7 +89,7 @@ func place_pois(map_data, rng: RandomNumberGenerator, config = null) -> void:
 	for _index in range(int(config.easter_egg_count) if config != null else 1):
 		var egg_cell: Vector2i = _pick_easter_egg(map_data, walkable_sample, spawn_cell, taken)
 		if egg_cell == Vector2i(-1, -1):
-			egg_cell = _pick_easter_egg(map_data, walkable, spawn_cell, taken)
+			egg_cell = _pick_easter_egg(map_data, walkable_fallback_sample, spawn_cell, taken)
 		if egg_cell == Vector2i(-1, -1):
 			break
 		map_data.add_easter_egg_cell(egg_cell)
@@ -377,6 +379,19 @@ func _anchor_sample_limit(map_data, base_limit: int) -> int:
 	if area >= 128 * 128:
 		return int(maxi(384, int(base_limit * 0.75)))
 	return int(maxi(192, int(base_limit * 0.5)))
+
+
+func _anchor_fallback_limit(map_data, base_limit: int) -> int:
+	if map_data == null:
+		return base_limit
+	var area: int = max(1, map_data.width * map_data.height)
+	if area >= 1024 * 1024:
+		return mini(base_limit, 2048)
+	if area >= 512 * 512:
+		return mini(base_limit, 1792)
+	if area >= 256 * 256:
+		return mini(base_limit, 1536)
+	return base_limit
 
 
 func _sample_cells(cells: Array[Vector2i], limit: int, rng: RandomNumberGenerator = null) -> Array[Vector2i]:
