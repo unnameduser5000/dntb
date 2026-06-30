@@ -138,6 +138,7 @@ const MAP_NODES := [
 
 @onready var board_view = $BoardView
 @onready var battle_ui = $CanvasLayer/BattleUI
+@onready var world_loading_overlay = $CanvasLayer/WorldLoadingOverlay
 @onready var turn_controller = $TurnController
 @onready var resolver = $ActionResolver
 @onready var enemy_planner = $EnemyPlanner
@@ -164,6 +165,7 @@ var _battle_presentation
 var _world_slice_controller
 var _current_rewards: Array = []
 var _key_program_editable := false
+var _world_slice_last_rest_area_state: bool = false
 
 func _ready() -> void:
 	_action_by_id = {
@@ -225,8 +227,21 @@ func _unhandled_input(event: InputEvent) -> void:
 					return
 			if event.keycode == KEY_F5:
 				if _world_slice_controller != null:
-					_world_slice_controller.reset_world_slice(state)
+					_world_slice_controller.regenerate_same_seed(state)
 					turn_controller.start_battle(state)
+					_refresh_views()
+					get_viewport().set_input_as_handled()
+					return
+			if event.keycode == KEY_F6:
+				if _world_slice_controller != null:
+					_world_slice_controller.regenerate_new_seed(state)
+					turn_controller.start_battle(state)
+					_refresh_views()
+					get_viewport().set_input_as_handled()
+					return
+			if event.keycode == KEY_M:
+				if _world_slice_controller != null:
+					_world_slice_controller.print_map_summary(state)
 					_refresh_views()
 					get_viewport().set_input_as_handled()
 					return
@@ -251,6 +266,8 @@ func set_game_visible(is_visible: bool) -> void:
 	$ActorRoot.visible = is_visible
 	$EffectRoot.visible = is_visible
 	battle_ui.visible = is_visible
+	if world_loading_overlay != null and not is_visible:
+		world_loading_overlay.hide_loading()
 
 func _connect_signals() -> void:
 	battle_ui.start_requested.connect(start_run)
@@ -285,11 +302,15 @@ func start_seeded_run(seed_value) -> void:
 
 func start_world_slice_debug() -> void:
 	_ensure_action_helpers()
-	state = _world_slice_controller.create_demo_state() if _world_slice_controller != null else null
+	if world_loading_overlay != null:
+		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
+		await get_tree().process_frame
+	state = await _world_slice_controller.create_demo_state_with_progress("", Callable(self, "_on_world_generation_progress")) if _world_slice_controller != null else null
 	if state == null:
+		if world_loading_overlay != null:
+			world_loading_overlay.hide_loading()
 		return
 	_current_rewards = []
-	_key_program_editable = true
 	_current_room_index = int(state.room_index)
 	_current_map_node_index = int(state.map_node_index)
 	_run_modifier_ids.clear()
@@ -301,16 +322,28 @@ func start_world_slice_debug() -> void:
 	_refresh_inventory_ui()
 	if _battle_presentation != null and state != null:
 		_battle_presentation.reset_for_state(state)
+		_battle_presentation.use_world_slice_fast_timing_profile()
+		_battle_presentation.set_wait_for_presentation_completion(false)
 	enemy_planner.enemies_are_static = false
 	turn_controller.start_battle(state)
-	battle_ui.set_key_program_editable(true)
 	if board_view != null:
-		board_view.cell_size = 26
-		board_view.board_origin = Vector2(380, 120)
+		board_view.world_slice_window_size = Vector2i(29, 29)
+		board_view.board_origin = Vector2(24, 84)
 		board_view.position = board_view.board_origin
 	battle_ui.show_battle()
+	_update_world_slice_editability(true)
 	_refresh_world_visibility("init")
 	_refresh_views()
+	if world_loading_overlay != null:
+		world_loading_overlay.hide_loading()
+
+
+func _on_world_generation_progress(progress_data: Dictionary) -> void:
+	if world_loading_overlay == null:
+		return
+	var stage_label := String(progress_data.get("stage_label", "Generating world"))
+	var progress_ratio := float(progress_data.get("progress", 0.0))
+	world_loading_overlay.show_loading("Generating world", stage_label, progress_ratio)
 
 
 func start_weapon_combo_lab_debug() -> void:
@@ -328,6 +361,8 @@ func start_weapon_combo_lab_debug() -> void:
 	_refresh_inventory_ui()
 	if _battle_presentation != null:
 		_battle_presentation.reset_for_state(state)
+		_battle_presentation.use_legacy_timing_profile()
+		_battle_presentation.set_wait_for_presentation_completion(true)
 	enemy_planner.enemies_are_static = true
 	turn_controller.start_battle(state)
 	battle_ui.set_key_program_editable(true)
@@ -403,6 +438,8 @@ func _start_room(room_index: int) -> void:
 	_apply_run_modifiers_to_player()
 	if _battle_presentation != null:
 		_battle_presentation.reset_for_state(state)
+		_battle_presentation.use_legacy_timing_profile()
+		_battle_presentation.set_wait_for_presentation_completion(true)
 	enemy_planner.enemies_are_static = false
 	turn_controller.start_battle(state)
 	battle_ui.set_key_program_editable(false)
@@ -419,6 +456,8 @@ func _start_rest_node(node: Dictionary) -> void:
 	_apply_run_modifiers_to_player()
 	if _battle_presentation != null:
 		_battle_presentation.reset_for_state(state)
+		_battle_presentation.use_legacy_timing_profile()
+		_battle_presentation.set_wait_for_presentation_completion(true)
 	enemy_planner.enemies_are_static = true
 	turn_controller.start_battle(state)
 	battle_ui.set_key_program_editable(true)
@@ -539,10 +578,19 @@ func _refresh_views() -> void:
 	if state == null:
 		return
 
+	if bool(state.is_world_slice):
+		_update_world_slice_editability()
 	_update_enemy_preview()
 	board_view.render(state)
 	if _battle_presentation != null:
-		_battle_presentation.sync_views(state, not _battle_presentation.should_wait_for_presentation())
+		var snap_actor_views: bool = not _battle_presentation.should_wait_for_presentation()
+		if bool(state.is_world_slice):
+			# The world-slice board renders a moving window around the player, so
+			# visible actor overlays need to resnap when the window origin shifts.
+			# BattlePresentationController keeps this scoped to the player plus
+			# currently visible actors instead of maintaining views for the whole map.
+			snap_actor_views = true
+		_battle_presentation.sync_views(state, snap_actor_views)
 	battle_ui.update_state(state)
 
 
@@ -561,6 +609,40 @@ func _refresh_world_visibility(reason: String) -> void:
 	if not bool(state.is_world_slice):
 		return
 	_world_slice_controller.recompute_visibility(state, reason)
+
+
+func _update_world_slice_editability(force_refresh: bool = false) -> void:
+	if state == null or not bool(state.is_world_slice):
+		return
+	var editable_now: bool = _is_player_in_world_slice_rest_area()
+	if not force_refresh and editable_now == _key_program_editable:
+		return
+	_key_program_editable = editable_now
+	if is_instance_valid(battle_ui):
+		battle_ui.set_key_program_editable(editable_now)
+	if force_refresh or editable_now != _world_slice_last_rest_area_state:
+		if editable_now:
+			state.add_message("进入酒馆休息区：这里可以调整行动编排。")
+		else:
+			state.add_message("离开酒馆休息区：行动编排已锁定。")
+	_world_slice_last_rest_area_state = editable_now
+
+
+func _is_player_in_world_slice_rest_area() -> bool:
+	if state == null or state.player == null or state.map_data == null:
+		return false
+	var map_cell = state.map_data.get_cell(state.player.grid_pos)
+	if map_cell == null:
+		return false
+	if map_cell.tags.has("building_floor") or map_cell.tags.has("building_door") or map_cell.tags.has("building_open_ground"):
+		for tag in map_cell.tags:
+			if String(tag) == "poi:tavern":
+				return true
+			if String(tag).begins_with("structure:tavern"):
+				return true
+			if String(tag).begins_with("building:tavern_"):
+				return true
+	return false
 
 func _update_enemy_preview() -> void:
 	if state.phase != "planning" or state.battle_finished:

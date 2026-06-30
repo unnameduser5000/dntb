@@ -22,6 +22,8 @@ func make_enemy_actions(state) -> Array:
 	for actor in state.actors:
 		if actor.team != "enemy" or actor.is_dead():
 			continue
+		if not _is_enemy_active_for_state(actor, state):
+			continue
 
 		var action = decide_enemy_action(actor, state)
 		if action != null:
@@ -33,6 +35,8 @@ func preview_enemy_actions(state) -> Array:
 	var result: Array = []
 	for actor in state.actors:
 		if actor.team != "enemy" or actor.is_dead():
+			continue
+		if not _is_enemy_active_for_state(actor, state):
 			continue
 
 		var action = decide_enemy_action(actor, state)
@@ -133,11 +137,23 @@ func get_threat_cells(state) -> Array[Vector2i]:
 	for actor in state.actors:
 		if actor.team != "enemy" or actor.is_dead():
 			continue
+		if not _is_enemy_active_for_state(actor, state):
+			continue
 		for cell in get_enemy_threat_cells(actor, state):
 			if not result.has(cell):
 				result.append(cell)
 
 	return result
+
+
+func _is_enemy_active_for_state(enemy, state) -> bool:
+	if enemy == null or state == null:
+		return false
+	if not bool(state.is_world_slice):
+		return true
+	if bool(state.reveal_all_debug):
+		return true
+	return state.visible_cells.has(enemy.grid_pos)
 
 func get_enemy_threat_cells(enemy, state) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
@@ -186,8 +202,10 @@ func _get_path_step_towards(from_cell: Vector2i, to_cell: Vector2i, grid) -> Vec
 	var visited := {from_cell: true}
 	var first_step := {from_cell: Vector2i.ZERO}
 
-	while not frontier.is_empty():
-		var current: Vector2i = frontier.pop_front()
+	var frontier_index: int = 0
+	while frontier_index < frontier.size():
+		var current: Vector2i = frontier[frontier_index]
+		frontier_index += 1
 		for raw_direction in CARDINAL_DIRECTIONS:
 			var direction: Vector2i = raw_direction
 			var next_cell: Vector2i = current + direction

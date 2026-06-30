@@ -10,3 +10,5 @@ radius = 16.0
 line_width = 2.0
 primary_color = Color(1, 0.86, 0.8, 1)
 secondary_color = Color(1, 0.36, 0.3, 1)
+use_particle_burst = true
+particle_amount = 12

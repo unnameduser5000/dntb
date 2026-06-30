@@ -9,14 +9,19 @@ extends Node2D
 @export var secondary_color: Color = Color(1.0, 0.35, 0.3, 1.0)
 @export var align_to_direction := false
 @export var auto_play_on_ready := false
+@export var use_particle_burst := false
+@export var particle_amount: int = 10
 
 var _progress: float = 0.0
 var _direction: Vector2 = Vector2.RIGHT
 var _intensity: float = 1.0
 var _tint: Color = Color.WHITE
+var _particle_burst: GPUParticles2D = null
+var duration_scale: float = 1.0
 
 
 func _ready() -> void:
+	_ensure_particle_burst()
 	if auto_play_on_ready:
 		play({})
 
@@ -30,9 +35,10 @@ func play(meta: Dictionary = {}) -> void:
 	scale = Vector2.ONE
 	rotation = _direction.angle() if align_to_direction else 0.0
 	_set_progress(0.0)
+	_trigger_particle_burst()
 
 	var tween: Tween = create_tween()
-	var effective_duration: float = maxf(0.01, duration * float(meta.get("duration_scale", 1.0)))
+	var effective_duration: float = maxf(0.01, duration * duration_scale * float(meta.get("duration_scale", 1.0)))
 	tween.tween_method(_set_progress, 0.0, 1.0, effective_duration)
 	tween.finished.connect(func() -> void:
 		if is_instance_valid(self):
@@ -61,6 +67,56 @@ func _draw() -> void:
 			_draw_actor_died(main, accent, scale_factor)
 		_:
 			_draw_actor_damaged(main, accent, scale_factor)
+
+
+func _ensure_particle_burst() -> void:
+	if not use_particle_burst or _particle_burst != null:
+		return
+	var particles := GPUParticles2D.new()
+	particles.name = "BurstParticles"
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+	particles.emitting = false
+	particles.local_coords = false
+	particles.amount = max(1, particle_amount)
+	particles.lifetime = maxf(0.08, duration * duration_scale * 0.9)
+	particles.visibility_rect = Rect2(-radius * 2.5, -radius * 2.5, radius * 5.0, radius * 5.0)
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	process.emission_sphere_radius = maxf(1.0, radius * 0.12)
+	process.direction = Vector3(0.0, 0.0, 1.0)
+	process.spread = 180.0
+	process.initial_velocity_min = maxf(14.0, radius * 0.9)
+	process.initial_velocity_max = maxf(24.0, radius * 1.35)
+	process.scale_min = 0.35
+	process.scale_max = 0.8
+	process.angular_velocity_min = -180.0
+	process.angular_velocity_max = 180.0
+	process.gravity = Vector3.ZERO
+	process.linear_accel_min = -8.0
+	process.linear_accel_max = 8.0
+	process.damping_min = 8.0
+	process.damping_max = 16.0
+	process.color = secondary_color
+	particles.process_material = process
+	add_child(particles)
+	_particle_burst = particles
+
+
+func _trigger_particle_burst() -> void:
+	if not use_particle_burst or _particle_burst == null:
+		return
+	_particle_burst.amount = max(1, int(round(float(particle_amount) * _intensity)))
+	_particle_burst.modulate = _tinted(secondary_color, 0.95)
+	_particle_burst.lifetime = maxf(0.05, duration * duration_scale * 0.9)
+	_particle_burst.restart()
+	_particle_burst.emitting = true
+
+
+func set_duration_scale(value: float) -> void:
+	duration_scale = maxf(0.1, value)
+	if _particle_burst != null:
+		_particle_burst.lifetime = maxf(0.05, duration * duration_scale * 0.9)
 
 
 func _draw_action_started(main: Color, accent: Color, scale_factor: float) -> void:

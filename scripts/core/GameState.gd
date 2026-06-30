@@ -30,9 +30,28 @@ var preview_move_cells: Array = []
 var preview_attack_cells: Array = []
 var visible_cells: Array[Vector2i] = []
 var explored_cells: Array[Vector2i] = []
+var visible_cell_set: Dictionary = {}
+var explored_cell_set: Dictionary = {}
 var reveal_all_debug: bool = false
 var last_visibility_recompute_reason: String = ""
 var fov_radius: int = 6
+var render_window_rect: Rect2i = Rect2i()
+var active_window_tile_count: int = 0
+var board_refresh_count: int = 0
+var fov_recompute_count: int = 0
+var hud_refresh_count: int = 0
+var entity_visual_count: int = 0
+var last_board_refresh_ms: float = 0.0
+var last_fov_ms: float = 0.0
+var last_generation_ms: float = 0.0
+var generation_breakdown_ms: Dictionary = {}
+var world_enemy_stream_refresh_count: int = 0
+var world_enemy_stream_target: int = 0
+var world_enemy_stream_last_spawned: int = 0
+var world_enemy_stream_last_despawned: int = 0
+var world_enemy_stream_spawn_total: int = 0
+var world_enemy_stream_despawn_total: int = 0
+var world_enemy_stream_last_reason: String = ""
 var effect_modifiers: Array = []
 var is_safe_training: bool = false
 var is_world_slice: bool = false
@@ -94,6 +113,8 @@ func clear_temporary_flags() -> void:
 func clear_visibility() -> void:
 	visible_cells.clear()
 	explored_cells.clear()
+	visible_cell_set.clear()
+	explored_cell_set.clear()
 	last_visibility_recompute_reason = ""
 
 

@@ -16,8 +16,12 @@ func compute_fov(origin: Vector2i, radius: int, map_data) -> Array[Vector2i]:
 
 	var size: Vector2i = map_data.get_size()
 	var max_dist_sq: int = radius * radius
-	for y in range(size.y):
-		for x in range(size.x):
+	var min_x: int = maxi(0, origin.x - radius)
+	var max_x: int = mini(size.x - 1, origin.x + radius)
+	var min_y: int = maxi(0, origin.y - radius)
+	var max_y: int = mini(size.y - 1, origin.y + radius)
+	for y in range(min_y, max_y + 1):
+		for x in range(min_x, max_x + 1):
 			var cell: Vector2i = Vector2i(x, y)
 			var dx: int = cell.x - origin.x
 			var dy: int = cell.y - origin.y

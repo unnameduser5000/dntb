@@ -1,5 +1,86 @@
 # Develop Log
 
+## 2026-06-29 256x256 building stamp stabilization and map generation cost trim
+
+- Kept the first-pass footprint placement architecture, but made it more diagnosable and less brute-force on larger maps.
+- Building placement now:
+  - records per-POI failure summaries and last failure context in `MapData`;
+  - normalizes common stamp failure reasons into clearer buckets such as:
+    - `overlaps_spawn`
+    - `forbidden_terrain`
+    - `overlaps_existing_poi`
+    - `overlaps_existing_structure`
+    - `not_enough_front_clearance`
+    - `not_enough_interaction_space`
+    - `max_attempts_exceeded`
+  - uses staged candidate search instead of scanning every local origin:
+    - anchor-local sample
+    - expanded local fallback
+    - reachable-global fallback
+- Kept legacy single-cell POI picks as scaffolding, but reduced their large-map cost by sampling candidate walkable/reachable cells before scoring.
+- Reworked world-map connectivity to avoid repeated high-cost whole-map region stitching passes:
+  - added a faster packed-byte walkable-region collector;
+  - stitches sampled secondary regions into the main region in batches;
+  - keeps local tree-gap cleanup for tiny near-touching regions;
+  - preserves the smoke-test guarantee that all walkable cells remain connected from spawn.
+- Expanded `MapPrintProbe.gd` so large-map inspection now also reports building failure summary / fallback context in addition to footprint counts and timing.
+
+## 2026-06-29 First-pass building PatternStamp scaffold
+
+- Added a first-pass data-first building footprint layer for the world map instead of keeping POI as single-cell markers only.
+- Added:
+  - `scripts/core/BuildingPatternLibrary.gd`
+  - `scripts/core/PatternStampService.gd`
+  - `scripts/core/BuildingPlacementService.gd`
+- Extended `MapCell` / `MapData` so stamped structures can carry:
+  - footprint occupancy
+  - interaction cells
+  - entrance cells
+  - per-cell display symbol overrides
+  - building / structure / stamp tags
+  - generation-time stamp success/failure records
+- Wired `POIPlacementService.gd` to replace the current legacy single-cell POI markers with footprint-based building placement during world generation, while leaving the old pick logic in place as fallback/demo scaffold.
+- Expanded `MapPrintProbe.gd` to print:
+  - building counts
+  - stamp success/failure totals
+  - per-building metadata
+  - local windows around each stamped building footprint
+- Extended `SmokeTest.gd` world-slice checks so the generated map now validates footprint-based POI records and basic reachability of stamped interaction cells.
+
+## 2026-06-29 Data-first world map scaffold tuning
+
+- Continued the data-first world-slice map scaffold instead of expanding room rewards or combat features.
+- Added map-generation core scripts and kept them separate from GridModel / combat runtime ownership:
+  - `MapCell.gd`
+  - `MapData.gd`
+  - `MapGenConfig.gd`
+  - `WorldGenerator.gd`
+  - `MountainGenerator.gd`
+  - `TerrainGenerator.gd`
+  - `RiverGenerator.gd`
+  - `POIPlacementService.gd`
+  - `ConnectivityService.gd`
+  - `VisibilityService.gd`
+- Wired `WorldSliceController.gd` to build world-slice state from generated `MapData` and copy only walk-blocking terrain into `GridModel`.
+- Updated `BoardView.gd` to render terrain/data-layer cells instead of only generic floor/wall output.
+- Updated world-slice sidebar/debug output with map seed / terrain counts / POI / reachability summary and debug hotkeys.
+- Fixed a real connectivity bug: carved mountain passes were previously allowed to form diagonal-only links, which did not match the project's cardinal movement rules.
+  - `ConnectivityService.gd` now carves cardinal corridors instead of Bresenham diagonal lines.
+  - Smoke coverage was added so carved passes must stay cardinally connected.
+- Tightened world-slice runtime scope so large maps do not behave like full-map active simulations by default:
+  - enemy planning / threat preview now only considers visible enemies in world-slice mode;
+  - actor presentation only maintains views for the player plus visible actors in world-slice mode.
+- Tuned early map-generation defaults after manual ASCII inspection showed mountain/peak belts were over-blocking routes:
+  - reduced ridge width / branch count / noise strength;
+  - raised hill/mountain/peak thresholds;
+  - increased spawn openness requirements;
+  - adjusted POI scoring so challenge/rest/event sites prefer more cardinally open reachable cells instead of hugging the tightest mountain edges.
+
+Validation:
+
+- `SmokeTest passed`
+- Used `scripts/tests/MapPrintProbe.gd` to print sample ASCII maps and inspect route pressure / pass carving / POI reachability.
+
 ## 2026-06-23
 
 - Continued the interrupted safe refactor around scripts/view/Game.gd.
@@ -494,3 +575,205 @@ Validation:
 - Restored a more readable board scale for the playable slice.
 - Nudged the default monster visual offset slightly toward the cell center to
   reduce the apparent sprite misalignment.
+
+## 2026-06-29 Map connectivity stitching and wider passes
+
+- Expanded world-map connectivity from “rescue unreachable POIs” to also stitch
+  large secondary walkable regions back into the main reachable landmass.
+- Added a small shortcut-pass budget plus variable pass width, while keeping
+  all carved corridors cardinal so they stay valid for the current movement
+  rules.
+- Added smoke coverage that checks the generated world slice keeps the whole
+  walkable terrain connected from spawn.
+
+## 2026-06-29 Lighter mountain silhouette and forest blocker split
+
+- Increased the world map scaffold to `64x64` so terrain density is easier to
+  inspect than on the earlier `40x40` slice.
+- Reframed forest from a broad opaque biome into walkable forest floor plus
+  scattered `TREE` blockers that interrupt movement and sight in smaller
+  tactical clusters.
+- Softened mountains into a lighter macro silhouette and relied more on wider
+  3-5 cell passes and local tree-gap cleanup instead of narrow single-cell
+  chokepoints.
+- Expanded `MapPrintProbe` to print larger seed samples and summarize mountain
+  blocked ratio, forest blocker density, pass width, and local connectivity
+  cleanup counts.
+
+## 2026-06-29 World slice 256x256 performance boundary pass
+
+- Raised the world-slice scaffold target to `256x256`, but kept the runtime
+  optimization scope intentionally small: bounded-radius FOV, event-driven HUD,
+  and a fixed active-window board render.
+- Switched `BoardView` from rebuild-every-cell rendering to a reusable tile
+  pool sized to the visible window, so world slice no longer instantiates or
+  redraws the whole map surface on every refresh.
+- Added lightweight generation / FOV / board timing counters plus render-window
+  metrics to `GameState`, `MapData`, and the sidebar debug output.
+- Reworked `MapPrintProbe` into summary + local-window output for `80x80`,
+  `128x128`, and `256x256` maps so large-map inspection stays readable.
+
+## 2026-06-29 World slice viewport recentered and sync loading overlay added
+
+- Tightened the playable world-slice board to a `29x29` moving window and made
+  its layout derive from the actual left-side viewport area, so the board stops
+  crowding the right UI and actor overlays keep using the same origin math.
+- Updated `BoardView` world/grid conversion to follow the node's live position
+  instead of a stale exported origin value, which reduces visible board/FOV
+  drift when the world window is recentered.
+- Added a lightweight synchronous `WorldLoadingOverlay` that reports world
+  generation stage progress between major map-building passes without adding
+  threading or changing the core generation flow.
+- Set the default playable world-slice size to `128x128` for a faster click-to-
+  play loop, while keeping `MapPrintProbe` coverage for `256x256` performance
+  boundary checks.
+
+## 2026-06-30 World slice spawn semantics and map readability
+
+- Moved the generated world-slice spawn onto the tavern footprint so the run
+  now starts from a rest-building context instead of an unrelated open field.
+- Upgraded the board's terrain placeholder rendering from mostly uniform tiles
+  to semantic color blocks for building floors, doors, walls, tree blockers,
+  hills, mountains, water, swamp, and desert.
+- Kept the rendering layer data-first so later sprite / tileset integration can
+  replace the placeholder palette without changing world-generation semantics.
+
+## 2026-06-30 World slice rest-area editing gate
+
+- Stopped treating world slice as globally editable for key-program changes.
+- Key-program editing now unlocks only while the player is standing inside the
+  tavern / rest-building footprint, and relocks after leaving that area.
+- Kept the implementation lightweight by reusing existing building tags instead
+  of adding a separate interaction-mode system.
+
+## 2026-06-30 Tavern readability and edit-state feedback
+
+- Split POI building colors a bit further so tavern / challenge / ruin-style
+  footprints are easier to distinguish at a glance even before real tilesets.
+- Added explicit world-slice status text for the current tile context and
+  whether key-program editing is enabled or locked.
+- Updated the battle-side title copy so players get a direct hint that editing
+  unlocks inside the tavern and relocks after leaving it.
+
+## 2026-06-30 Tavern enter/leave prompts and generated placeholder tile textures
+
+- Added explicit world-slice messages for entering and leaving the tavern rest
+  area so players get a clear interaction cue without a larger UI system.
+- Upgraded board terrain presentation from flat semantic color blocks to small
+  procedurally generated placeholder textures for plains, forest, trees, walls,
+  buildings, hills, mountains, water, bridges, swamp, and desert.
+- Kept the renderer asset-light: the current textures are generated in code, so
+  the project stays easy to share while remaining ready for later sprite/tileset
+  replacement.
+
+## 2026-06-30 Real tile fallback assets
+
+- Added a tiny project-local `art/tiles/board/` asset set for the core terrain
+  and structure placeholders so the board can prefer real bitmap files first.
+- Kept the procedural renderer as a safe fallback, and switched the loader to
+  read workspace PNGs directly from disk so import metadata is not required.
+- This gives the project a clean bridge toward future art replacement without
+  changing map semantics or battle flow.
+
+## 2026-06-30 Core tile pass toward more game-facing art
+
+- Refined the first batch of bitmap board tiles so tavern floor/door, tree,
+  wall, plain, water, hill, and mountain read more like deliberate game assets
+  instead of generic debug placeholders.
+- Added tavern-specific tile names and made the board renderer prefer those
+  before falling back to generic building tiles.
+- Kept everything inside the same resource/fallback pipeline so future art
+  replacement stays incremental.
+
+## 2026-06-30 Secondary board tile art pass
+
+- Refined the remaining high-visibility bitmap tiles for forest, swamp, bridge,
+  rock, challenge floor, ruin floor, shrine floor, river, and peak so the
+  world slice reads less like placeholder debug geometry.
+- Kept the same 64x64 project-local PNG workflow and direct disk-loading path,
+  which means teammates can replace individual tiles later without touching the
+  renderer or requiring import metadata for headless tests.
+- Left map semantics unchanged: this pass is presentation-only and stays within
+  the existing BoardView asset fallback pipeline.
+
+## 2026-06-30 FOV textured fog pass and first built-in particle hook
+
+- Fixed the explored-cell visibility presentation for real PNG board tiles by
+  generating fogged texture variants instead of relying on flat palette darken
+  logic that only worked well with debug-style color cells.
+- This keeps world-slice FOV readable after art replacement without changing
+  FOV rules, map generation, or actor logic.
+- Also attached a very small GPUParticles2D burst to the existing hit effect so
+  the project now has a clean in-engine example of how built-in Godot particles
+  can layer on top of the current battle effect pipeline.
+
+## 2026-06-30 Coarse world enemy streaming pass
+
+- Replaced the strictly static "spawn four far-away test enemies once" feel
+  with a rough world-slice enemy streaming pass aimed at performance testing.
+- The world now keeps a local target number of active enemies near the player,
+  despawns far unseen streamed enemies, and refills nearby spawn bands after
+  player movement.
+- This is intentionally a debug-grade density / culling scaffold for testing
+  large-map pacing and hitching, not a final persistence or ecosystem system.
+
+## 2026-06-30 World-slice layered presentation pass
+
+- Split world-slice feel away from the legacy room-chain presentation timing:
+  the world now defaults to logic-first, non-blocking presentation so movement
+  resolves immediately while view tweens and effects continue asynchronously.
+- Kept the legacy seeded / room-chain flow on the older blocking presentation
+  path so existing combat readability and demo timing stay intact there.
+- This is the first step toward a cleaner "gameplay response layer" vs
+  "presentation layer" split instead of treating every animation wait as part
+  of battle resolution.
+
+## 2026-06-30 World-slice fast-feel timing preset
+
+- Added timing profiles so world-slice can use a faster presentation preset
+  while legacy room-chain scenes keep the slower readability-first preset.
+- The fast preset shortens move / hit / windup / effect timing and removes the
+  inter-action pause, but only for the world-slice path.
+- This keeps tuning centralized and makes later feel iteration much safer than
+  scattering hard-coded tween durations across multiple actor/effect scenes.
+
+## 2026-06-30 Mountain generation coarse sampling pass
+
+- Reworked mountain height scoring from a full per-cell ridge-distance sweep to
+  a sampled height field with bilinear interpolation back onto the final grid.
+- The generator now keeps exact ridge control shapes, but evaluates them on a
+  coarser lattice for large maps and fills the in-between cells from local
+  neighborhood samples.
+- Added `mountain_height_sample_step` to `MapGenConfig` so large-map tuning can
+  be adjusted explicitly later, while the default still auto-selects a step by
+  map size.
+
+## 2026-06-30 Connectivity packed-mask optimization pass
+
+- Replaced several repeated dictionary-based full-map walkability scans with a
+  packed-byte reachability / walkability path inside `ConnectivityService`.
+- Region collection, POI reachability checks, and nearest reachable anchor
+  lookup now reuse compact masks instead of re-running broad dictionary flood
+  fills over the whole map.
+- On the 1024x1024 single-seed probe this dropped connectivity time from about
+  161s to about 23s while keeping `unreachable_poi = 0` and passing SmokeTest.
+
+## 2026-06-30 Building placement shifts toward local terraforming
+
+- Adjusted building placement scoring away from "only naturally perfect
+  walkable footprints" toward "roughly suitable local regions plus controlled
+  pattern terraforming".
+- Candidate selection now scores footprint windows by conflict / forbidden
+  terrain / terraform cost, while still protecting water, existing structures,
+  existing POIs, and the player spawn from being overwritten.
+- Kept this as a small directional shift rather than a full stamp-system
+  rewrite so the current world generator remains handoff-friendly.
+
+## 2026-06-30 Tavern density and interior blocker pass
+
+- Tavern count now scales by world size by default instead of staying fixed at
+  one copy on every map, while still allowing an explicit override through
+  `MapGenConfig.tavern_count`.
+- The base tavern pattern now includes a few interior blocker props using
+  existing rock/statue semantics so taverns read more like real structures with
+  occupied space instead of empty shells.

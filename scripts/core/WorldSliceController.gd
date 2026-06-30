@@ -1,79 +1,54 @@
 class_name WorldSliceController
 extends RefCounted
 
-## Minimal persistent world-slice scaffold.
-## The slice is intentionally fixed and small in scope:
-## - one large shared grid
-## - one player
-## - a few obstacles
-## - a few test enemies
-## - no room chain / reward flow
-
 const GameStateScript := preload("res://scripts/core/GameState.gd")
 const GridModelScript := preload("res://scripts/core/GridModel.gd")
-const GridMapDataScript := preload("res://scripts/core/GridMapData.gd")
+const MapGenConfigScript := preload("res://scripts/core/MapGenConfig.gd")
+const WorldGeneratorScript := preload("res://scripts/core/WorldGenerator.gd")
 const ActorStateScript := preload("res://scripts/runtime/ActorState.gd")
 const GridItemStateScript := preload("res://scripts/runtime/GridItemState.gd")
-const FOVServiceScript := preload("res://scripts/core/FOVService.gd")
+const VisibilityServiceScript := preload("res://scripts/core/VisibilityService.gd")
 const PLAYER_DEF := preload("res://data/actors/player.tres")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
 const BRUTE_DEF := preload("res://data/actors/brute.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 
-const WORLD_GRID_SIZE := Vector2i(30, 30)
-const PLAYER_START := Vector2i(4, 4)
-const ENEMY_SPAWNS := [Vector2i(8, 4), Vector2i(4, 8), Vector2i(11, 6), Vector2i(6, 11)]
-const BLOCKED_RECTANGLES := [
-	Rect2i(9, 2, 1, 4),
-	Rect2i(13, 7, 4, 1),
-	Rect2i(2, 12, 5, 1),
-	Rect2i(18, 3, 2, 3),
-]
-const PLACEHOLDER_CELL := Vector2i(10, 10)
+const WORLD_GRID_SIZE := Vector2i(128, 128)
+const DEFAULT_FOV_RADIUS := 8
+const REQUIRED_ENEMY_COUNT := 4
+const STREAM_DESIRED_ACTIVE_ENEMY_COUNT := 10
+const STREAM_SPAWN_RADIUS_MIN := 10
+const STREAM_SPAWN_RADIUS_MAX := 18
+const STREAM_DESPAWN_DISTANCE := 28
 
-var _next_actor_id := 0
-var _next_item_id := 1000
-var _fov_service := FOVServiceScript.new()
+var _next_actor_id: int = 0
+var _next_item_id: int = 1000
+var _seed_counter: int = 0
+var _visibility_service = VisibilityServiceScript.new()
+var _world_generator = WorldGeneratorScript.new()
+var _map_config = _build_default_map_config()
 
 
-func create_demo_state() -> GameState:
-	_next_actor_id = 0
-	_next_item_id = 1000
+func create_demo_state(seed_value: String = ""):
 	var state = GameStateScript.new()
 	state.grid = GridModelScript.new()
-	state.grid.setup(WORLD_GRID_SIZE.x, WORLD_GRID_SIZE.y)
-	state.map_data = GridMapDataScript.new()
-	state.map_data.setup(WORLD_GRID_SIZE.x, WORLD_GRID_SIZE.y)
-	state.room_index = 0
-	state.room_name = "World Slice"
-	state.map_node_index = 0
-	state.map_node_kind = "world_slice"
-	state.map_node_label = "World Slice"
-	state.exit_cell = Vector2i(-99, -99)
-	state.is_safe_training = false
-	state.is_world_slice = true
-	state.visible_cells.clear()
-	state.explored_cells.clear()
-	state.reveal_all_debug = false
-	state.fov_radius = 6
-	var empty_weapon_techniques: Array[String] = []
-	state.set_unlocked_weapon_technique_ids(empty_weapon_techniques)
-	_add_world_bounds(state.grid)
-	_add_world_bounds_to_map_data(state.map_data)
-	_add_world_obstacles(state.grid)
-	_add_world_obstacles_to_map_data(state.map_data)
-	_add_placeholder_prop(state)
-
-	var player = _add_actor(state, PLAYER_DEF, PLAYER_START, Vector2i.RIGHT)
-	player.active_weapon = IMPACT_SHIELD
-
-	for index in range(ENEMY_SPAWNS.size()):
-		var enemy_def = SLIME_DEF if index < 3 else BRUTE_DEF
-		_add_actor(state, enemy_def, ENEMY_SPAWNS[index], Vector2i.LEFT)
-
-	state.add_message("World slice ready.")
-	recompute_visibility(state, "init")
+	_prepare_state_shell(state)
+	var initial_seed: String = seed_value if not seed_value.is_empty() else _make_random_seed()
+	_rebuild_world_slice_state(state, initial_seed, "init")
 	return state
+
+
+func create_demo_state_with_progress(seed_value: String = "", progress_callback: Callable = Callable()):
+	var state = GameStateScript.new()
+	state.grid = GridModelScript.new()
+	_prepare_state_shell(state)
+	var initial_seed: String = seed_value if not seed_value.is_empty() else _make_random_seed()
+	await rebuild_state_with_progress(state, initial_seed, "init", progress_callback)
+	return state
+
+
+func rebuild_state_with_progress(state, seed_value: String, visibility_reason: String, progress_callback: Callable = Callable()) -> void:
+	await _rebuild_world_slice_state_with_progress(state, seed_value, visibility_reason, progress_callback)
 
 
 func get_visible_cells(state) -> Array[Vector2i]:
@@ -89,22 +64,27 @@ func get_explored_cells(state) -> Array[Vector2i]:
 
 
 func recompute_visibility(state, reason: String = "manual") -> void:
-	if state == null or state.player == null:
+	if state == null or state.player == null or state.map_data == null:
 		return
 
+	var started_at: int = Time.get_ticks_msec()
+	state.visible_cells.clear()
+	state.visible_cell_set.clear()
 	if state.reveal_all_debug:
-		_reveal_all(state, reason)
-		return
+		state.visible_cells = _visibility_service.reveal_all(state.map_data)
+	else:
+		state.visible_cells = _visibility_service.compute_visible_cells(state.map_data, state.player.grid_pos, int(state.fov_radius))
 
-	if state.map_data == null:
-		return
+	for cell in state.visible_cells:
+		state.visible_cell_set[cell] = true
 
-	var visible := _fov_service.compute_fov(state.player.grid_pos, int(state.fov_radius), state.map_data)
-	state.visible_cells = visible.duplicate()
-	for cell in visible:
-		if not state.explored_cells.has(cell):
+	for cell in state.visible_cells:
+		if not state.explored_cell_set.has(cell):
 			state.explored_cells.append(cell)
+			state.explored_cell_set[cell] = true
 	state.last_visibility_recompute_reason = reason
+	state.fov_recompute_count += 1
+	state.last_fov_ms = float(Time.get_ticks_msec() - started_at)
 	_update_actor_visibility(state)
 
 
@@ -115,9 +95,108 @@ func set_reveal_all_debug(state, enabled: bool, reason: String = "debug_toggle")
 	recompute_visibility(state, reason)
 
 
-func reset_world_slice(state) -> void:
+func regenerate_same_seed(state) -> void:
 	if state == null:
 		return
+	var seed_value: String = state.map_data.seed if state.map_data != null else _make_random_seed()
+	_rebuild_world_slice_state(state, seed_value, "reset")
+
+
+func regenerate_new_seed(state) -> void:
+	if state == null:
+		return
+	_rebuild_world_slice_state(state, _make_random_seed(), "reset")
+
+
+func reset_world_slice(state) -> void:
+	regenerate_same_seed(state)
+
+
+func print_map_summary(state) -> void:
+	for line in get_map_summary_lines(state):
+		print(line)
+	if state != null and state.map_data != null:
+		state.add_message("Printed map summary for seed %s" % state.map_data.seed)
+
+
+func get_map_summary_lines(state) -> Array[String]:
+	if state == null or state.map_data == null:
+		return []
+	var lines: Array[String] = state.map_data.get_debug_summary_lines()
+	lines.append("Reveal all: %s" % ("on" if bool(state.reveal_all_debug) else "off"))
+	return lines
+
+
+func on_player_moved(state, _from_cell: Vector2i = Vector2i.ZERO, _to_cell: Vector2i = Vector2i.ZERO) -> void:
+	recompute_visibility(state, "player_moved")
+	refresh_streamed_enemies(state, "player_moved")
+
+
+func on_actor_moved(state, actor, _from_cell: Vector2i = Vector2i.ZERO, _to_cell: Vector2i = Vector2i.ZERO) -> void:
+	if state == null or not bool(state.is_world_slice):
+		return
+	if actor == state.player:
+		recompute_visibility(state, "player_moved")
+		refresh_streamed_enemies(state, "player_moved")
+
+
+func _prepare_state_shell(state) -> void:
+	_next_actor_id = 0
+	_next_item_id = 1000
+	state.room_index = 0
+	state.room_name = "World Slice"
+	state.map_node_index = 0
+	state.map_node_kind = "world_slice"
+	state.map_node_label = "World Slice"
+	state.exit_cell = Vector2i(-99, -99)
+	state.is_safe_training = false
+	state.is_world_slice = true
+	state.reveal_all_debug = false
+	state.fov_radius = DEFAULT_FOV_RADIUS
+	state.visible_cells.clear()
+	state.visible_cell_set.clear()
+	state.explored_cells.clear()
+	state.explored_cell_set.clear()
+	state.actors.clear()
+	state.player = null
+	var empty_weapon_techniques: Array[String] = []
+	state.set_unlocked_weapon_technique_ids(empty_weapon_techniques)
+
+
+func _rebuild_world_slice_state(state, seed_value: String, visibility_reason: String) -> void:
+	if state == null:
+		return
+	_reset_runtime_state(state)
+	var generation_session: Dictionary = _world_generator.create_generation_session(seed_value, _map_config)
+	for stage in _world_generator.get_stage_defs():
+		_world_generator.run_generation_stage(generation_session, String(stage.get("id", "")))
+	state.map_data = _world_generator.finish_generation_session(generation_session)
+	_apply_generated_map_state(state, visibility_reason)
+
+
+func _rebuild_world_slice_state_with_progress(state, seed_value: String, visibility_reason: String, progress_callback: Callable = Callable()) -> void:
+	if state == null:
+		return
+	_reset_runtime_state(state)
+	var generation_session: Dictionary = _world_generator.create_generation_session(seed_value, _map_config)
+	var stage_defs: Array = _world_generator.get_stage_defs()
+	await _emit_generation_progress(progress_callback, "start", "准备世界参数", 0.0, -1, stage_defs.size())
+	for stage_index in range(stage_defs.size()):
+		var stage: Dictionary = stage_defs[stage_index]
+		_world_generator.run_generation_stage(generation_session, String(stage.get("id", "")))
+		await _emit_generation_progress(
+			progress_callback,
+			String(stage.get("id", "")),
+			String(stage.get("label", "")),
+			float(stage_index + 1) / float(max(1, stage_defs.size())),
+			stage_index,
+			stage_defs.size()
+		)
+	state.map_data = _world_generator.finish_generation_session(generation_session)
+	_apply_generated_map_state(state, visibility_reason)
+
+
+func _reset_runtime_state(state) -> void:
 	_next_actor_id = 0
 	_next_item_id = 1000
 	state.actors.clear()
@@ -126,130 +205,353 @@ func reset_world_slice(state) -> void:
 	state.phase = "planning"
 	state.battle_finished = false
 	state.victory = false
-	if state.grid != null:
-		state.grid.setup(WORLD_GRID_SIZE.x, WORLD_GRID_SIZE.y)
-	if state.map_data != null:
-		state.map_data.setup(WORLD_GRID_SIZE.x, WORLD_GRID_SIZE.y)
 	state.items_at.clear()
-	state.visible_cells.clear()
-	state.explored_cells.clear()
 	state.preview_move_cells.clear()
 	state.preview_attack_cells.clear()
 	state.danger_cells.clear()
 	state.enemy_intents.clear()
 	state.messages.clear()
-	state.last_visibility_recompute_reason = "reset"
+	state.reveal_all_debug = false
+	state.last_visibility_recompute_reason = ""
+	state.visible_cells.clear()
+	state.explored_cells.clear()
+	state.visible_cell_set.clear()
+	state.explored_cell_set.clear()
+	state.render_window_rect = Rect2i()
+	state.active_window_tile_count = 0
+	state.board_refresh_count = 0
+	state.fov_recompute_count = 0
+	state.hud_refresh_count = 0
+	state.entity_visual_count = 0
+	state.last_board_refresh_ms = 0.0
+	state.last_fov_ms = 0.0
+	state.last_generation_ms = 0.0
+	state.generation_breakdown_ms = {}
 	if state.action_trace != null:
 		state.action_trace.clear()
 	state.clear_weapon_combo_matches()
-	var reset_weapon_techniques: Array[String] = []
-	state.set_unlocked_weapon_technique_ids(reset_weapon_techniques)
-	_add_world_bounds(state.grid)
-	_add_world_bounds_to_map_data(state.map_data)
-	_add_world_obstacles(state.grid)
-	_add_world_obstacles_to_map_data(state.map_data)
-	_add_placeholder_prop(state)
-	var player = _add_actor(state, PLAYER_DEF, PLAYER_START, Vector2i.RIGHT)
+
+
+func _apply_generated_map_state(state, visibility_reason: String) -> void:
+	state.last_generation_ms = float(state.map_data.generation_total_ms)
+	state.generation_breakdown_ms = state.map_data.generation_breakdown_ms.duplicate(true)
+	if state.grid == null:
+		state.grid = GridModelScript.new()
+	state.grid.setup(state.map_data.width, state.map_data.height)
+	_sync_grid_from_map_data(state)
+
+	var player_cell: Vector2i = _resolve_player_spawn(state.map_data)
+	var player = _add_actor(state, PLAYER_DEF, player_cell, _pick_player_facing(state.map_data, player_cell))
 	player.active_weapon = IMPACT_SHIELD
-	for index in range(ENEMY_SPAWNS.size()):
-		var enemy_def = SLIME_DEF if index < 3 else BRUTE_DEF
-		_add_actor(state, enemy_def, ENEMY_SPAWNS[index], Vector2i.LEFT)
-	state.add_message("World slice ready.")
-	recompute_visibility(state, "reset")
+
+	var reserved: Dictionary = {}
+	reserved[player_cell] = true
+
+	var prop_cell: Vector2i = _pick_prop_cell(state.map_data, reserved)
+	if prop_cell != Vector2i(-1, -1):
+		_add_placeholder_prop(state, prop_cell)
+		reserved[prop_cell] = true
+
+	for enemy_cell in _pick_enemy_spawn_cells(state.map_data, player_cell, reserved, REQUIRED_ENEMY_COUNT):
+		var enemy_def = BRUTE_DEF if state.get_alive_enemies().size() >= REQUIRED_ENEMY_COUNT - 1 else SLIME_DEF
+		_add_enemy_actor(state, enemy_def, enemy_cell, _step_direction_toward(enemy_cell, player_cell))
+		reserved[enemy_cell] = true
+
+	state.add_message("World slice ready. Seed %s." % state.map_data.seed)
+	recompute_visibility(state, visibility_reason)
+	refresh_streamed_enemies(state, "initial_stream")
 
 
-func on_player_moved(state, _from_cell: Vector2i = Vector2i.ZERO, _to_cell: Vector2i = Vector2i.ZERO) -> void:
-	recompute_visibility(state, "player_moved")
-
-
-func on_actor_moved(state, _actor, _from_cell: Vector2i = Vector2i.ZERO, _to_cell: Vector2i = Vector2i.ZERO) -> void:
-	if state == null:
+func _emit_generation_progress(progress_callback: Callable, stage_id: String, stage_label: String, progress: float, stage_index: int, stage_count: int) -> void:
+	if progress_callback.is_valid():
+		progress_callback.call({
+			"stage_id": stage_id,
+			"stage_label": stage_label,
+			"progress": progress,
+			"stage_index": stage_index,
+			"stage_count": stage_count,
+		})
+	if DisplayServer.get_name() == "headless":
 		return
-	if bool(state.is_world_slice) and _actor == state.player:
-		recompute_visibility(state, "player_moved")
+	var main_loop = Engine.get_main_loop()
+	if main_loop is SceneTree:
+		await main_loop.process_frame
 
 
-func _add_world_bounds(grid) -> void:
-	for x in range(WORLD_GRID_SIZE.x):
-		grid.add_blocked(Vector2i(x, 0))
-		grid.add_blocked(Vector2i(x, WORLD_GRID_SIZE.y - 1))
-	for y in range(WORLD_GRID_SIZE.y):
-		grid.add_blocked(Vector2i(0, y))
-		grid.add_blocked(Vector2i(WORLD_GRID_SIZE.x - 1, y))
+func _resolve_player_spawn(map_data) -> Vector2i:
+	if map_data != null and map_data.is_walkable(map_data.player_spawn):
+		return map_data.player_spawn
+	for cell in map_data.get_walkable_cells():
+		return cell
+	return Vector2i.ZERO
 
 
-func _add_world_bounds_to_map_data(map_data) -> void:
-	for x in range(WORLD_GRID_SIZE.x):
-		map_data.add_blocked(Vector2i(x, 0), true)
-		map_data.add_blocked(Vector2i(x, WORLD_GRID_SIZE.y - 1), true)
-	for y in range(WORLD_GRID_SIZE.y):
-		map_data.add_blocked(Vector2i(0, y), true)
-		map_data.add_blocked(Vector2i(WORLD_GRID_SIZE.x - 1, y), true)
+func _pick_player_facing(map_data, player_cell: Vector2i) -> Vector2i:
+	for dir in [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT, Vector2i.UP]:
+		if map_data.is_walkable(player_cell + dir):
+			return dir
+	return Vector2i.RIGHT
 
 
-func _add_world_obstacles(grid) -> void:
-	for rect in BLOCKED_RECTANGLES:
-		for y in range(rect.position.y, rect.position.y + rect.size.y):
-			for x in range(rect.position.x, rect.position.x + rect.size.x):
-				grid.add_blocked(Vector2i(x, y))
+func _pick_prop_cell(map_data, reserved: Dictionary) -> Vector2i:
+	var preferred: Array[Vector2i] = []
+	for record in map_data.get_poi_records():
+		var interaction_cell: Vector2i = Vector2i(record.get("interaction_cell", Vector2i(-1, -1)))
+		if interaction_cell != Vector2i(-1, -1):
+			preferred.append(interaction_cell)
+	if preferred.is_empty():
+		if map_data.tavern_cell != Vector2i(-1, -1):
+			preferred.append(map_data.tavern_cell)
+		preferred.append_array(map_data.challenge_cells)
+		preferred.append_array(map_data.ruin_cells)
+		preferred.append_array(map_data.chest_cells)
+		preferred.append_array(map_data.easter_egg_cells)
+		preferred.append_array(map_data.shrine_cells)
+
+	for cell in preferred:
+		if map_data.is_walkable(cell) and not reserved.has(cell):
+			return cell
+
+	var center: Vector2i = Vector2i(map_data.width / 2, map_data.height / 2)
+	return _pick_nearest_walkable(map_data.get_walkable_cells(), center, reserved)
 
 
-func _add_world_obstacles_to_map_data(map_data) -> void:
-	for rect in BLOCKED_RECTANGLES:
-		for y in range(rect.position.y, rect.position.y + rect.size.y):
-			for x in range(rect.position.x, rect.position.x + rect.size.x):
-				map_data.add_blocked(Vector2i(x, y), true)
+func _pick_enemy_spawn_cells(map_data, player_cell: Vector2i, reserved: Dictionary, required_count: int) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var min_distance: int = int(_map_config.enemy_min_distance_from_spawn)
+	for _index in range(required_count):
+		var cell: Vector2i = _pick_best_enemy_cell(map_data, player_cell, reserved, result, min_distance)
+		if cell == Vector2i(-1, -1):
+			cell = _pick_best_enemy_cell(map_data, player_cell, reserved, result, 4)
+		if cell == Vector2i(-1, -1):
+			break
+		result.append(cell)
+		reserved[cell] = true
+	return result
 
 
-func _add_placeholder_prop(state) -> void:
+func _pick_best_enemy_cell(map_data, player_cell: Vector2i, reserved: Dictionary, chosen_cells: Array[Vector2i], min_distance: int) -> Vector2i:
+	var best: Vector2i = Vector2i(-1, -1)
+	var best_score: float = -INF
+	for cell in map_data.get_walkable_cells():
+		if reserved.has(cell):
+			continue
+		var distance_from_player: float = cell.distance_to(player_cell)
+		if distance_from_player < float(min_distance):
+			continue
+		var spacing_score: float = _distance_to_closest(cell, chosen_cells)
+		var terrain_pressure: int = _adjacent_blocked_count(map_data, cell)
+		var poi_bonus: float = 0.0
+		var map_cell = map_data.get_cell(cell)
+		if map_cell != null:
+			if map_cell.tags.has("poi:challenge_entrance"):
+				poi_bonus += 2.0
+			if map_cell.tags.has("poi:ruin"):
+				poi_bonus += 1.5
+		var score: float = distance_from_player * 1.35 + spacing_score * 0.75 + float(terrain_pressure) * 0.6 + poi_bonus
+		if score > best_score:
+			best = cell
+			best_score = score
+	return best
+
+
+func _distance_to_closest(cell: Vector2i, chosen_cells: Array[Vector2i]) -> float:
+	if chosen_cells.is_empty():
+		return 6.0
+	var best_distance: float = INF
+	for chosen in chosen_cells:
+		best_distance = minf(best_distance, cell.distance_to(chosen))
+	return best_distance
+
+
+func _step_direction_toward(from_cell: Vector2i, to_cell: Vector2i) -> Vector2i:
+	var delta: Vector2i = to_cell - from_cell
+	if absi(delta.x) >= absi(delta.y):
+		return Vector2i.RIGHT if delta.x >= 0 else Vector2i.LEFT
+	return Vector2i.DOWN if delta.y >= 0 else Vector2i.UP
+
+
+func _adjacent_blocked_count(map_data, cell: Vector2i) -> int:
+	var count: int = 0
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		if not map_data.is_walkable(cell + dir):
+			count += 1
+	return count
+
+
+func _pick_nearest_walkable(candidates: Array[Vector2i], preferred: Vector2i, reserved: Dictionary) -> Vector2i:
+	var best: Vector2i = Vector2i(-1, -1)
+	var best_distance: float = INF
+	for cell in candidates:
+		if reserved.has(cell):
+			continue
+		var distance: float = float(cell.distance_squared_to(preferred))
+		if distance < best_distance:
+			best = cell
+			best_distance = distance
+	return best
+
+
+func _add_placeholder_prop(state, cell: Vector2i) -> void:
 	var prop = GridItemStateScript.new()
-	prop.setup_grid_item(_next_item_id, "world_terminal", GridItemStateScript.GridItemKind.PROP, PLACEHOLDER_CELL, false)
+	prop.setup_grid_item(_next_item_id, "world_marker", GridItemStateScript.GridItemKind.PROP, cell, false)
 	_next_item_id += 1
-	prop.display_name = "World Terminal Placeholder"
+	prop.display_name = "World Marker"
 	prop.tags.append("world_slice_placeholder")
-	state.grid.place_item(prop, PLACEHOLDER_CELL)
+	state.grid.place_item(prop, cell)
 
 
 func _add_actor(state, actor_def, cell: Vector2i, facing: Vector2i):
 	var actor = ActorStateScript.new()
 	actor.setup(_next_actor_id, actor_def, cell)
 	_next_actor_id += 1
-	actor.facing = facing
+	actor.facing = facing if facing != Vector2i.ZERO else Vector2i.RIGHT
 	actor.active_weapon = IMPACT_SHIELD if actor_def == PLAYER_DEF else null
 	state.grid.place_actor(actor, cell)
 	state.add_actor(actor)
 	return actor
 
 
-func _reveal_all(state, reason: String) -> void:
-	if state == null or state.map_data == null:
+func _add_enemy_actor(state, actor_def, cell: Vector2i, facing: Vector2i):
+	var actor = _add_actor(state, actor_def, cell, facing)
+	if actor != null:
+		if not actor.tags.has("world_streamed_enemy"):
+			actor.tags.append("world_streamed_enemy")
+	return actor
+
+
+func refresh_streamed_enemies(state, reason: String = "manual") -> void:
+	if state == null or not bool(state.is_world_slice) or state.player == null or state.map_data == null or state.grid == null:
 		return
-	var visible: Array[Vector2i] = []
-	var size: Vector2i = state.map_data.get_size()
-	for y in range(size.y):
-		for x in range(size.x):
-			var cell := Vector2i(x, y)
-			visible.append(cell)
-			if not state.explored_cells.has(cell):
-				state.explored_cells.append(cell)
-	state.visible_cells = visible
-	state.last_visibility_recompute_reason = reason
-	_update_actor_visibility(state)
+	var despawned: int = _despawn_far_streamed_enemies(state)
+	var spawned: int = _spawn_streamed_enemies_near_player(state)
+	state.world_enemy_stream_refresh_count += 1
+	state.world_enemy_stream_last_spawned = spawned
+	state.world_enemy_stream_last_despawned = despawned
+	state.world_enemy_stream_spawn_total += spawned
+	state.world_enemy_stream_despawn_total += despawned
+	state.world_enemy_stream_last_reason = reason
+	state.world_enemy_stream_target = STREAM_DESIRED_ACTIVE_ENEMY_COUNT
+
+
+func _despawn_far_streamed_enemies(state) -> int:
+	var removed: int = 0
+	var far_sq: int = STREAM_DESPAWN_DISTANCE * STREAM_DESPAWN_DISTANCE
+	var to_remove: Array = []
+	for enemy in state.get_alive_enemies():
+		if enemy == null or enemy == state.player:
+			continue
+		if not enemy.tags.has("world_streamed_enemy"):
+			continue
+		if state.visible_cell_set.has(enemy.grid_pos):
+			continue
+		if enemy.grid_pos.distance_squared_to(state.player.grid_pos) <= far_sq:
+			continue
+		to_remove.append(enemy)
+	for enemy in to_remove:
+		state.grid.remove_actor(enemy)
+		state.actors.erase(enemy)
+		removed += 1
+	return removed
+
+
+func _spawn_streamed_enemies_near_player(state) -> int:
+	var active_enemy_count: int = state.get_alive_enemies().size()
+	if active_enemy_count >= STREAM_DESIRED_ACTIVE_ENEMY_COUNT:
+		return 0
+	var needed: int = STREAM_DESIRED_ACTIVE_ENEMY_COUNT - active_enemy_count
+	var spawned: int = 0
+	var reserved: Dictionary = {}
+	for actor in state.actors:
+		if actor != null and not actor.is_dead():
+			reserved[actor.grid_pos] = true
+	for cell in state.map_data.get_all_poi_cells():
+		reserved[cell] = true
+	var candidates: Array[Vector2i] = _pick_stream_spawn_cells(state.map_data, state.player.grid_pos, reserved, needed)
+	for cell in candidates:
+		var enemy_def = BRUTE_DEF if ((state.get_alive_enemies().size() + spawned) % 5 == 4) else SLIME_DEF
+		if _add_enemy_actor(state, enemy_def, cell, _step_direction_toward(cell, state.player.grid_pos)) != null:
+			reserved[cell] = true
+			spawned += 1
+	return spawned
+
+
+func _pick_stream_spawn_cells(map_data, player_cell: Vector2i, reserved: Dictionary, required_count: int) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	if map_data == null or required_count <= 0:
+		return result
+	var min_sq: int = STREAM_SPAWN_RADIUS_MIN * STREAM_SPAWN_RADIUS_MIN
+	var max_sq: int = STREAM_SPAWN_RADIUS_MAX * STREAM_SPAWN_RADIUS_MAX
+	var candidates: Array[Dictionary] = []
+	for cell in map_data.get_walkable_cells():
+		if reserved.has(cell):
+			continue
+		var distance_sq: int = cell.distance_squared_to(player_cell)
+		if distance_sq < min_sq or distance_sq > max_sq:
+			continue
+		var map_cell = map_data.get_cell(cell)
+		if map_cell == null:
+			continue
+		var poi_penalty: float = 0.0
+		for tag in map_cell.tags:
+			var text := String(tag)
+			if text.begins_with("poi:"):
+				poi_penalty += 5.0
+		var score: float = float(distance_sq) + _distance_to_closest(cell, result) * 3.0 + float(_adjacent_blocked_count(map_data, cell)) * 1.25 - poi_penalty
+		candidates.append({
+			"cell": cell,
+			"score": score,
+		})
+	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.get("score", 0.0)) > float(b.get("score", 0.0))
+	)
+	for candidate in candidates:
+		var cell: Vector2i = Vector2i(candidate.get("cell", Vector2i(-1, -1)))
+		if cell == Vector2i(-1, -1):
+			continue
+		var too_close_to_existing := false
+		for chosen in result:
+			if cell.distance_squared_to(chosen) < 16:
+				too_close_to_existing = true
+				break
+		if too_close_to_existing:
+			continue
+		result.append(cell)
+		if result.size() >= required_count:
+			break
+	return result
 
 
 func _update_actor_visibility(state) -> void:
 	if state == null or state.grid == null:
 		return
 	var visible_set: Dictionary = {}
-	if state.reveal_all_debug:
-		for cell in state.visible_cells:
-			visible_set[cell] = true
+	if not state.visible_cell_set.is_empty():
+		visible_set = state.visible_cell_set
 	else:
 		for cell in state.visible_cells:
 			visible_set[cell] = true
 	for actor in state.actors:
 		if actor == null:
 			continue
-		var is_visible := visible_set.has(actor.grid_pos)
-		if actor.has_method("set"):
-			actor.set("revealed", is_visible)
+		actor.set("revealed", visible_set.has(actor.grid_pos))
+
+
+func _sync_grid_from_map_data(state) -> void:
+	if state == null or state.grid == null or state.map_data == null:
+		return
+	for cell in state.map_data.get_all_cells():
+		if not state.map_data.is_walkable(cell):
+			state.grid.add_blocked(cell)
+
+
+func _build_default_map_config():
+	var cfg = MapGenConfigScript.new()
+	cfg.map_size = WORLD_GRID_SIZE
+	cfg.enemy_count = REQUIRED_ENEMY_COUNT
+	return cfg
+
+
+func _make_random_seed() -> String:
+	_seed_counter += 1
+	return "world_slice_%d_%d" % [int(Time.get_unix_time_from_system()), _seed_counter]
