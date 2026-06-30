@@ -69,3 +69,24 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"ScreenHint"
 text = "准备进入房间"
+
+[node name="PlayerBox" type="Label" parent="Panel/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+theme_type_variation = &"BattleMessage"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+text = "玩家 - · 朝向 -"
+
+[node name="EnemyValue" type="Label" parent="Panel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenHint"
+text = "敌人: 0"
+
+[node name="EnemyIntentList" type="VBoxContainer" parent="Panel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 3

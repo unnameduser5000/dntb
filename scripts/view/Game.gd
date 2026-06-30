@@ -166,6 +166,7 @@ var _world_slice_controller
 var _current_rewards: Array = []
 var _key_program_editable := false
 var _world_slice_last_rest_area_state: bool = false
+var _bag_open := false
 
 func _ready() -> void:
 	_action_by_id = {
@@ -217,6 +218,15 @@ func _ready() -> void:
 		battle_ui.show_title()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_TAB and state != null and not state.battle_finished:
+			_toggle_bag()
+			get_viewport().set_input_as_handled()
+			return
+
+	if _bag_open:
+		return
+
 	if state != null and bool(state.is_world_slice):
 		if event is InputEventKey and event.pressed and not event.echo:
 			if event.keycode == KEY_V:
@@ -286,6 +296,7 @@ func _connect_signals() -> void:
 	resolver.actor_moved.connect(_on_actor_moved)
 
 func start_run() -> void:
+	_close_bag_if_open()
 	start_world_slice_debug()
 
 
@@ -492,6 +503,7 @@ func _submit_key_chain(key_id: String) -> void:
 		turn_controller.submit_player_plan(plan)
 
 func _on_battle_finished(victory: bool) -> void:
+	_close_bag_if_open()
 	if state != null and state.player != null:
 		_run_player_hp = max(0, state.player.hp)
 		_run_player_san = max(0, state.player.san)
@@ -522,12 +534,14 @@ func _on_reward_chosen(index: int) -> void:
 	if index < 0 or index >= _current_rewards.size():
 		return
 
+	_close_bag_if_open()
 	_apply_reward(_current_rewards[index])
 	_advance_to_next_map_node()
 
 func _on_rest_continue_requested() -> void:
 	if not _is_current_rest_node():
 		return
+	_close_bag_if_open()
 	_clear_key_slot_preview(false)
 	_key_program_editable = false
 	_advance_to_next_map_node()
@@ -829,6 +843,23 @@ func _apply_modifier_to_actor(actor, modifier) -> void:
 func _modifier_for_id(modifier_id: String):
 	return _modifier_by_id.get(modifier_id)
 
+
+func _build_permanent_buffs() -> Array[Dictionary]:
+	var buffs: Array[Dictionary] = []
+	for modifier_id in _run_modifier_ids:
+		var modifier = _modifier_for_id(modifier_id)
+		if modifier != null:
+			buffs.append({
+				"name": String(modifier.display_name),
+				"description": String(modifier.description),
+			})
+		else:
+			buffs.append({
+				"name": modifier_id,
+				"description": "",
+			})
+	return buffs
+
 func _weapon_combo_techniques_for_weapon(weapon) -> Array:
 	if weapon == null:
 		return []
@@ -1066,8 +1097,32 @@ func _record_achievement_event(event_id: String, meta: Dictionary = {}) -> void:
 		achievement_service.record_event(event_id, meta)
 
 func _refresh_key_program_ui() -> void:
+	if not is_instance_valid(battle_ui):
+		return
+	battle_ui.set_permanent_buffs(_build_permanent_buffs())
+	battle_ui.set_key_program(_action_program.get_key_slots(), _action_program.get_pool_tokens())
+
+
+func _toggle_bag() -> void:
 	if is_instance_valid(battle_ui):
-		battle_ui.set_key_program(_action_program.get_key_slots(), _action_program.get_pool_tokens())
+		battle_ui.toggle_bag()
+		_bag_open = battle_ui.is_bag_open()
+		if _bag_open:
+			battle_ui.set_key_program_editable(_key_program_editable)
+			_refresh_key_program_ui()
+
+
+func _close_bag_if_open() -> void:
+	if _bag_open and is_instance_valid(battle_ui):
+		battle_ui.toggle_bag()
+		_bag_open = false
+
+
+func _refresh_permanent_buffs_ui() -> void:
+	if not is_instance_valid(battle_ui):
+		return
+	var buffs: Array[Dictionary] = _build_permanent_buffs()
+	battle_ui.set_permanent_buffs(buffs)
 
 
 func get_key_program_slots() -> Dictionary:
