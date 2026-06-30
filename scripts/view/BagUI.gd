@@ -4,6 +4,7 @@ extends Control
 signal key_token_move_requested(source_slot_id: String, source_index: int, target_slot_id: String)
 signal key_slot_preview_requested(slot_id: String)
 signal key_slot_preview_cleared(slot_id: String)
+signal close_requested
 
 const SLOT_ORDER: Array[String] = ["Q", "W", "E", "R", "A", "S", "D", "F", "Z", "X", "C", "V"]
 const KEY_POOL_ID := "POOL"
@@ -14,7 +15,10 @@ const UiKeyTokenScript := preload("res://scripts/view/UiKeyToken.gd")
 var _key_grid: GridContainer = null
 var _pool_container: VBoxContainer = null
 var _buffs_list: VBoxContainer = null
+var _buffs_title: Label = null
 var _editable_label: Label = null
+var _hint_label: Label = null
+var _close_button: Button = null
 
 var _slot_chains: Dictionary = {}
 var _pool_tokens: Array[String] = []
@@ -32,10 +36,15 @@ func _find_nodes() -> void:
 	var header := find_child("Header", true, false)
 	if header:
 		_editable_label = header.find_child("EditableLabel", false, false) as Label
+		_hint_label = header.find_child("HintLabel", false, false) as Label
+		_close_button = header.find_child("CloseButton", false, false) as Button
+		if _close_button and not _close_button.pressed.is_connected(_on_close_button_pressed):
+			_close_button.pressed.connect(_on_close_button_pressed)
 
 	var left_panel := find_child("LeftPanel", true, false)
 	if left_panel:
 		_key_grid = left_panel.find_child("KeyGrid", false, false) as GridContainer
+		_buffs_title = left_panel.find_child("BuffsTitle", false, false) as Label
 		_buffs_list = left_panel.find_child("BuffsList", false, false) as VBoxContainer
 
 	var pool_scroll := find_child("PoolScroll", true, false)
@@ -82,6 +91,10 @@ func _refresh() -> void:
 
 	if _editable_label:
 		_editable_label.text = "可编辑 · 拖拽调整按键绑定" if _editable else "已锁定 · 查看不可编辑"
+	if _hint_label:
+		_hint_label.text = "同一键位会按从左到右顺序触发；Tab / Esc 关闭；休息区可拖拽编辑" if _editable else "同一键位会按从左到右顺序触发；Tab / Esc 关闭；战斗中只可查看顺序"
+	if _buffs_title:
+		_buffs_title.text = "永久增益（悬停查看详情）"
 
 	if _key_grid:
 		for child in _key_grid.get_children():
@@ -105,8 +118,9 @@ func _refresh() -> void:
 		else:
 			for buff_data in _permanent_buffs:
 				var buff_label := Label.new()
-				buff_label.text = "- %s" % String(buff_data.get("name", ""))
+				var buff_name := String(buff_data.get("name", ""))
 				var desc := String(buff_data.get("description", ""))
+				buff_label.text = "• %s" % buff_name if not desc.is_empty() else "• %s" % buff_name
 				buff_label.tooltip_text = desc
 				buff_label.mouse_filter = Control.MOUSE_FILTER_STOP
 				buff_label.theme_type_variation = &"BattleMessage"
@@ -220,6 +234,10 @@ func _on_key_slot_preview_requested(slot_id: String) -> void:
 
 func _on_key_slot_preview_cleared(slot_id: String) -> void:
 	key_slot_preview_cleared.emit(slot_id)
+
+
+func _on_close_button_pressed() -> void:
+	close_requested.emit()
 
 
 func _get_binding_label(key_id: String) -> String:

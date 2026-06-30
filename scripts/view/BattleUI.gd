@@ -8,6 +8,8 @@ signal key_token_move_requested(source_slot_id: String, source_index: int, targe
 signal key_slot_preview_requested(slot_id: String)
 signal key_slot_preview_cleared(slot_id: String)
 signal rest_continue_requested
+signal bag_toggle_requested
+signal pause_menu_requested
 
 const UiActionCardScene := preload("res://scenes/ui/components/UiActionCard.tscn")
 const BagUIScript = preload("res://scripts/view/BagUI.gd")
@@ -30,16 +32,37 @@ var _cached_pool_tokens: Array[String] = []
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_rest_continue_button.pressed.connect(func() -> void: rest_continue_requested.emit())
 	_panel.visible = false
 	show_title()
 	_connect_bag_ui_signals()
+	_refresh_bag_ui()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _bag_ui.is_open():
+		return
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_TAB or event.is_action_pressed("ui_cancel"):
+		bag_toggle_requested.emit()
+		get_viewport().set_input_as_handled()
 
 
 func _connect_bag_ui_signals() -> void:
 	_bag_ui.key_token_move_requested.connect(_on_bag_key_token_move_requested)
 	_bag_ui.key_slot_preview_requested.connect(_on_bag_key_slot_preview_requested)
 	_bag_ui.key_slot_preview_cleared.connect(_on_bag_key_slot_preview_cleared)
+	_bag_ui.close_requested.connect(_on_bag_close_requested)
+	_run_sidebar.bag_requested.connect(_on_run_sidebar_bag_requested)
+	_run_sidebar.menu_requested.connect(_on_run_sidebar_menu_requested)
+
+
+func _refresh_bag_ui() -> void:
+	if not is_node_ready():
+		return
+	_bag_ui.setup(_cached_slot_chains, _cached_pool_tokens, _key_program_editable, _permanent_buffs)
 
 
 func set_key_program(slot_chains: Dictionary, pool_tokens: Array) -> void:
@@ -51,16 +74,17 @@ func set_key_program(slot_chains: Dictionary, pool_tokens: Array) -> void:
 	for token_id in pool_tokens:
 		_cached_pool_tokens.append(String(token_id))
 
-	_bag_ui.setup(_cached_slot_chains, _cached_pool_tokens, _key_program_editable, _permanent_buffs)
+	_refresh_bag_ui()
 
 
 func set_key_program_editable(is_editable: bool) -> void:
 	_key_program_editable = is_editable
-	_bag_ui.setup(_cached_slot_chains, _cached_pool_tokens, _key_program_editable, _permanent_buffs)
+	_refresh_bag_ui()
 
 
 func set_permanent_buffs(buffs: Array[Dictionary]) -> void:
 	_permanent_buffs = buffs.duplicate(true)
+	_refresh_bag_ui()
 
 
 func set_inventory_items(items: Array) -> void:
@@ -163,6 +187,18 @@ func _on_bag_key_slot_preview_requested(slot_id: String) -> void:
 
 func _on_bag_key_slot_preview_cleared(slot_id: String) -> void:
 	key_slot_preview_cleared.emit(slot_id)
+
+
+func _on_bag_close_requested() -> void:
+	bag_toggle_requested.emit()
+
+
+func _on_run_sidebar_bag_requested() -> void:
+	bag_toggle_requested.emit()
+
+
+func _on_run_sidebar_menu_requested() -> void:
+	pause_menu_requested.emit()
 
 
 func _emit_reward_chosen(index: int) -> void:

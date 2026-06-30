@@ -1,5 +1,22 @@
 # Develop Log
 
+## 2026-06-30 Bag pause-and-bind pass
+
+- Reworked the backpack page into the live key-program editor/viewer for the
+  current twelve physical slots: `QWER / ASDF / ZXCV`.
+- The bag can now be opened either from the on-screen `背包 / Tab` button or by
+  pressing `Tab` during active play, and opening it now pauses the scene tree
+  until the bag is closed.
+- Kept battle-area key programs locked, while camp/rest/tavern-safe areas still
+  allow drag-and-drop editing.
+- Clarified the bag UI so players can read:
+  - current slot binding labels
+  - left-to-right trigger order inside the same key slot
+  - unassigned pool tokens on the right
+  - permanent buff names with hover detail tooltips
+- Fixed `BattleUI.set_permanent_buffs()` so permanent-buff updates refresh the
+  bag immediately instead of waiting for the next full key-program refresh.
+
 ## 2026-06-30 Battle UI inventory/debug split
 
 - Moved the run inventory from the old left drawer into a dedicated backpack
