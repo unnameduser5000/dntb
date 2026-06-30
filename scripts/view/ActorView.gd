@@ -15,6 +15,14 @@ var _base_sprite_position: Vector2 = Vector2.ZERO
 var _base_sprite_scale: Vector2 = Vector2.ONE
 var _base_glyph_position: Vector2 = Vector2.ZERO
 var _base_glyph_scale: Vector2 = Vector2.ONE
+var move_duration: float = 0.12
+var hit_flash_in_duration: float = 0.05
+var hit_flash_out_duration: float = 0.08
+var die_squash_duration: float = 0.04
+var die_fade_duration: float = 0.12
+var action_start_expand_duration: float = 0.04
+var action_start_settle_duration: float = 0.05
+var animation_speed_scale: float = 1.0
 
 func _ready() -> void:
 	_capture_rest_pose()
@@ -53,6 +61,7 @@ func update_visual() -> void:
 	if sprite != null:
 		sprite.visible = has_sprite_visual
 		sprite.self_modulate = _sprite_tint(actor_color)
+		sprite.speed_scale = animation_speed_scale
 		if has_sprite_visual:
 			_play_idle_animation()
 
@@ -64,7 +73,7 @@ func update_visual() -> void:
 func play_move(to_pos: Vector2) -> Tween:
 	_play_first_available_animation([&"move"])
 	var tween: Tween = create_tween()
-	tween.tween_property(self, "position", to_pos, 0.12)
+	tween.tween_property(self, "position", to_pos, move_duration)
 	tween.finished.connect(func() -> void:
 		_play_idle_animation()
 	)
@@ -74,8 +83,8 @@ func play_hit() -> Tween:
 	_capture_rest_pose()
 	_play_first_available_animation([&"hit", &"hurt"])
 	var tween: Tween = create_tween()
-	tween.tween_property(self, "modulate", Color(1, 0.35, 0.35), 0.05)
-	tween.tween_property(self, "modulate", _rest_modulate, 0.08)
+	tween.tween_property(self, "modulate", Color(1, 0.35, 0.35), hit_flash_in_duration)
+	tween.tween_property(self, "modulate", _rest_modulate, hit_flash_out_duration)
 	tween.finished.connect(func() -> void:
 		_play_idle_animation()
 	)
@@ -85,20 +94,33 @@ func play_die() -> Tween:
 	_capture_rest_pose()
 	_play_first_available_animation([&"die", &"dead"])
 	var tween: Tween = create_tween()
-	tween.tween_property(self, "scale", _rest_scale * Vector2(1.12, 0.88), 0.04)
-	tween.tween_property(self, "modulate", Color(_rest_modulate.r, _rest_modulate.g, _rest_modulate.b, 0), 0.12)
+	tween.tween_property(self, "scale", _rest_scale * Vector2(1.12, 0.88), die_squash_duration)
+	tween.tween_property(self, "modulate", Color(_rest_modulate.r, _rest_modulate.g, _rest_modulate.b, 0), die_fade_duration)
 	return tween
 
 func play_action_start() -> Tween:
 	_capture_rest_pose()
 	_play_first_available_animation([&"action_start", &"act", &"windup", &"attack"])
 	var tween: Tween = create_tween()
-	tween.tween_property(self, "scale", _rest_scale * Vector2(1.08, 1.08), 0.04)
-	tween.tween_property(self, "scale", _rest_scale, 0.05)
+	tween.tween_property(self, "scale", _rest_scale * Vector2(1.08, 1.08), action_start_expand_duration)
+	tween.tween_property(self, "scale", _rest_scale, action_start_settle_duration)
 	tween.finished.connect(func() -> void:
 		_play_idle_animation()
 	)
 	return tween
+
+
+func set_timing_profile(profile: Dictionary) -> void:
+	move_duration = maxf(0.01, float(profile.get("move_duration", 0.12)))
+	hit_flash_in_duration = maxf(0.01, float(profile.get("hit_flash_in_duration", 0.05)))
+	hit_flash_out_duration = maxf(0.01, float(profile.get("hit_flash_out_duration", 0.08)))
+	die_squash_duration = maxf(0.01, float(profile.get("die_squash_duration", 0.04)))
+	die_fade_duration = maxf(0.01, float(profile.get("die_fade_duration", 0.12)))
+	action_start_expand_duration = maxf(0.01, float(profile.get("action_start_expand_duration", 0.04)))
+	action_start_settle_duration = maxf(0.01, float(profile.get("action_start_settle_duration", 0.05)))
+	animation_speed_scale = maxf(0.1, float(profile.get("animation_speed_scale", 1.0)))
+	if sprite != null:
+		sprite.speed_scale = animation_speed_scale
 
 func _display_char() -> String:
 	if actor_state == null:

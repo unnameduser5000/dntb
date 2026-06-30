@@ -70,13 +70,6 @@ corner_radius_top_right = 2
 corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
 
-[sub_resource type="StyleBoxFlat" id="StyleBoardFloor"]
-bg_color = Color(0.16, 0.14, 0.11, 1)
-corner_radius_top_left = 2
-corner_radius_top_right = 2
-corner_radius_bottom_right = 2
-corner_radius_bottom_left = 2
-
 [sub_resource type="StyleBoxFlat" id="StyleBoardExplored"]
 bg_color = Color(0.09, 0.09, 0.1, 1)
 corner_radius_top_left = 2
@@ -84,8 +77,8 @@ corner_radius_top_right = 2
 corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
 
-[sub_resource type="StyleBoxFlat" id="StyleBoardUnseen"]
-bg_color = Color(0.02, 0.02, 0.03, 1)
+[sub_resource type="StyleBoxFlat" id="StyleBoardFloor"]
+bg_color = Color(0.16, 0.14, 0.11, 1)
 corner_radius_top_left = 2
 corner_radius_top_right = 2
 corner_radius_bottom_right = 2
@@ -114,6 +107,13 @@ corner_radius_bottom_left = 2
 
 [sub_resource type="StyleBoxFlat" id="StyleBoardPreviewMove"]
 bg_color = Color(0.22, 0.43, 0.9, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoardUnseen"]
+bg_color = Color(0.02, 0.02, 0.03, 1)
 corner_radius_top_left = 2
 corner_radius_top_right = 2
 corner_radius_bottom_right = 2
@@ -286,22 +286,18 @@ BoardExitOpenCell/base_type = &"Label"
 BoardExitOpenCell/colors/font_color = Color(0.03, 0.07, 0.17, 1)
 BoardExitOpenCell/font_sizes/font_size = 14
 BoardExitOpenCell/styles/normal = SubResource("StyleBoardExitOpen")
-BoardFloorCell/base_type = &"Label"
-BoardFloorCell/colors/font_color = Color(0.43, 0.39, 0.32, 0.38)
-BoardFloorCell/font_sizes/font_size = 14
-BoardFloorCell/styles/normal = SubResource("StyleBoardFloor")
 BoardExploredCell/base_type = &"Label"
 BoardExploredCell/colors/font_color = Color(0.33, 0.31, 0.28, 0.32)
 BoardExploredCell/font_sizes/font_size = 14
 BoardExploredCell/styles/normal = SubResource("StyleBoardExplored")
+BoardFloorCell/base_type = &"Label"
+BoardFloorCell/colors/font_color = Color(0.43, 0.39, 0.32, 0.38)
+BoardFloorCell/font_sizes/font_size = 14
+BoardFloorCell/styles/normal = SubResource("StyleBoardFloor")
 BoardItemCell/base_type = &"Label"
 BoardItemCell/colors/font_color = Color(0.12, 0.08, 0, 1)
 BoardItemCell/font_sizes/font_size = 14
 BoardItemCell/styles/normal = SubResource("StyleBoardItem")
-BoardUnseenCell/base_type = &"Label"
-BoardUnseenCell/colors/font_color = Color(0, 0, 0, 0)
-BoardUnseenCell/font_sizes/font_size = 14
-BoardUnseenCell/styles/normal = SubResource("StyleBoardUnseen")
 BoardPlayerCell/base_type = &"Label"
 BoardPlayerCell/colors/font_color = Color(0.05, 0.08, 0.07, 1)
 BoardPlayerCell/font_sizes/font_size = 14
@@ -314,6 +310,10 @@ BoardPreviewMoveCell/base_type = &"Label"
 BoardPreviewMoveCell/colors/font_color = Color(0.94, 0.97, 1, 1)
 BoardPreviewMoveCell/font_sizes/font_size = 14
 BoardPreviewMoveCell/styles/normal = SubResource("StyleBoardPreviewMove")
+BoardUnseenCell/base_type = &"Label"
+BoardUnseenCell/colors/font_color = Color(0, 0, 0, 0)
+BoardUnseenCell/font_sizes/font_size = 14
+BoardUnseenCell/styles/normal = SubResource("StyleBoardUnseen")
 BoardWallCell/base_type = &"Label"
 BoardWallCell/colors/font_color = Color(0.83, 0.74, 0.58, 1)
 BoardWallCell/font_sizes/font_size = 14

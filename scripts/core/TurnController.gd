@@ -60,13 +60,14 @@ func execute_turn() -> void:
 			continue
 
 		action_started.emit(action)
+		_present_action_started_non_blocking(action)
 		# Capture pre-action state so ActionTrace records what this step meant
 		# relative to the actor's state when it was issued.
 		var actor_before_cell: Vector2i = action.actor.grid_pos
 		var actor_before_facing: Vector2i = action.actor.facing
 		resolver.resolve(action, state)
 		_record_action_trace(action, actor_before_cell, actor_before_facing)
-		_clear_pending_presentation_frames()
+		_present_pending_frames_non_blocking()
 		action_finished.emit(action)
 
 		if _check_battle_end():
@@ -74,7 +75,7 @@ func execute_turn() -> void:
 
 	_resolve_action_chain_finished(player_plan)
 	var player_followup_interrupted := _execute_combo_followups_for_plan(player_plan)
-	_clear_pending_presentation_frames()
+	_present_pending_frames_non_blocking()
 	if player_followup_interrupted:
 		return
 	if _check_battle_end():
@@ -90,11 +91,12 @@ func execute_turn() -> void:
 				continue
 
 			action_started.emit(action)
+			_present_action_started_non_blocking(action)
 			var actor_before_cell: Vector2i = action.actor.grid_pos
 			var actor_before_facing: Vector2i = action.actor.facing
 			resolver.resolve(action, state)
 			_record_action_trace(action, actor_before_cell, actor_before_facing)
-			_clear_pending_presentation_frames()
+			_present_pending_frames_non_blocking()
 			action_finished.emit(action)
 
 			if _check_battle_end():
@@ -102,7 +104,7 @@ func execute_turn() -> void:
 
 		_resolve_action_chain_finished(enemy_plan)
 		var enemy_followup_interrupted := _execute_combo_followups_for_plan(enemy_plan)
-		_clear_pending_presentation_frames()
+		_present_pending_frames_non_blocking()
 		if enemy_followup_interrupted:
 			return
 
@@ -282,6 +284,16 @@ func _clear_pending_presentation_frames() -> void:
 	if resolver != null and resolver.has_method("clear_presentation_frames"):
 		resolver.clear_presentation_frames()
 
+
+func _present_pending_frames_non_blocking() -> void:
+	if resolver == null or not resolver.has_method("consume_presentation_frames"):
+		return
+	var frames: Array = resolver.consume_presentation_frames()
+	if frames.is_empty():
+		return
+	if presentation_controller != null and presentation_controller.has_method("present_frames_non_blocking"):
+		presentation_controller.present_frames_non_blocking(frames)
+
 func _finish_turn_cycle() -> void:
 	state.clear_temporary_flags()
 	state.turn_count += 1
@@ -383,9 +395,10 @@ func _execute_combo_followup_action(actor, source_actions: Array, match_data: Di
 		return false
 
 	action_started.emit(followup_action)
+	_present_action_started_non_blocking(followup_action)
 	_announce_combo_followup(actor, match_data)
 	resolver.resolve(followup_action, state)
-	_clear_pending_presentation_frames()
+	_present_pending_frames_non_blocking()
 	action_finished.emit(followup_action)
 	return _check_battle_end()
 
@@ -463,3 +476,9 @@ func _announce_combo_followup(actor, match_data: Dictionary) -> void:
 		return
 
 	resolver.add_state_message(state, "%s 触发武器技：%s" % [actor.def.display_name, display_name])
+
+
+func _present_action_started_non_blocking(action) -> void:
+	if presentation_controller == null or not presentation_controller.has_method("present_action_started_non_blocking"):
+		return
+	presentation_controller.present_action_started_non_blocking(action)

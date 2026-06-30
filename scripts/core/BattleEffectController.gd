@@ -9,6 +9,7 @@ const ActorDiedEffectScene := preload("res://scenes/effects/BattleDeathEffect.ts
 
 var board_view = null
 var effect_root: Node = null
+var effect_duration_scale: float = 1.0
 var effect_scenes: Dictionary = {
 	"action_started": ActionStartedEffectScene,
 	"actor_damaged": ActorDamagedEffectScene,
@@ -28,6 +29,10 @@ func clear_effects() -> void:
 		return
 	for child in effect_root.get_children():
 		child.queue_free()
+
+
+func set_effect_duration_scale(value: float) -> void:
+	effect_duration_scale = maxf(0.1, value)
 
 
 func play_action_started(action) -> void:
@@ -94,6 +99,8 @@ func spawn_effect_world(effect_id: String, world_pos: Vector2, meta: Dictionary 
 	var effect: Node2D = instance
 	effect.position = world_pos
 	effect_root.add_child(effect)
+	if effect.has_method("set_duration_scale"):
+		effect.call("set_duration_scale", effect_duration_scale)
 	if effect.has_method("play"):
 		effect.call("play", meta)
 	return effect

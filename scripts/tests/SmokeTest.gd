@@ -108,6 +108,8 @@ func _init() -> void:
 	game.start_seeded_run("absolute")
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "absolute seeded run also starts at camp")
+	_require(game._battle_presentation.debug_wait_for_presentation_completion(), "legacy seeded run keeps blocking presentation flow")
+	_require(game._battle_presentation.debug_current_timing_profile_name() == "legacy", "legacy seeded run keeps the legacy timing profile")
 	var control_plan: Array = game._build_key_slot_plan(["U"])
 	_require(control_plan.size() == 1 and control_plan[0].def.id == "move_key", "default up slot stays a pure move action")
 	var f_plan: Array = game._build_key_slot_plan(["F"])
@@ -328,41 +330,108 @@ func _init() -> void:
 	await process_frame
 	world_game.start_world_slice_debug()
 	await process_frame
-	_require(world_game.state.map_node_kind == "world_slice", "world slice debug entry creates the world slice state")
+	_require(FileAccess.file_exists("res://art/tiles/board/plain.png"), "board tile asset plain.png exists")
+	_require(FileAccess.file_exists("res://art/tiles/board/building_floor.png"), "board tile asset building_floor.png exists")
+	_require(FileAccess.file_exists("res://art/tiles/board/tavern_floor.png"), "board tile asset tavern_floor.png exists")
+	_require(FileAccess.file_exists("res://art/tiles/board/tavern_door.png"), "board tile asset tavern_door.png exists")
+	_require(world_game.board_view._load_tile_texture_asset("plain") != null, "board view can load real plain tile asset")
+	_require(world_game.board_view._load_tile_texture_asset("building_floor") != null, "board view can load real building floor tile asset")
+	var visible_plain_texture = world_game.board_view.debug_get_tile_texture_variant("plain", 0.0)
+	var explored_plain_texture = world_game.board_view.debug_get_tile_texture_variant("plain", 0.52)
+	_require(visible_plain_texture != null and explored_plain_texture != null, "board view can build visible and explored tile variants")
+	_require(visible_plain_texture != explored_plain_texture, "explored fog uses a darkened tile variant instead of reusing the visible texture")
+	_require(world_game.state.map_node_kind == "world_slice", "world slice entry creates the world slice state")
+	_require(not world_game._battle_presentation.debug_wait_for_presentation_completion(), "world slice defaults to non-blocking layered presentation")
+	_require(world_game._battle_presentation.debug_current_timing_profile_name() == "world_slice_fast", "world slice defaults to the fast timing profile")
 	_require(world_game.state.grid.width >= 30 and world_game.state.grid.height >= 30, "world slice uses a larger grid than the room demo")
+	_require(world_game.state.map_data != null, "world slice creates map data")
 	_require(world_game.state.player != null, "world slice creates a player")
-	_require(world_game.state.get_alive_enemies().size() == 4, "world slice creates four test enemies")
-	_require(world_game.state.grid.get_actor(Vector2i(4, 4)) == world_game.state.player, "world slice places the player in the grid")
-	_require(world_game.state.grid.get_actor(Vector2i(8, 4)) != null, "world slice places the first enemy in the grid")
-	_require(world_game.state.grid.get_actor(Vector2i(4, 8)) != null, "world slice places the second enemy in the grid")
-	_require(world_game.state.grid.get_actor(Vector2i(11, 6)) != null, "world slice places the third enemy in the grid")
-	_require(world_game.state.grid.get_actor(Vector2i(6, 11)) != null, "world slice places the fourth enemy in the grid")
-	_require(world_game.state.grid.get_grid_items(Vector2i(10, 10)).size() == 1, "world slice places a placeholder prop")
+	_require(world_game.state.get_alive_enemies().size() >= 4, "world slice creates at least the initial test enemies")
+	_require(world_game.state.world_enemy_stream_target >= 4, "world slice exposes a streamed enemy target count")
+	_require(world_game.state.player.grid_pos == world_game.state.map_data.player_spawn, "world slice uses the generated player spawn")
+	_require(world_game.state.grid.get_actor(world_game.state.player.grid_pos) == world_game.state.player, "world slice places the player at the generated spawn")
+	var world_spawn_cell = world_game.state.map_data.get_cell(world_game.state.map_data.player_spawn)
+	_require(world_spawn_cell != null, "world slice spawn cell exists in map data")
+	_require(
+		world_spawn_cell.tags.has("building_floor") or world_spawn_cell.tags.has("building_door") or world_spawn_cell.tags.has("building_open_ground"),
+		"world slice spawn now lands inside or at the entrance of the tavern footprint"
+	)
+	_require(world_spawn_cell.tags.has("poi:tavern"), "world slice spawn cell belongs to the tavern footprint")
+	_require(world_game._key_program_editable, "world slice starts with key editing enabled inside the tavern rest area")
+	_require(String(world_game.state.messages[0]).contains("酒馆休息区"), "world slice start announces tavern rest-area editing")
+	_require(_count_world_slice_props(world_game.state) >= 1, "world slice places at least one world prop")
+	_require(world_game.state.map_data.get_poi_records().size() >= 5, "world slice generates footprint-based poi records")
+	_require(_world_slice_has_poi_type(world_game.state.map_data, "tavern"), "world slice generates a tavern footprint")
+	_require(_world_slice_has_poi_type(world_game.state.map_data, "challenge_entrance"), "world slice generates a challenge footprint")
+	_require(_world_slice_has_poi_type(world_game.state.map_data, "ruin"), "world slice generates a ruin footprint")
+	_require(_world_slice_has_poi_type(world_game.state.map_data, "chest"), "world slice generates a chest footprint")
+	_require(_world_slice_has_poi_type(world_game.state.map_data, "easter_egg"), "world slice generates an egg footprint")
+	_require(_world_slice_has_poi_type(world_game.state.map_data, "shrine"), "world slice generates a shrine footprint")
+	_require(_world_slice_building_footprints_are_valid(world_game.state.map_data), "world slice building records keep valid footprint metadata")
+	_require(world_game.state.map_data.reachable_count > 0, "world slice tracks reachable walkable cells")
+	_require(world_game.state.map_data.unreachable_poi_count == 0, "world slice connectivity keeps POIs reachable")
+	_require(world_game.state.map_data.reachable_count == world_game.state.map_data.get_walkable_cells().size(), "world slice stitches walkable terrain into one reachable region")
+	_require(_mountain_passes_use_cardinal_connections(world_game.state.map_data), "world slice carved passes stay cardinal instead of diagonal-only")
+	var world_terrain_counts: Dictionary = world_game.state.map_data.get_terrain_counts()
+	_require(int(world_terrain_counts.get("hill", 0)) > 0, "world slice generates hills")
+	_require(int(world_terrain_counts.get("mountain", 0)) > 0, "world slice generates mountains")
+	_require(int(world_terrain_counts.get("peak", 0)) > 0, "world slice generates peaks")
 	_require(_array_equals(world_game.get_key_program_slots()["U"], ["U"]), "world slice reuses the current key program")
 	_require(world_game.state.visible_cells.size() > 0, "world slice computes initial visible cells")
 	_require(world_game.state.explored_cells.size() >= world_game.state.visible_cells.size(), "world slice explored cells include current visible cells")
-	_require(world_game.state.visible_cells.has(Vector2i(4, 4)), "world slice reveals the player cell")
-	_require(not world_game.state.visible_cells.has(Vector2i(14, 4)), "world slice hides far cell at init")
-	_require(not world_game.state.visible_cells.has(Vector2i(10, 4)), "world slice wall blocks line of sight")
-	_require(world_game.state.explored_cells.has(Vector2i(4, 4)), "world slice explored keeps the player cell")
+	_require(world_game.state.visible_cells.has(world_game.state.player.grid_pos), "world slice reveals the player cell")
+	var far_world_cell: Vector2i = _pick_far_world_cell(world_game.state.map_data, world_game.state.player.grid_pos, int(world_game.state.fov_radius) + 2)
+	if far_world_cell != Vector2i(-1, -1):
+		_require(not world_game.state.visible_cells.has(far_world_cell), "world slice hides cells outside the FOV radius")
+	_require(world_game.state.explored_cells.has(world_game.state.player.grid_pos), "world slice explored keeps the player cell")
+	var visible_enemy_count: int = _count_visible_world_slice_enemies(world_game.state)
+	_require(world_game.state.enemy_intents.size() == visible_enemy_count, "world slice only previews intents for visible enemies")
+	var world_snapshot_before: String = _world_slice_snapshot_key(world_game.state)
+	var world_seed_before: String = String(world_game.state.map_data.seed)
 	var explored_before_move: int = world_game.state.explored_cells.size()
+	var stream_refresh_before: int = world_game.state.world_enemy_stream_refresh_count
+	var stream_spawn_total_before: int = world_game.state.world_enemy_stream_spawn_total
 	world_game.enemy_planner.enemies_are_static = true
-	var world_action_plan: Array = world_game._build_key_slot_plan(["U"])
+	var world_move: Dictionary = _pick_first_walkable_world_move(world_game.state.map_data, world_game.state.player.grid_pos)
+	_require(not world_move.is_empty(), "world slice has at least one walkable move from spawn")
+	var world_action_plan: Array = world_game._build_key_slot_plan([String(world_move.get("token_id", ""))])
 	_require(world_action_plan.size() == 1 and world_action_plan[0].def.id == "move_key", "world slice can generate an action plan from the current key program")
 	world_game.turn_controller.submit_player_plan(world_action_plan)
 	await process_frame
-	_require(world_game.state.player.grid_pos == Vector2i(4, 3), "world slice executes one movement step through the shared battle core")
+	_require(world_game.state.player.grid_pos == Vector2i(world_move.get("target", world_game.state.player.grid_pos)), "world slice executes one movement step through the shared battle core")
+	_require(
+		world_game._key_program_editable == _is_world_slice_rest_area_cell(world_game.state.map_data, world_game.state.player.grid_pos),
+		"world slice editability follows whether the player is still standing in the tavern rest area"
+	)
+	var outside_rest_cell: Vector2i = _find_nearest_world_slice_non_rest_area_cell(world_game.state.map_data, world_game.state.player.grid_pos)
+	_require(outside_rest_cell != Vector2i(-1, -1), "world slice exposes a reachable non-rest-area cell")
+	_move_player_to(world_game, outside_rest_cell)
+	world_game._refresh_views()
+	await process_frame
+	_require(not world_game._key_program_editable, "world slice locks key editing after leaving the tavern rest area")
+	_require(String(world_game.state.messages[0]).contains("离开酒馆休息区"), "world slice announces when the player leaves the tavern rest area")
 	_require(world_game.state.last_visibility_recompute_reason == "player_moved", "world slice recomputes visibility after player movement")
-	_require(world_game.state.visible_cells.has(Vector2i(4, 3)), "world slice keeps the moved player cell visible")
+	_require(world_game.state.visible_cells.has(world_game.state.player.grid_pos), "world slice keeps the moved player cell visible")
 	_require(world_game.state.explored_cells.size() >= explored_before_move, "world slice explored cells never shrink after moving")
+	_require(world_game.state.world_enemy_stream_refresh_count > stream_refresh_before, "world slice refreshes enemy streaming after player movement")
+	_require(world_game.state.world_enemy_stream_spawn_total >= stream_spawn_total_before, "world slice tracks cumulative streamed enemy spawns")
+	var world_player_view = world_game._battle_presentation.actor_views.get(int(world_game.state.player.id))
+	_require(world_player_view != null, "world slice keeps a player actor view after movement")
+	var expected_world_pos: Vector2 = world_game.board_view.grid_to_world(world_game.state.player.grid_pos) + Vector2(world_game.board_view.cell_size * 0.5, world_game.board_view.cell_size * 0.5)
+	_require(world_player_view.position.is_equal_approx(expected_world_pos), "world slice actor overlay stays aligned after the board window scrolls")
 	world_game._world_slice_controller.set_reveal_all_debug(world_game.state, true, "debug_toggle")
 	_require(world_game.state.reveal_all_debug, "world slice reveal-all toggle turns on")
 	_require(world_game.state.visible_cells.size() == world_game.state.map_data.get_size().x * world_game.state.map_data.get_size().y, "world slice reveal-all shows the whole map")
 	world_game._world_slice_controller.set_reveal_all_debug(world_game.state, false, "debug_toggle")
 	_require(not world_game.state.reveal_all_debug, "world slice reveal-all toggle turns off")
-	world_game._world_slice_controller.reset_world_slice(world_game.state)
+	world_game._world_slice_controller.regenerate_same_seed(world_game.state)
+	_require(String(world_game.state.map_data.seed) == world_seed_before, "world slice same-seed regeneration keeps the same seed")
+	_require(_world_slice_snapshot_key(world_game.state) == world_snapshot_before, "world slice same-seed regeneration reproduces the same layout snapshot")
 	_require(world_game.state.visible_cells.size() > 0, "world slice reset recomputes visible cells")
 	_require(world_game.state.explored_cells.size() >= world_game.state.visible_cells.size(), "world slice reset keeps explored at least current visible")
+	world_game._world_slice_controller.regenerate_new_seed(world_game.state)
+	_require(String(world_game.state.map_data.seed) != world_seed_before, "world slice new-seed regeneration changes the seed")
+	_require(_world_slice_snapshot_key(world_game.state) != world_snapshot_before, "world slice new-seed regeneration changes the layout snapshot")
 	world_game.queue_free()
 	await process_frame
 
@@ -731,6 +800,187 @@ func _vector2i_array_equals(values: Array, expected: Array) -> bool:
 			return false
 
 	return true
+
+
+func _count_world_slice_props(state) -> int:
+	if state == null or state.grid == null:
+		return 0
+	var count := 0
+	for cell in state.grid.grid_items_at.keys():
+		for item in state.grid.get_grid_items(cell):
+			if item != null and item.tags.has("world_slice_placeholder"):
+				count += 1
+	return count
+
+
+func _count_visible_world_slice_enemies(state) -> int:
+	if state == null:
+		return 0
+	var count := 0
+	for enemy in state.get_alive_enemies():
+		if state.visible_cells.has(enemy.grid_pos):
+			count += 1
+	return count
+
+
+func _world_slice_has_poi_type(map_data, poi_type: String) -> bool:
+	if map_data == null:
+		return false
+	for record in map_data.get_poi_records():
+		if String(record.get("type", "")) == poi_type:
+			return true
+	return false
+
+
+func _world_slice_building_footprints_are_valid(map_data) -> bool:
+	if map_data == null:
+		return false
+	for record in map_data.get_poi_records():
+		var occupied: Array = record.get("occupied_cells", [])
+		var interaction_cell: Vector2i = Vector2i(record.get("interaction_cell", Vector2i(-1, -1)))
+		var origin: Vector2i = Vector2i(record.get("origin", Vector2i(-1, -1)))
+		var size: Vector2i = Vector2i(record.get("size", Vector2i.ZERO))
+		if occupied.is_empty() or interaction_cell == Vector2i(-1, -1) or origin == Vector2i(-1, -1):
+			return false
+		if size.x <= 0 or size.y <= 0:
+			return false
+		if interaction_cell == map_data.player_spawn:
+			return false
+		if _world_path_length(map_data, map_data.player_spawn, interaction_cell) < 0:
+			return false
+	return true
+
+
+func _mountain_passes_use_cardinal_connections(map_data) -> bool:
+	if map_data == null:
+		return true
+	for cell in map_data.get_all_cells():
+		var map_cell = map_data.get_cell(cell)
+		if map_cell == null or not map_cell.tags.has("mountain_pass"):
+			continue
+		var has_cardinal_neighbor := false
+		for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var neighbor = map_data.get_cell(cell + dir)
+			if neighbor != null and neighbor.tags.has("mountain_pass"):
+				has_cardinal_neighbor = true
+				break
+		if not has_cardinal_neighbor:
+			for entry in map_data.get_all_poi_entries():
+				var poi_cell: Vector2i = entry.get("cell", Vector2i(-1, -1))
+				if poi_cell == cell:
+					has_cardinal_neighbor = true
+					break
+			if cell == map_data.player_spawn:
+				has_cardinal_neighbor = true
+		if not has_cardinal_neighbor:
+			return false
+	return true
+
+
+func _pick_far_world_cell(map_data, origin: Vector2i, min_distance: int) -> Vector2i:
+	if map_data == null:
+		return Vector2i(-1, -1)
+	for cell in map_data.get_all_cells():
+		if origin.distance_to(cell) > float(min_distance):
+			return cell
+	return Vector2i(-1, -1)
+
+
+func _pick_first_walkable_world_move(map_data, origin: Vector2i) -> Dictionary:
+	if map_data == null:
+		return {}
+	var options := [
+		{"token_id": "U", "delta": Vector2i.UP},
+		{"token_id": "R", "delta": Vector2i.RIGHT},
+		{"token_id": "D", "delta": Vector2i.DOWN},
+		{"token_id": "L", "delta": Vector2i.LEFT},
+	]
+	for option in options:
+		var target: Vector2i = origin + Vector2i(option["delta"])
+		if map_data.is_walkable(target):
+			return {"token_id": String(option["token_id"]), "target": target}
+	return {}
+
+
+func _world_path_length(map_data, from_cell: Vector2i, to_cell: Vector2i) -> int:
+	if map_data == null or not map_data.is_walkable(from_cell) or not map_data.is_walkable(to_cell):
+		return -1
+	if from_cell == to_cell:
+		return 0
+	var queue: Array[Vector2i] = [from_cell]
+	var visited: Dictionary = {from_cell: 0}
+	var queue_index: int = 0
+	while queue_index < queue.size():
+		var current: Vector2i = queue[queue_index]
+		queue_index += 1
+		var distance: int = int(visited[current])
+		for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var next: Vector2i = current + dir
+			if visited.has(next) or not map_data.is_walkable(next):
+				continue
+			if next == to_cell:
+				return distance + 1
+			visited[next] = distance + 1
+			queue.append(next)
+	return -1
+
+
+func _is_world_slice_rest_area_cell(map_data, cell: Vector2i) -> bool:
+	if map_data == null:
+		return false
+	var map_cell = map_data.get_cell(cell)
+	if map_cell == null:
+		return false
+	if not (map_cell.tags.has("building_floor") or map_cell.tags.has("building_door") or map_cell.tags.has("building_open_ground")):
+		return false
+	for tag in map_cell.tags:
+		var text := String(tag)
+		if text == "poi:tavern" or text.begins_with("structure:tavern") or text.begins_with("building:tavern_"):
+			return true
+	return false
+
+
+func _find_nearest_world_slice_non_rest_area_cell(map_data, origin: Vector2i) -> Vector2i:
+	if map_data == null:
+		return Vector2i(-1, -1)
+	var best: Vector2i = Vector2i(-1, -1)
+	var best_distance: float = INF
+	for cell in map_data.get_walkable_cells():
+		if _is_world_slice_rest_area_cell(map_data, cell):
+			continue
+		var distance: float = origin.distance_squared_to(cell)
+		if distance < best_distance:
+			best = cell
+			best_distance = distance
+	return best
+
+
+func _world_slice_snapshot_key(state) -> String:
+	if state == null or state.map_data == null:
+		return ""
+	var counts: Dictionary = state.map_data.get_terrain_counts()
+	return "|".join([
+		String(state.map_data.seed),
+		str(state.map_data.player_spawn),
+		str(state.map_data.tavern_cell),
+		str(state.map_data.challenge_cells),
+		str(state.map_data.chest_cells),
+		str(state.map_data.ruin_cells),
+		str(state.map_data.easter_egg_cells),
+		str(state.map_data.shrine_cells),
+		str(state.map_data.get_poi_records().size()),
+		str(int(counts.get("plain", 0))),
+		str(int(counts.get("forest", 0))),
+		str(int(counts.get("tree", 0))),
+		str(int(counts.get("structure_wall", 0))),
+		str(int(counts.get("hill", 0))),
+		str(int(counts.get("mountain", 0))),
+		str(int(counts.get("peak", 0))),
+		str(int(counts.get("swamp", 0))),
+		str(int(counts.get("desert", 0))),
+		str(int(state.map_data.reachable_count)),
+		str(int(state.map_data.unreachable_poi_count)),
+	])
 
 func _submit_player_actions(game, action_ids: Array) -> void:
 	var plan: Array = []

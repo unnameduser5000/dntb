@@ -83,6 +83,11 @@ func update_state(state) -> void:
 	_room_value.text = "%d - %s" % [state.room_index + 1, state.room_name]
 	_enemy_value.text = str(state.get_alive_enemies().size())
 	_turn_value.text = str(state.turn_count)
+	if bool(state.is_world_slice):
+		if _key_program_editable:
+			_action_title.text = "按键槽：酒馆休息区内可调整"
+		else:
+			_action_title.text = "按键槽：已锁定，回到酒馆可调整"
 	_refresh_messages(state.messages)
 	_refresh_intents(state.enemy_intents)
 
