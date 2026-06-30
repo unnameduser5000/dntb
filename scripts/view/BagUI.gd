@@ -258,8 +258,6 @@ func _token_label(token_id: String) -> String:
 			return "左转"
 		"TR":
 			return "右转"
-		"J":
-			return "跳跃"
 		"U":
 			return "上"
 		"D":
