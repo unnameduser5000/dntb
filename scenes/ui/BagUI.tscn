@@ -69,6 +69,16 @@ theme_type_variation = &"ScreenHint"
 horizontal_alignment = 2
 text = "可编辑 · 拖拽调整按键绑定"
 
+[node name="HintLabel" type="Label" parent="BagPanel/Margin/Content/LeftPanel/Header"]
+layout_mode = 2
+theme_type_variation = &"ScreenHint"
+text = "同一键位会按从左到右顺序触发；Tab / Esc 关闭；休息区可拖拽编辑"
+
+[node name="CloseButton" type="Button" parent="BagPanel/Margin/Content/LeftPanel/Header"]
+custom_minimum_size = Vector2(42, 34)
+layout_mode = 2
+text = "×"
+
 [node name="KeyGrid" type="GridContainer" parent="BagPanel/Margin/Content/LeftPanel"]
 layout_mode = 2
 theme_override_constants/h_separation = 8
@@ -78,7 +88,7 @@ columns = 4
 [node name="BuffsTitle" type="Label" parent="BagPanel/Margin/Content/LeftPanel"]
 layout_mode = 2
 theme_type_variation = &"BattleSectionTitle"
-text = "永久增益"
+text = "永久增益（悬停查看详情）"
 
 [node name="BuffsList" type="VBoxContainer" parent="BagPanel/Margin/Content/LeftPanel"]
 layout_mode = 2
@@ -93,7 +103,7 @@ theme_override_constants/separation = 8
 layout_mode = 2
 theme_type_variation = &"ScreenTitle"
 theme_override_font_sizes/font_size = 20
-text = "未分配技能"
+text = "未分配技能 / Token"
 
 [node name="PoolScroll" type="ScrollContainer" parent="BagPanel/Margin/Content/RightPanel"]
 layout_mode = 2

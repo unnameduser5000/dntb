@@ -1,5 +1,7 @@
 extends Node
 
+signal pause_menu_requested
+
 @export var show_title_on_ready := true
 
 const GameStateScript := preload("res://scripts/core/GameState.gd")
@@ -167,6 +169,7 @@ var _current_rewards: Array = []
 var _key_program_editable := false
 var _world_slice_last_rest_area_state: bool = false
 var _bag_open := false
+var _shell_overlay_active := false
 
 func _ready() -> void:
 	_action_by_id = {
@@ -218,6 +221,9 @@ func _ready() -> void:
 		battle_ui.show_title()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _shell_overlay_active:
+		return
+
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_TAB and state != null and not state.battle_finished:
 			_toggle_bag()
@@ -225,6 +231,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 
 	if _bag_open:
+		if event.is_action_pressed("ui_cancel"):
+			_close_bag_if_open()
+			get_viewport().set_input_as_handled()
 		return
 
 	if state != null and bool(state.is_world_slice):
@@ -279,6 +288,12 @@ func set_game_visible(is_visible: bool) -> void:
 	if world_loading_overlay != null and not is_visible:
 		world_loading_overlay.hide_loading()
 
+
+func set_shell_overlay_active(is_active: bool) -> void:
+	_shell_overlay_active = is_active
+	if is_active:
+		_close_bag_if_open()
+
 func _connect_signals() -> void:
 	battle_ui.start_requested.connect(start_run)
 	battle_ui.reward_chosen.connect(_on_reward_chosen)
@@ -287,6 +302,8 @@ func _connect_signals() -> void:
 	battle_ui.key_slot_preview_requested.connect(_on_key_slot_preview_requested)
 	battle_ui.key_slot_preview_cleared.connect(_on_key_slot_preview_cleared)
 	battle_ui.rest_continue_requested.connect(_on_rest_continue_requested)
+	battle_ui.bag_toggle_requested.connect(_toggle_bag)
+	battle_ui.pause_menu_requested.connect(_on_pause_menu_requested)
 	turn_controller.action_finished.connect(func(_action) -> void: _refresh_views())
 	turn_controller.turn_finished.connect(_refresh_views)
 	turn_controller.planning_started.connect(_refresh_views)
@@ -1104,18 +1121,29 @@ func _refresh_key_program_ui() -> void:
 
 
 func _toggle_bag() -> void:
+	if _shell_overlay_active:
+		return
+	if state == null or state.battle_finished:
+		return
 	if is_instance_valid(battle_ui):
 		battle_ui.toggle_bag()
 		_bag_open = battle_ui.is_bag_open()
 		if _bag_open:
 			battle_ui.set_key_program_editable(_key_program_editable)
 			_refresh_key_program_ui()
+		get_tree().paused = _bag_open
 
 
 func _close_bag_if_open() -> void:
 	if _bag_open and is_instance_valid(battle_ui):
 		battle_ui.toggle_bag()
 		_bag_open = false
+		get_tree().paused = false
+
+
+func _on_pause_menu_requested() -> void:
+	_close_bag_if_open()
+	pause_menu_requested.emit()
 
 
 func _refresh_permanent_buffs_ui() -> void:

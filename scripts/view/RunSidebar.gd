@@ -1,6 +1,9 @@
 class_name RunSidebar
 extends Control
 
+signal bag_requested
+signal menu_requested
+
 @onready var _inventory_panel: PanelContainer = %InventoryPanel
 @onready var _debug_panel: PanelContainer = %DebugPanel
 @onready var _inventory_button: Button = %InventoryButton
@@ -16,12 +19,14 @@ var _debug_state_text := ""
 
 
 func _ready() -> void:
-	_inventory_button.pressed.connect(show_inventory)
-	_menu_button.pressed.connect(show_debug)
+	_inventory_button.pressed.connect(_on_inventory_button_pressed)
+	_menu_button.pressed.connect(_on_menu_button_pressed)
 	_inventory_close_button.pressed.connect(func() -> void: _inventory_panel.visible = false)
 	_debug_close_button.pressed.connect(func() -> void: _debug_panel.visible = false)
 	_refresh_inventory()
 	_refresh_debug()
+	_inventory_panel.visible = false
+	_debug_panel.visible = false
 
 
 func show_inventory() -> void:
@@ -32,6 +37,18 @@ func show_inventory() -> void:
 func show_debug() -> void:
 	_inventory_panel.visible = false
 	_debug_panel.visible = not _debug_panel.visible
+
+
+func _on_inventory_button_pressed() -> void:
+	_inventory_panel.visible = false
+	_debug_panel.visible = false
+	bag_requested.emit()
+
+
+func _on_menu_button_pressed() -> void:
+	_inventory_panel.visible = false
+	_debug_panel.visible = false
+	menu_requested.emit()
 
 
 func set_inventory_items(items: Array) -> void:
