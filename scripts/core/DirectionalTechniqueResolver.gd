@@ -25,7 +25,6 @@ const TOKEN_ACTION_IDS := {
 	"F": "move_forward",
 	"TL": "turn_left",
 	"TR": "turn_right",
-	"J": "jump",
 }
 
 var action_by_id: Dictionary = {}
