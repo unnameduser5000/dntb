@@ -54,7 +54,7 @@ func _init() -> void:
 	_require(game._key_program_editable, "post-practice rest unlocks key slot editing")
 	var lunge_plan: Array = game._build_key_slot_plan(["R", "R"])
 	await process_frame
-	_require(_array_equals(game.get_key_program_slots()["U"], ["U"]), "rest editing keeps only natural direction tokens")
+	_require(_array_equals(game.get_key_program_slots()["W"], ["U"]), "rest editing keeps only natural direction tokens")
 	_require(lunge_plan.size() == 2 and lunge_plan[0].def.id == "move_key" and lunge_plan[1].def.id == "move_key", "key program keeps only base move actions even when lunge is unlocked")
 	var lunge_preview: Dictionary = game._build_key_slot_preview(["R", "R"])
 	_require(_string_name_array_equals(lunge_preview.get("trace_symbols", []), [&"F", &"F"]), "rest preview predicts relative trace from absolute direction input")
