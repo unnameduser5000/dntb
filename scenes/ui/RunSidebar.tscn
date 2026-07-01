@@ -69,19 +69,24 @@ theme_override_colors/font_selected_color = Color(0.86, 0.91, 0.93, 1)
 theme_override_colors/font_unselected_color = Color(0.47, 0.53, 0.56, 1)
 tabs_visible = false
 
-[node name="Status" type="VBoxContainer" parent="DrawerPanel/Margin/Content/DrawerTabs"]
+[node name="Status" type="ScrollContainer" parent="DrawerPanel/Margin/Content/DrawerTabs"]
 layout_mode = 2
-theme_override_constants/separation = 8
+horizontal_scroll_mode = 0
 metadata/_tab_index = 0
 
-[node name="StatusText" type="Label" parent="DrawerPanel/Margin/Content/DrawerTabs/Status"]
+[node name="StatusContent" type="VBoxContainer" parent="DrawerPanel/Margin/Content/DrawerTabs/Status"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="StatusText" type="Label" parent="DrawerPanel/Margin/Content/DrawerTabs/Status/StatusContent"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"BattleMessage"
 autowrap_mode = 3
 text = "行动库：0 张"
 
-[node name="StatusHint" type="Label" parent="DrawerPanel/Margin/Content/DrawerTabs/Status"]
+[node name="StatusHint" type="Label" parent="DrawerPanel/Margin/Content/DrawerTabs/Status/StatusContent"]
 layout_mode = 2
 theme_type_variation = &"ScreenHint"
 autowrap_mode = 3
