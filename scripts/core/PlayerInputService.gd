@@ -5,38 +5,74 @@ extends Node
 
 signal binding_changed(action_name: String, keycode: int)
 
-const ACTION_UP := "player_move_up"
-const ACTION_DOWN := "player_move_down"
-const ACTION_LEFT := "player_move_left"
-const ACTION_RIGHT := "player_move_right"
+const ACTION_Q := "player_key_q"
+const ACTION_W := "player_key_w"
+const ACTION_E := "player_key_e"
+const ACTION_R := "player_key_r"
+const ACTION_A := "player_key_a"
+const ACTION_S := "player_key_s"
+const ACTION_D := "player_key_d"
+const ACTION_F := "player_key_f"
+const ACTION_Z := "player_key_z"
+const ACTION_X := "player_key_x"
+const ACTION_C := "player_key_c"
+const ACTION_V := "player_key_v"
+const ACTION_UP := ACTION_W
+const ACTION_DOWN := ACTION_S
+const ACTION_LEFT := ACTION_A
+const ACTION_RIGHT := ACTION_D
 const CONFIG_PATH := "user://input_bindings.cfg"
 
 const PROGRAM_ACTIONS := [
-	ACTION_UP,
-	ACTION_DOWN,
-	ACTION_LEFT,
-	ACTION_RIGHT,
+	ACTION_Q,
+	ACTION_W,
+	ACTION_E,
+	ACTION_R,
+	ACTION_A,
+	ACTION_S,
+	ACTION_D,
+	ACTION_F,
+	ACTION_Z,
+	ACTION_X,
+	ACTION_C,
+	ACTION_V,
 ]
 
 const DEFAULT_KEYCODES := {
-	ACTION_UP: KEY_W,
-	ACTION_DOWN: KEY_S,
-	ACTION_LEFT: KEY_A,
-	ACTION_RIGHT: KEY_D,
+	ACTION_Q: KEY_Q,
+	ACTION_W: KEY_W,
+	ACTION_E: KEY_E,
+	ACTION_R: KEY_R,
+	ACTION_A: KEY_A,
+	ACTION_S: KEY_S,
+	ACTION_D: KEY_D,
+	ACTION_F: KEY_F,
+	ACTION_Z: KEY_Z,
+	ACTION_X: KEY_X,
+	ACTION_C: KEY_C,
+	ACTION_V: KEY_V,
 }
 
 const KEY_IDS := {
-	ACTION_UP: "U",
-	ACTION_DOWN: "D",
-	ACTION_LEFT: "L",
-	ACTION_RIGHT: "R",
+	ACTION_Q: "Q",
+	ACTION_W: "W",
+	ACTION_E: "E",
+	ACTION_R: "R",
+	ACTION_A: "A",
+	ACTION_S: "S",
+	ACTION_D: "D",
+	ACTION_F: "F",
+	ACTION_Z: "Z",
+	ACTION_X: "X",
+	ACTION_C: "C",
+	ACTION_V: "V",
 }
 
 const DIRECTIONS := {
-	ACTION_UP: Vector2i.UP,
-	ACTION_DOWN: Vector2i.DOWN,
-	ACTION_LEFT: Vector2i.LEFT,
-	ACTION_RIGHT: Vector2i.RIGHT,
+	ACTION_W: Vector2i.UP,
+	ACTION_S: Vector2i.DOWN,
+	ACTION_A: Vector2i.LEFT,
+	ACTION_D: Vector2i.RIGHT,
 }
 
 var _keycodes: Dictionary = {}

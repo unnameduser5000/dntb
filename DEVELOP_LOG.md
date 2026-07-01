@@ -1,5 +1,32 @@
 # Develop Log
 
+## 2026-06-30 Bag pause-and-bind pass
+
+- Reworked the backpack page into the live key-program editor/viewer for the
+  current twelve physical slots: `QWER / ASDF / ZXCV`.
+- The bag can now be opened either from the on-screen `背包 / Tab` button or by
+  pressing `Tab` during active play, and opening it now pauses the scene tree
+  until the bag is closed.
+- Kept battle-area key programs locked, while camp/rest/tavern-safe areas still
+  allow drag-and-drop editing.
+- Clarified the bag UI so players can read:
+  - current slot binding labels
+  - left-to-right trigger order inside the same key slot
+  - unassigned pool tokens on the right
+  - permanent buff names with hover detail tooltips
+- Fixed `BattleUI.set_permanent_buffs()` so permanent-buff updates refresh the
+  bag immediately instead of waiting for the next full key-program refresh.
+
+## 2026-06-30 Battle UI inventory/debug split
+
+- Moved the run inventory from the old left drawer into a dedicated backpack
+  panel opened by the bottom-right `背包` button.
+- Moved event history and debug status into the bottom-right `菜单` panel so
+  `BattlePanel` stays focused on key-slot programming and enemy intent.
+- Added a unified player position / facing box to `BattleHud`, and boxed the
+  in-world facing marker over the player sprite to reduce visual separation
+  during movement.
+
 ## 2026-06-29 256x256 building stamp stabilization and map generation cost trim
 
 - Kept the first-pass footprint placement architecture, but made it more diagnosable and less brute-force on larger maps.
