@@ -8,6 +8,8 @@ extends Resource
 ## Current hook timing:
 ## - resolve_move_collision(): when a movement step collides with an enemy
 ## - resolve_attack_hit(): when an attack is about to deal direct hit damage
+## - after_attack_hit(): after the attack hit is resolved, whether via weapon
+##   replacement or base damage packets
 ## - resolve_attack_miss(): when an attack would otherwise miss
 ## - resolve_action_chain_finished(): after one actor finishes its whole chain
 ##
@@ -33,6 +35,10 @@ func resolve_move_collision(_context, _resolver) -> bool:
 
 func resolve_attack_hit(_context, _resolver) -> bool:
 	return false
+
+
+func after_attack_hit(_context, _resolver) -> void:
+	pass
 
 
 func resolve_attack_miss(_context, _resolver) -> bool:

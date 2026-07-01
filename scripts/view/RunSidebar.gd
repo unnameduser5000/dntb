@@ -120,11 +120,12 @@ func _build_debug_state_text(state) -> String:
 	var technique_ids: Array[String] = []
 	if state.player.active_weapon != null:
 		weapon_name = str(state.player.active_weapon.display_name)
-		if state.player.active_weapon.has_method("supports_technique"):
-			if bool(state.player.active_weapon.call("supports_technique", "lunge")):
-				technique_ids.append("lunge")
-			if bool(state.player.active_weapon.call("supports_technique", "sweep")):
-				technique_ids.append("sweep")
+		var combo_techniques = state.player.active_weapon.get("combo_techniques")
+		if combo_techniques is Array:
+			for technique in combo_techniques:
+				if technique == null:
+					continue
+				technique_ids.append(String(technique.resolved_technique_id()))
 
 	var trace_text := "-"
 	var move_text := "-"

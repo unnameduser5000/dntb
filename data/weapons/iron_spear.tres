@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/WeaponDef.gd" id="1_weapon"]
+[ext_resource type="Resource" path="res://data/weapon_techniques/impact_lunge.tres" id="2_lunge"]
+[ext_resource type="Resource" path="res://data/weapon_techniques/spear_charge_thrust.tres" id="3_charge"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = "iron_spear"
+display_name = "铁枪"
+description = "擅长连续同向压进。两步触发突刺，三步触发更远的贯刺。"
+weapon_technique_ids = Array[String](["lunge", "charge_thrust"])
+combo_techniques = [ExtResource("2_lunge"), ExtResource("3_charge")]

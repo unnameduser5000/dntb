@@ -78,6 +78,15 @@ func execute_packet(packet, state, resolver, event_depth: int = 0) -> Array:
 		EffectPacketScript.KIND_DAMAGE:
 			if packet.target == null or packet.target.is_dead():
 				return events
+			if _is_attack_packet(packet):
+				var hit_event = _make_event(EffectEventScript.TYPE_ATTACK_HIT_CONFIRMED, packet, event_depth)
+				hit_event.target = packet.target
+				hit_event.actor = packet.target
+				hit_event.from_cell = packet.source_cell
+				hit_event.to_cell = packet.target.grid_pos
+				hit_event.direction = packet.direction
+				hit_event.metadata["predicted_damage"] = packet.scaled_amount()
+				events.append(hit_event)
 			var damage_result: Dictionary = resolver.apply_damage(packet.source, packet.target, packet.scaled_amount(), state)
 			var dealt := int(damage_result.get("amount", 0))
 			if dealt > 0:
@@ -138,6 +147,59 @@ func execute_packet(packet, state, resolver, event_depth: int = 0) -> Array:
 				knockback_event.amount = moved_steps
 				knockback_event.metadata["moved_steps"] = moved_steps
 				events.append(knockback_event)
+		EffectPacketScript.KIND_PULL:
+			var pull_from_cell := Vector2i.ZERO
+			if packet.target != null:
+				pull_from_cell = packet.target.grid_pos
+			var pulled_steps: int = resolver.try_pull_actor(packet.target, packet.direction, packet.scaled_amount(), state)
+			packet.metadata["moved_steps"] = pulled_steps
+			if pulled_steps > 0:
+				var pull_event = _make_event(EffectEventScript.TYPE_PULL_APPLIED, packet, event_depth)
+				pull_event.actor = packet.target
+				pull_event.target = packet.target
+				pull_event.from_cell = pull_from_cell
+				pull_event.to_cell = packet.target.grid_pos
+				pull_event.direction = packet.direction
+				pull_event.amount = pulled_steps
+				pull_event.metadata["moved_steps"] = pulled_steps
+				events.append(pull_event)
+		EffectPacketScript.KIND_SWAP:
+			if packet.source != null and packet.target != null:
+				var source_from: Vector2i = packet.source.grid_pos
+				var target_from: Vector2i = packet.target.grid_pos
+				var swapped: bool = resolver.try_swap_actors(packet.source, packet.target, state)
+				packet.metadata["swapped"] = swapped
+				if swapped:
+					var swap_event = _make_event(EffectEventScript.TYPE_SWAP_APPLIED, packet, event_depth)
+					swap_event.actor = packet.source
+					swap_event.target = packet.target
+					swap_event.from_cell = source_from
+					swap_event.to_cell = packet.source.grid_pos
+					swap_event.direction = packet.source.grid_pos - source_from
+					swap_event.amount = 1
+					swap_event.metadata["source_from_cell"] = source_from
+					swap_event.metadata["source_to_cell"] = packet.source.grid_pos
+					swap_event.metadata["target_from_cell"] = target_from
+					swap_event.metadata["target_to_cell"] = packet.target.grid_pos
+					events.append(swap_event)
+		EffectPacketScript.KIND_TELEPORT:
+			if packet.source != null:
+				var teleport_from: Vector2i = packet.source.grid_pos
+				var teleported: bool = resolver.try_teleport_actor(packet.source, packet.target_cell, state)
+				packet.metadata["moved"] = teleported
+				packet.metadata["from_cell"] = teleport_from
+				packet.metadata["to_cell"] = packet.source.grid_pos if teleported else packet.target_cell
+				if teleported:
+					if resolver.has_method("on_actor_entered_cell"):
+						resolver.on_actor_entered_cell(packet.source, state)
+					var teleport_event = _make_event(EffectEventScript.TYPE_TELEPORT_APPLIED, packet, event_depth)
+					teleport_event.actor = packet.source
+					teleport_event.target = packet.source
+					teleport_event.from_cell = teleport_from
+					teleport_event.to_cell = packet.source.grid_pos
+					teleport_event.direction = packet.source.grid_pos - teleport_from
+					teleport_event.amount = 1
+					events.append(teleport_event)
 		EffectPacketScript.KIND_MESSAGE:
 			var message := String(packet.metadata.get("message", ""))
 			if not message.is_empty():
@@ -150,6 +212,8 @@ func _execute_packets_collect_events(packets: Array, state, resolver, event_queu
 		executed_packets.append(packet)
 		for event in execute_packet(packet, state, resolver, event_depth):
 			event_queue.append(event)
+			if resolver != null and resolver.has_method("emit_combat_event"):
+				resolver.emit_combat_event(event)
 
 
 func _process_packets_with_modifiers(packets: Array, sorted_modifiers: Array, context: Dictionary) -> Array:
@@ -217,3 +281,11 @@ func _modifier_priority(modifier) -> int:
 	if modifier == null:
 		return 0
 	return int(modifier.priority)
+
+
+func _is_attack_packet(packet) -> bool:
+	if packet == null:
+		return false
+	if packet.action != null and packet.action.def != null and int(packet.action.def.kind) == int(ActionDef.ActionKind.ATTACK):
+		return true
+	return packet.has_tag(&"attack")

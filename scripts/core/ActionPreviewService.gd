@@ -228,7 +228,7 @@ func _preview_attack_cells(state, origin: Vector2i, direction: Vector2i, action_
 	if direction == Vector2i.ZERO or action_def == null:
 		return cells
 
-	if action_def.id == "sweep":
+	if action_def.id == "sweep" or action_def.id == "great_sweep":
 		var left := Vector2i(direction.y, -direction.x)
 		var right := Vector2i(-direction.y, direction.x)
 		for cell in [origin + left, origin + direction, origin + right]:

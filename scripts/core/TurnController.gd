@@ -5,6 +5,7 @@ const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 const ActionTraceScript := preload("res://scripts/runtime/ActionTrace.gd")
 const ActionTraceRecorderScript := preload("res://scripts/core/ActionTraceRecorder.gd")
 const WeaponComboResolverScript := preload("res://scripts/core/WeaponComboResolver.gd")
+const EffectEventScript := preload("res://scripts/runtime/EffectEvent.gd")
 
 signal planning_started
 signal action_started(action)
@@ -475,6 +476,8 @@ func _announce_combo_followup(actor, match_data: Dictionary) -> void:
 	if display_name.is_empty():
 		return
 
+	_append_combo_presentation(actor, display_name, match_data)
+	_emit_combo_triggered_event(actor, display_name, match_data)
 	resolver.add_state_message(state, "%s 触发武器技：%s" % [actor.def.display_name, display_name])
 
 
@@ -482,3 +485,32 @@ func _present_action_started_non_blocking(action) -> void:
 	if presentation_controller == null or not presentation_controller.has_method("present_action_started_non_blocking"):
 		return
 	presentation_controller.present_action_started_non_blocking(action)
+
+
+func _append_combo_presentation(actor, display_name: String, match_data: Dictionary) -> void:
+	if resolver == null or not resolver.has_method("_append_presentation_frame"):
+		return
+	resolver._append_presentation_frame("combo_triggered", {
+		"actor": actor,
+		"direction": Vector2i(match_data.get("matched_move_dir", actor.facing if actor != null else Vector2i.RIGHT)),
+		"technique_id": String(match_data.get("technique_id", "")),
+		"display_name": display_name,
+	})
+
+
+func _emit_combo_triggered_event(actor, display_name: String, match_data: Dictionary) -> void:
+	if resolver == null or not resolver.has_method("emit_combat_event"):
+		return
+	var event = EffectEventScript.new()
+	event.event_type = EffectEventScript.TYPE_COMBO_TRIGGERED
+	event.source = actor
+	event.actor = actor
+	event.target = actor
+	event.from_cell = actor.grid_pos if actor != null else Vector2i.ZERO
+	event.to_cell = actor.grid_pos if actor != null else Vector2i.ZERO
+	event.direction = Vector2i(match_data.get("matched_move_dir", actor.facing if actor != null else Vector2i.RIGHT))
+	event.metadata["technique_id"] = String(match_data.get("technique_id", ""))
+	event.metadata["display_name"] = display_name
+	for symbol in match_data.get("matched_symbols", []):
+		event.add_tag(StringName(symbol))
+	resolver.emit_combat_event(event)
