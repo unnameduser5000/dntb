@@ -1,69 +1,155 @@
-# DNTB 武器、效果与表现 API 清单
+# DNTB 动作、移动、效果与表现 API 清单
 
-这份清单的目标不是重复系统设计文档，而是把当前战斗系统里三条最关键的扩展面拆开看清楚：
+这份清单不再把“武器 hook”单独当主系统，而是按当前真实主链拆成四层来看：
 
-- 武器系统抽象是否够用
-- 效果系统是否已经形成稳定 API
-- 特效 / 动画表现层现在能接到什么程度
+- 动作 API 是否已经形成稳定边界
+- 移动 API 是否已经独立可复用
+- 效果 API 是否已经足够承载扩展
+- 表现层 API 现在能接到什么程度
 
 文档重点是“哪些已经可用，哪些还缺边界，下一步最值得补什么”。
 
 ## 1. 总体判断
 
-当前结论可以先压缩成三句话：
+当前结论可以先压缩成四句话：
 
-- 武器系统已经有清楚的扩展入口，适合继续做新武器和武器技。
+- 动作层已经成为武器差异的主承载点。
+- 移动系统应该被视为独立 API，而不是只当 `ActionResolver` 的内部细节。
 - 效果系统已经形成真正可复用的 API，是当前最成熟的一层。
-- 表现层已经有战斗动画和特效接口，但还偏“场景专用适配层”，离完整通用框架还有一段距离。
+- 表现层已经有接口，但 payload 和事件协议还偏项目内约定。
 
 建议优先级：
 
-1. 先补效果语义缺口。
-2. 再补武器 hook 粒度。
-3. 最后把表现事件协议补完整。
+1. 先补动作与移动的统一语义。
+2. 再补效果语义缺口。
+3. 然后补表现协议。
 
 ## 2. 当前已有能力清单
 
-### 2.1 武器系统已有能力
+### 2.1 动作系统已有能力
 
-当前武器抽象主入口：
+当前动作 API 主入口：
 
+- `scripts/data/ActionDef.gd`
 - `scripts/data/WeaponDef.gd`
-- `scripts/runtime/CombatContext.gd`
+- `scripts/core/DirectionalTechniqueResolver.gd`
 - `scripts/core/ActionResolver.gd`
-- `scripts/core/TurnController.gd`
-- `scripts/data/WeaponTechniqueDef.gd`
-- `scripts/core/WeaponComboResolver.gd`
+- `scripts/runtime/ActionInstance.gd`
 
-当前武器 hook：
+当前动作层已经明确的边界：
 
-- `resolve_move_collision()`
-- `resolve_attack_hit()`
-- `resolve_attack_miss()`
-- `resolve_action_chain_finished()`
+- 可编程 token 先进入 `ActionProgramController.gd`
+- `DirectionalTechniqueResolver.gd` 把 token 翻译成 `ActionInstance`
+- 通用攻击 token `A` 会在这里解析成 `active_weapon.attack_action`
+- `ActionResolver.gd` 只负责执行具体动作，不再读取武器私有 hook
 
-当前已经被抽象出来的上下文信息：
+当前武器字段：
 
-- `direction`
-- `speed`
-- `damage`
-- `source_cell`
-- `target_cell`
-- `chain_actions`
-- 当前 action / source / target / state
+- `id`
+- `display_name`
+- `description`
+- `attack_action`
 
 当前已经跑通的武器模式：
 
-- 移动撞击型：`ImpactShieldDef`
-- 连续同方向移动派生技：`lunge`
-- 特定 trace pattern 派生技：`sweep`
+- `impact_shield` -> `attack`
+- `iron_spear` -> `charge_thrust`
+- `greatblade` -> `great_sweep`
 
 结论：
 
-- 做“冲撞、突刺、横扫、追加伤害、命中替换、链尾追加技”已经够用。
-- 做“抓取、背摔、换位、位移投技”也能做，但会开始暴露效果语义和表现协议的缺口。
+- 武器差异现在优先写进 `ActionDef`。
+- “一把武器对应一种攻击动作”已经是当前主口径。
+- 如果以后要支持更复杂武器，优先扩动作 API，而不是恢复旧武器脚本入口。
 
-### 2.2 效果系统已有能力
+### 2.2 移动系统已有能力
+
+当前移动 API 主入口：
+
+- `scripts/core/ActionResolver.gd`
+- `scripts/runtime/MovementResult.gd`
+- `scripts/runtime/EffectPacket.gd`
+- `scripts/runtime/EffectEvent.gd`
+- `scripts/runtime/EffectPipeline.gd`
+- `scripts/core/ActionPreviewService.gd`
+
+当前已经抽出来的移动能力：
+
+- 基础落格移动：`resolve_move_actor_to_cell()`
+- 强制直线位移：`resolve_forced_directional_move()`
+- 换位：`resolve_swap_actors()`
+- 传送：`resolve_teleport_actor()`
+- 对效果层开放的 helper：
+  - `apply_effect_move()`
+  - `apply_effect_move_to_cell()`
+  - `apply_effect_knockback()`
+  - `apply_effect_pull()`
+  - `apply_effect_swap()`
+  - `apply_effect_teleport()`
+
+当前移动结果的统一字段：
+
+- `kind`
+- `actor`
+- `secondary_actor`
+- `from_cell`
+- `to_cell`
+- `direction`
+- `requested_steps`
+- `moved_steps`
+- `moved`
+- `blocked`
+- `blocked_reason`
+- `target_cell`
+
+当前已经有的移动语义：
+
+- 普通地面移动
+- 绝对方向一步移动
+- 前进 / 后退
+- 跳跃落点移动
+- 击退
+- 拉拽
+- 换位
+- 传送
+
+结论：
+
+- 现在已经不该把移动理解成只有 `_resolve_move()` 一条逻辑。
+- 后面新武器、新 token、新效果应尽量复用移动 API，而不是各自手写 `grid.move_actor()`。
+
+### 2.3 攻击结果层已有能力
+
+当前攻击结果主入口：
+
+- `scripts/runtime/AttackResult.gd`
+- `scripts/core/ActionResolver.gd`
+
+当前已经抽出来的攻击结果字段：
+
+- `actor`
+- `action`
+- `direction`
+- `attempted_cells`
+- `hit_targets`
+- `hit_cells`
+- `damage_packets`
+- `total_damage`
+- `missed`
+- `miss_cell`
+- `moved_during_attack`
+
+当前已经接到结果层的攻击路径：
+
+- 普通 `attack`
+- `lunge`
+
+结论：
+
+- 攻击现在已经不再完全埋在 `_resolve_attack()` 的临时变量里。
+- 但它还没有像 `MovementResult` 一样成为 preview / effect / presentation 共享的公共结果层，这仍是下一步。
+
+### 2.4 效果系统已有能力
 
 当前效果 API 主入口：
 
@@ -76,16 +162,24 @@
 
 - `damage`
 - `move`
+- `pull`
 - `knockback`
+- `swap`
+- `teleport`
 - `message`
 
 当前 event 类型：
 
 - `damage_dealt`
+- `attack_hit_confirmed`
+- `attack_missed_confirmed`
 - `actor_killed`
 - `actor_moved`
 - `move_blocked`
 - `knockback_applied`
+- `pull_applied`
+- `swap_applied`
+- `teleport_applied`
 
 当前 modifier 两阶段扩展点：
 
@@ -103,9 +197,9 @@
 结论：
 
 - 这层已经是一个真实可用的玩法扩展 API。
-- 新增遗物、诅咒、武器词条、被动、连锁伤害都应该优先接这里。
+- 新增遗物、诅咒、被动、状态衍生效果，优先接这里。
 
-### 2.3 表现层已有能力
+### 2.5 表现层已有能力
 
 当前表现主入口：
 
@@ -121,6 +215,8 @@
 - `actor_damaged`
 - `attack_missed`
 - `move_collision`
+- `teleport`
+- `swap`
 - `actor_died`
 
 当前表现层能力：
@@ -134,156 +230,133 @@
 结论：
 
 - 已足够支撑当前近战原型。
-- 但如果继续上抓取、换位、震荡波、投掷、落地冲击，表现事件会明显不够。
+- 但如果继续上抓取、背摔、震荡波、瞬步，表现事件会明显不够。
 
 ## 3. 缺口清单
 
-### 3.1 武器系统缺口
+### 3.1 动作系统缺口
 
-#### W-1 缺更细粒度的 hook
+#### A-1 缺少更明确的“动作语义分类”
 
 现状问题：
 
-- 现在只有命中前后较粗的几个节点。
-- 很多玩法会卡在“想要一个恰好在某个时机发生的规则”，但没有稳定入口。
-
-典型受影响玩法：
-
-- 背摔
-- 命中后换位
-- 破防追击
-- 击杀回身斩
-- 受击反打
+- 现在 `ActionDef` 已经同时承载移动、攻击、转向、防御、等待。
+- 但“攻击中是否带位移”“攻击后是否换位”“动作是否依赖目标落点”这些差异还主要写在 resolver 分支里。
 
 Checklist：
 
-- [ ] 评估是否新增 `before_attack_hit`
-- [ ] 评估是否新增 `after_attack_hit`
-- [ ] 评估是否新增 `after_move_resolved`
-- [ ] 评估是否新增 `on_actor_killed`
-- [ ] 新 hook 必须基于 `CombatContext`，不要让武器直接翻 `GameState`
+- [ ] 约定哪些动作是纯攻击、纯移动、攻击附带位移、攻击附带控制。
+- [ ] 约定新武器动作优先复用哪些 resolver helper。
+- [ ] 明确复杂武器动作是扩 `ActionDef` 字段，还是复用 effect packet 组合。
 
 优先级：高
 
-#### W-2 缺统一的“武器主动产出效果”接口习惯
+#### A-2 缺少“每种武器一种攻击动作”之上的扩展习惯
 
 现状问题：
 
-- 武器现在常直接调用 resolver 的具体 helper。
-- 这能工作，但久了会让武器脚本越来越像半个 resolver。
+- 当前主口径已经够清楚，但后续容易有人重新把特殊规则塞回武器脚本。
+- 如果不写清楚，新武器会再次分叉成“有些写动作，有些写武器”。
 
 Checklist：
 
-- [ ] 约定武器优先产出 effect，而不是直接改状态
-- [ ] 为常用行为沉淀 helper，如“对目标造成伤害并击退”
-- [ ] 补一份武器脚本写法约定，区分“可直接 resolver 调用”和“应走 EffectPipeline”
-
-优先级：中高
-
-#### W-3 缺标准化的位移/投技语义
-
-现状问题：
-
-- 冲撞已经有现成模式。
-- 但抓取、背摔、拖拽、换位还没有统一规则面。
-
-Checklist：
-
-- [ ] 明确“换位”是否算 move
-- [ ] 明确“投掷/摔落”是否触发 `actor_moved`
-- [ ] 明确“目标落点被阻挡”时的统一口径
-- [ ] 明确“位移技命中失败”是落空、原地打伤害，还是转成 wall slam
+- [ ] 明确默认规则：新武器先配一个 `attack_action`。
+- [ ] 明确复杂收益优先写在动作执行路径。
+- [ ] 只有当多个武器共享同一攻击动作时，才讨论更通用的数据层抽象。
 
 优先级：高
 
-### 3.2 效果系统缺口
+### 3.2 移动系统缺口
 
-#### E-1 packet 种类偏少
+#### M-1 缺少统一的阻挡原因与 fallback 约定
 
 现状问题：
 
-- 当前 `damage / move / knockback / message` 足够做直线近战原型。
-- 但很多高级玩法要么写不自然，要么要在 resolver 里硬编码。
+- 现在已经有 `blocked_reason`，但还没有团队级规则表。
+- 背摔、抓取、冲刺、侧移会很快依赖这层。
+
+Checklist：
+
+- [ ] 统一 `blocked_reason` 枚举口径。
+- [ ] 明确阻挡于墙、阻挡于单位、落点非法、请求非法的差异。
+- [ ] 明确失败时是否发 `move_blocked`、是否产出独立表现 frame。
+- [ ] 明确投技 / 拉拽失败时是否允许退化收益。
+
+优先级：最高
+
+#### M-2 预览移动与运行时移动还缺共享规则面
+
+现状问题：
+
+- `ActionPreviewService.gd` 现在是自己重演一套移动判断。
+- 规则再复杂一点，预览和运行时就更容易漂。
+
+Checklist：
+
+- [ ] 评估是否抽出共享移动规则 helper。
+- [ ] 至少先统一阻挡、换位、跳跃、冲刺停点。
+- [ ] 新增复杂位移动作时，必须同时补预览规则。
+
+优先级：高
+
+### 3.3 效果系统缺口
+
+#### E-1 packet 种类需要继续补全
+
+现状问题：
+
+- 当前 `damage / move / knockback / pull / swap / teleport / message` 已经能覆盖不少近战与位移玩法。
+- 但状态、破防、抓取标记这类玩法还没有自然入口。
 
 最值得补的新 packet：
 
-- `swap`
-- `pull`
-- `teleport`
 - `status_apply`
 - `guard_break`
 
 Checklist：
 
-- [ ] 定义 `swap` 的 source/target/to_cell 语义
-- [ ] 定义 `pull` 与 `knockback` 的差异，不要混用
-- [ ] 定义 `teleport` 是否绕过阻挡和沿途触发
-- [ ] 定义 `status_apply` 是否立即生效、如何叠层
-
-优先级：最高
-
-#### E-2 event 种类不够细
-
-现状问题：
-
-- 现在更多是“结果事件”。
-- 对武器技、状态和被动来说，还缺一些战斗语义事件。
-
-最值得补的新 event：
-
-- `attack_hit_confirmed`
-- `attack_missed_confirmed`
-- `combo_triggered`
-- `guard_consumed`
-- `swap_applied`
-- `status_applied`
-
-Checklist：
-
-- [ ] 区分“damage dealt”与“attack hit confirmed”
-- [ ] 区分“攻击没打到”与“打到了但被减成 0”
-- [ ] 明确 combo 触发是否发独立事件
+- [ ] 定义 `status_apply` 是否立即生效、如何叠层。
+- [ ] 定义 `guard_break` 是 packet 还是攻击结果上的附加字段。
+- [ ] 明确新 packet 如何进入表现层。
 
 优先级：高
 
-#### E-3 缺状态类一等公民接口
+#### E-2 缺状态类一等公民接口
 
 现状问题：
 
-- 现在 modifier 很适合做遗物和被动。
+- modifier 很适合做遗物和被动。
 - 但对 `stun`、`bleed`、`mark`、`grabbed` 这种战斗状态，还没有统一数据面。
 
 Checklist：
 
-- [ ] 评估是否需要 `StatusDef` / `StatusInstance`
-- [ ] 明确状态是 actor 本地列表，还是 effect modifier 的另一种来源
-- [ ] 明确状态持续回合、叠层、驱散口径
+- [ ] 评估是否需要 `StatusDef` / `StatusInstance`。
+- [ ] 明确状态是 actor 本地列表，还是 effect modifier 的另一种来源。
+- [ ] 明确状态持续回合、叠层、驱散口径。
 
 优先级：中高
 
-### 3.3 表现层缺口
+### 3.4 表现层缺口
 
 #### P-1 表现事件协议偏少
 
 现状问题：
 
-- 现在的 frame 事件大多服务于“移动、命中、落空、死亡”。
-- 新武器如果要做得更有辨识度，很快会需要更丰富的表现事件。
+- 现在的 frame 事件大多服务于移动、命中、落空、死亡。
+- 新武器如果要做抓取、背摔、瞬步，很快会需要更丰富的表现事件。
 
 最值得补的新 frame：
 
-- `combo_triggered`
 - `throw_start`
 - `throw_land`
 - `guard_block`
-- `teleport`
 - `status_applied`
 
 Checklist：
 
-- [ ] 先定义 frame kind 名字和 payload 字段
-- [ ] 明确哪些事件挂 actor，哪些挂 cell
-- [ ] 明确是否允许同一 action 产出多段 frame
+- [ ] 先定义 frame kind 名字和 payload 字段。
+- [ ] 明确哪些事件挂 actor，哪些挂 cell。
+- [ ] 明确是否允许同一 action 产出多段 frame。
 
 优先级：高
 
@@ -292,69 +365,52 @@ Checklist：
 现状问题：
 
 - 当前主要靠 `Dictionary` 临时拼字段。
-- 对原型迭代很快，但字段名一多就容易漂。
+- 原型期够快，但字段名一多就容易漂。
 
 Checklist：
 
-- [ ] 至少先补一份 frame payload 约定表
-- [ ] 常用字段统一：`actor`、`target`、`target_cell`、`direction`、`amount`、`speed`
-- [ ] 后续再考虑是否上独立 runtime data class
+- [ ] 至少先补一份 frame payload 约定表。
+- [ ] 常用字段统一：`actor`、`target`、`target_cell`、`direction`、`amount`、`speed`。
+- [ ] 后续再考虑是否上独立 runtime data class。
 
 优先级：中
-
-#### P-3 效果事件还没有直接映射到表现层
-
-现状问题：
-
-- 当前表现 frame 主要是 resolver 手动 append。
-- 这意味着新增 packet/event 时，往往还要再人工补一遍表现桥接。
-
-Checklist：
-
-- [ ] 评估是否需要“effect event -> presentation frame”翻译层
-- [ ] 至少先让 `swap`、`teleport`、`combo_triggered` 这类高级语义有统一桥接
-- [ ] 避免每把武器自己决定表现事件名字
-
-优先级：中高
 
 ## 4. 最高优先级补强项
 
 如果只允许做一轮小迭代，建议按下面顺序补：
 
-### 第一批：先补语义，不先补花哨表现
+### 第一批：先把动作和移动语义讲清楚
 
-- [ ] 新增 `swap` packet
-- [ ] 新增 `pull` packet
-- [ ] 新增 `attack_hit_confirmed` event
-- [ ] 新增 `combo_triggered` event
-- [ ] 补一套“抓取/背摔/换位”统一规则说明
-
-原因：
-
-- 这些会直接决定新武器是否写得顺。
-- 不先补这层，后面每把投技武器都会写出一套自己的半私有规则。
-
-### 第二批：补武器扩展边界
-
-- [ ] 新增至少一个更细 hook，建议 `after_attack_hit`
-- [ ] 统一武器脚本调用 effect helper 的写法
-- [ ] 补一份“什么写武器 hook，什么写 modifier”的边界说明
+- [ ] 补一份动作类型与移动结果约定表。
+- [ ] 明确 `MovementResult` 字段和失败原因口径。
+- [ ] 补一套“抓取 / 背摔 / 换位 / 冲刺 / 跳跃”统一规则说明。
+- [ ] 明确预览层与运行时共享哪些规则。
 
 原因：
 
-- 这一步能让新武器不把 `ActionResolver` 当成杂物箱。
+- 这些会直接决定新武器、新 token、新效果是否写得顺。
+- 不先补这层，后面每把投技武器和每个复杂位移动作都会写出自己的半私有规则。
+
+### 第二批：补效果语义
+
+- [ ] 新增 `status_apply`
+- [ ] 评估 `guard_break`
+- [ ] 补状态层数据面
+
+原因：
+
+- 这一步能让后续武器差异更多通过统一效果表达，而不是在 resolver 里散落分支。
 
 ### 第三批：补表现协议
 
-- [ ] 新增 `combo_triggered`
 - [ ] 新增 `throw_start`
 - [ ] 新增 `throw_land`
+- [ ] 新增 `guard_block`
 - [ ] 整理 frame payload 字段表
 
 原因：
 
-- 做完前两批后，新武器在规则上已经能跑。
-- 这时再补表现，收益最高，也更容易对齐规则语义。
+- 当前规则跑通后，最容易拖后腿的是表现层表达力。
 
 ## 5. 适合拿来验证 API 的样板玩法
 
@@ -364,11 +420,11 @@ Checklist：
 
 为什么适合：
 
-- 它同时覆盖武器 hook、位移语义、落点阻挡和表现事件。
+- 它同时覆盖攻击动作、位移语义、落点阻挡和表现事件。
 
 验收点：
 
-- [ ] 能识别触发条件
+- [ ] 能识别触发方向
 - [ ] 能把目标摔到预期落点或换位
 - [ ] 落点被挡时有统一 fallback
 - [ ] 有单独表现事件，不只靠普通 hit effect
@@ -377,12 +433,12 @@ Checklist：
 
 为什么适合：
 
-- 它能逼出 `pull` 与 `knockback` 的语义边界。
+- 它能逼出 `pull` 与普通位移的语义边界。
 
 验收点：
 
 - [ ] 敌人被拉近时不会误判成普通 knockback
-- [ ] 拉到身前后的 follow-up 可继续接 attack / combo
+- [ ] 拉到身前后可继续接攻击动作
 - [ ] 表现层能看出“拉”而不是“撞”
 
 ### 5.3 瞬步匕首
@@ -394,17 +450,17 @@ Checklist：
 验收点：
 
 - [ ] 位移不走普通 grounded move 口径
-- [ ] Trace / combo 规则有明确设计，不产生语义污染
+- [ ] 输入、预览、运行时三层方向解释一致
 - [ ] 表现上能看出这是瞬移不是滑步
 
 ## 6. 一句话结论
 
-现在最不该做的是继续往单个武器脚本里硬塞特殊判定。
+现在最不该做的是重新把特殊武器规则拆回独立武器 API。
 
 现在最该做的是：
 
-- 先补 `swap / pull / teleport` 这类效果语义
-- 再补更细的武器 hook
+- 先把动作和移动系统当成明确 API 讲清楚
+- 再补 `status_apply` 这类后续效果语义
 - 最后把表现 frame 协议补齐
 
-这样后面不管是背摔、投技、链刃、重盾还是瞬步武器，都能沿同一套 API 往前长，而不是一把武器开一条私路。
+这样后面不管是背摔、投技、链刃、重盾还是瞬步武器，都能沿同一套动作主链往前长，而不是一把武器开一条私路。

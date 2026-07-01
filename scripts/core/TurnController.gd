@@ -1,11 +1,8 @@
 class_name TurnController
 extends Node
 
-const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 const ActionTraceScript := preload("res://scripts/runtime/ActionTrace.gd")
 const ActionTraceRecorderScript := preload("res://scripts/core/ActionTraceRecorder.gd")
-const WeaponComboResolverScript := preload("res://scripts/core/WeaponComboResolver.gd")
-const EffectEventScript := preload("res://scripts/runtime/EffectEvent.gd")
 
 signal planning_started
 signal action_started(action)
@@ -19,14 +16,12 @@ var enemy_planner
 var player_plan: Array = []
 var presentation_controller = null
 var action_trace_recorder = ActionTraceRecorderScript.new()
-var weapon_combo_resolver = WeaponComboResolverScript.new()
 var _next_plan_chain_id: int = 0
 var _active_plan_chain_id: int = -1
 
 ## Each battle starts with a fresh trace history.
-## The trace is battle-scoped, not run-scoped, because upcoming combo /
-## interference work should reason about recent execution context instead of
-## accumulating one giant cross-room history by default.
+## The trace is battle-scoped, not run-scoped, because movement/attack history
+## should still describe only the current battle's recent execution context.
 func start_battle(new_state) -> void:
 	state = new_state
 	_next_plan_chain_id = 0
@@ -35,8 +30,6 @@ func start_battle(new_state) -> void:
 		state.action_trace = ActionTraceScript.new()
 	if state != null and state.action_trace != null:
 		state.action_trace.clear()
-	if state != null:
-		state.clear_weapon_combo_matches()
 	state.phase = "planning"
 	planning_started.emit()
 
@@ -75,10 +68,6 @@ func execute_turn() -> void:
 			return
 
 	_resolve_action_chain_finished(player_plan)
-	var player_followup_interrupted := _execute_combo_followups_for_plan(player_plan)
-	_present_pending_frames_non_blocking()
-	if player_followup_interrupted:
-		return
 	if _check_battle_end():
 		return
 
@@ -104,10 +93,6 @@ func execute_turn() -> void:
 				return
 
 		_resolve_action_chain_finished(enemy_plan)
-		var enemy_followup_interrupted := _execute_combo_followups_for_plan(enemy_plan)
-		_present_pending_frames_non_blocking()
-		if enemy_followup_interrupted:
-			return
 
 	_finish_turn_cycle()
 
@@ -214,10 +199,6 @@ func _run_turn_with_presentation() -> void:
 		return
 
 	_resolve_action_chain_finished(player_plan)
-	var player_followup_interrupted := await _execute_combo_followups_for_plan_async(player_plan)
-	await _play_pending_presentation_frames()
-	if player_followup_interrupted:
-		return
 	if _check_battle_end():
 		return
 
@@ -231,10 +212,6 @@ func _run_turn_with_presentation() -> void:
 			return
 
 		_resolve_action_chain_finished(enemy_plan)
-		var enemy_followup_interrupted := await _execute_combo_followups_for_plan_async(enemy_plan)
-		await _play_pending_presentation_frames()
-		if enemy_followup_interrupted:
-			return
 
 	_finish_turn_cycle()
 
@@ -312,205 +289,7 @@ func _record_action_trace(action, actor_before_cell: Vector2i, actor_before_faci
 	action_trace_recorder.record_action(state.action_trace, action, actor_before_cell, actor_before_facing)
 
 
-func _execute_combo_followups_for_plan(plan: Array) -> bool:
-	if state == null or state.action_trace == null or weapon_combo_resolver == null:
-		return false
-
-	for combo_data in _collect_combo_matches_for_plan(plan, WeaponTechniqueDef.TriggerTiming.AFTER_CHAIN):
-		var actor = combo_data.get("actor")
-		var source_actions: Array = combo_data.get("actions", [])
-		var matches: Array = combo_data.get("matches", [])
-		for match_data in matches:
-			if match_data.is_empty():
-				continue
-			if _execute_combo_followup_action(actor, source_actions, match_data):
-				return true
-	return false
-
-
-func _execute_combo_followups_for_plan_async(plan: Array) -> bool:
-	if state == null or state.action_trace == null or weapon_combo_resolver == null:
-		return false
-
-	for combo_data in _collect_combo_matches_for_plan(plan, WeaponTechniqueDef.TriggerTiming.AFTER_CHAIN):
-		var actor = combo_data.get("actor")
-		var source_actions: Array = combo_data.get("actions", [])
-		var matches: Array = combo_data.get("matches", [])
-		for match_data in matches:
-			if match_data.is_empty():
-				continue
-			if await _execute_combo_followup_action_async(actor, source_actions, match_data):
-				return true
-	return false
-
-
-func _collect_combo_matches_for_plan(plan: Array, trigger_timing: int) -> Array:
-	var results: Array = []
-	if state == null or state.action_trace == null or weapon_combo_resolver == null:
-		return results
-
-	# Combo recognition is evaluated from the real ActionTrace after base actions
-	# finish resolving. This keeps terrain/collision/effect changes in scope:
-	# KeyProgram predicts intent, but weapon techniques trigger from what really
-	# happened in combat.
-	var handled_actors: Dictionary = {}
-	for action in plan:
-		if action == null or action.actor == null:
-			continue
-
-		var actor = action.actor
-		var actor_id: int = int(actor.id)
-		if handled_actors.has(actor_id):
-			continue
-		handled_actors[actor_id] = true
-
-		var actor_actions := _get_actions_for_actor(plan, actor)
-		var plan_chain_id := _plan_chain_id_for_actions(actor_actions)
-		var current_entries: Array = []
-		for entry in state.action_trace.get_recent_entries_for_actor(actor_id):
-			if entry == null:
-				continue
-			if plan_chain_id >= 0 and int(entry.chain_id) == plan_chain_id:
-				current_entries.append(entry)
-
-		var matches: Array = weapon_combo_resolver.find_matches_for_entries(
-			actor,
-			current_entries,
-			state.unlocked_weapon_technique_ids,
-			trigger_timing
-		)
-		state.set_weapon_combo_matches_for_actor(actor_id, matches)
-		results.append({
-			"actor": actor,
-			"actor_id": actor_id,
-			"actions": actor_actions,
-			"matches": matches,
-		})
-
-	return results
-
-
-func _execute_combo_followup_action(actor, source_actions: Array, match_data: Dictionary) -> bool:
-	var followup_action = _build_combo_followup_action(actor, source_actions, match_data)
-	if followup_action == null:
-		return false
-
-	action_started.emit(followup_action)
-	_present_action_started_non_blocking(followup_action)
-	_announce_combo_followup(actor, match_data)
-	resolver.resolve(followup_action, state)
-	_present_pending_frames_non_blocking()
-	action_finished.emit(followup_action)
-	return _check_battle_end()
-
-
-func _execute_combo_followup_action_async(actor, source_actions: Array, match_data: Dictionary) -> bool:
-	var followup_action = _build_combo_followup_action(actor, source_actions, match_data)
-	if followup_action == null:
-		return false
-
-	action_started.emit(followup_action)
-	await _play_action_started(followup_action)
-	_announce_combo_followup(actor, match_data)
-	resolver.resolve(followup_action, state)
-	await _play_pending_presentation_frames()
-	action_finished.emit(followup_action)
-	await _play_action_finished(followup_action)
-	return _check_battle_end()
-
-
-func _build_combo_followup_action(actor, source_actions: Array, match_data: Dictionary):
-	if actor == null:
-		return null
-
-	var technique = match_data.get("technique")
-	if technique == null or not technique.has_method("resolved_action"):
-		return null
-
-	var action_def = technique.resolved_action()
-	if action_def == null:
-		return null
-
-	var action = ActionInstanceScript.new()
-	action.actor = actor
-	action.def = action_def
-	action.key_id = "technique:%s" % String(match_data.get("technique_id", ""))
-	action.chain_index = source_actions.size()
-	action.chain_id = _plan_chain_id_for_actions(source_actions)
-
-	if not source_actions.is_empty():
-		var last_action = source_actions[source_actions.size() - 1]
-		if last_action != null:
-			action.previous_dir = last_action.previous_dir
-			action.chain_speed = max(1, int(last_action.chain_speed))
-			action.momentum_dir = last_action.momentum_dir
-			action.momentum_speed = int(last_action.momentum_speed)
-
-	var matched_move_dir := Vector2i(match_data.get("matched_move_dir", Vector2i.ZERO))
-	if matched_move_dir != Vector2i.ZERO:
-		action.chosen_dir = matched_move_dir
-		action.previous_dir = matched_move_dir
-		action.momentum_dir = matched_move_dir
-
-	return action
-
-
-func _plan_chain_id_for_actions(actions: Array) -> int:
-	for action in actions:
-		if action != null:
-			return int(action.chain_id)
-	return -1
-
-
-func _announce_combo_followup(actor, match_data: Dictionary) -> void:
-	if actor == null or state == null or resolver == null:
-		return
-
-	var technique = match_data.get("technique")
-	if technique == null:
-		return
-
-	var display_name := String(technique.display_name)
-	if display_name.is_empty():
-		display_name = String(match_data.get("technique_id", ""))
-	if display_name.is_empty():
-		return
-
-	_append_combo_presentation(actor, display_name, match_data)
-	_emit_combo_triggered_event(actor, display_name, match_data)
-	resolver.add_state_message(state, "%s 触发武器技：%s" % [actor.def.display_name, display_name])
-
-
 func _present_action_started_non_blocking(action) -> void:
 	if presentation_controller == null or not presentation_controller.has_method("present_action_started_non_blocking"):
 		return
 	presentation_controller.present_action_started_non_blocking(action)
-
-
-func _append_combo_presentation(actor, display_name: String, match_data: Dictionary) -> void:
-	if resolver == null or not resolver.has_method("_append_presentation_frame"):
-		return
-	resolver._append_presentation_frame("combo_triggered", {
-		"actor": actor,
-		"direction": Vector2i(match_data.get("matched_move_dir", actor.facing if actor != null else Vector2i.RIGHT)),
-		"technique_id": String(match_data.get("technique_id", "")),
-		"display_name": display_name,
-	})
-
-
-func _emit_combo_triggered_event(actor, display_name: String, match_data: Dictionary) -> void:
-	if resolver == null or not resolver.has_method("emit_combat_event"):
-		return
-	var event = EffectEventScript.new()
-	event.event_type = EffectEventScript.TYPE_COMBO_TRIGGERED
-	event.source = actor
-	event.actor = actor
-	event.target = actor
-	event.from_cell = actor.grid_pos if actor != null else Vector2i.ZERO
-	event.to_cell = actor.grid_pos if actor != null else Vector2i.ZERO
-	event.direction = Vector2i(match_data.get("matched_move_dir", actor.facing if actor != null else Vector2i.RIGHT))
-	event.metadata["technique_id"] = String(match_data.get("technique_id", ""))
-	event.metadata["display_name"] = display_name
-	for symbol in match_data.get("matched_symbols", []):
-		event.add_tag(StringName(symbol))
-	resolver.emit_combat_event(event)

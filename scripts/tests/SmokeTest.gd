@@ -3,14 +3,12 @@ extends SceneTree
 const GameScene := preload("res://scenes/game/Game.tscn")
 const ActionProgramControllerScript := preload("res://scripts/core/ActionProgramController.gd")
 const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
-const ProbeWeaponScript := preload("res://scripts/tests/ProbeWeaponDef.gd")
 const DuplicateDamageModifierScript := preload("res://scripts/tests/DuplicateDamageModifierDef.gd")
 const AmplifyTagDamageModifierScript := preload("res://scripts/tests/AmplifyTagDamageModifierDef.gd")
 const DuplicateMoveModifierScript := preload("res://scripts/tests/DuplicateMoveModifierDef.gd")
 const AmplifyKnockbackModifierScript := preload("res://scripts/tests/AmplifyKnockbackModifierDef.gd")
 const OnHitBonusDamageModifierScript := preload("res://scripts/tests/OnHitBonusDamageModifierDef.gd")
 const OnMoveZapAheadModifierScript := preload("res://scripts/tests/OnMoveZapAheadModifierDef.gd")
-const SwapOnHitWeaponScript := preload("res://scripts/tests/SwapOnHitWeaponDef.gd")
 const WorldSliceControllerScript := preload("res://scripts/core/WorldSliceController.gd")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
@@ -847,9 +845,7 @@ func _make_weapon_combo_game(seed_value: String, enemy_cell: Vector2i = Vector2i
 
 
 func _make_collision_only_weapon():
-	var weapon = IMPACT_SHIELD.duplicate(true)
-	weapon.combo_techniques = []
-	return weapon
+	return IMPACT_SHIELD.duplicate(true)
 
 
 func _run_weapon_combo_chain(game, token_ids: Array, facing: Vector2i, player_cell: Vector2i, expected_combo_id: String) -> int:

@@ -41,7 +41,7 @@
 - `Game.gd` 是当前玩法组合根，但不要继续把所有新规则塞进去。
 - 按键槽真实数据源是 `ActionProgramController.gd`。
 - 回合顺序属于 `TurnController.gd`。
-- 行动解析、武器 hook、伤害和胜负判断属于 `ActionResolver.gd`。
+- 行动解析、动作伤害、移动结果和胜负判断属于 `ActionResolver.gd`。
 - 遗物、状态、武器词条等可组合效果优先接入 `EffectPipeline.gd` 和 `EffectModifierDef`。
 - UI 脚本负责展示和发信号，不直接承载战斗规则。
 
@@ -61,4 +61,3 @@ godot --headless --path . --script res://scripts/tests/SmokeTest.gd
 - 系统边界或数据流变化时，更新 `docs/01_系统设计文档.md`。
 - 协作流程变化时，更新 `docs/02_开发协作指南.md` 或本文。
 - 测试入口、覆盖范围和手动验证路径变化时，更新 `docs/03_测试与验证.md`。
-
