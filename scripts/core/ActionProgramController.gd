@@ -8,7 +8,7 @@ extends RefCounted
 ## - spare/pool token management
 ##
 ## Current design:
-## - there are exactly four physical slots: U / D / L / R
+## - there are twelve physical keyboard slots: QWER / ASDF / ZXCV
 ## - reset_default_slots() builds the absolute starter preset
 ## - reset_starter_slots(preset_id) applies a specific starter preset
 ## - TL / TR / F remain programmable tokens and can be added later
@@ -16,7 +16,7 @@ extends RefCounted
 const STARTER_PRESET_ABSOLUTE := "absolute"
 const STARTER_PRESET_RELATIVE := "relative"
 
-const SLOT_ORDER: Array[String] = ["U", "D", "L", "R"]
+const SLOT_ORDER: Array[String] = ["Q", "W", "E", "R", "A", "S", "D", "F", "Z", "X", "C", "V"]
 const TOKEN_NAMES := {
 	"U": "上",
 	"D": "下",
@@ -137,17 +137,19 @@ func get_token_drop_pool() -> Array[String]:
 func _apply_starter_preset(preset_id: String) -> void:
 	_ensure_key_program()
 	key_program.setup_default(SLOT_ORDER)
+	for slot_id in SLOT_ORDER:
+		key_program.slots[slot_id] = []
 	match preset_id:
 		STARTER_PRESET_RELATIVE:
-			key_program.slots["U"] = ["F"]
-			key_program.slots["D"] = ["TR", "TR", "F"]
-			key_program.slots["L"] = ["TL", "F"]
-			key_program.slots["R"] = ["TR", "F"]
+			key_program.slots["W"] = ["F"]
+			key_program.slots["S"] = ["TR", "TR", "F"]
+			key_program.slots["A"] = ["TL", "F"]
+			key_program.slots["D"] = ["TR", "F"]
 		_:
-			key_program.slots["U"] = ["U"]
-			key_program.slots["D"] = ["D"]
-			key_program.slots["L"] = ["L"]
-			key_program.slots["R"] = ["R"]
+			key_program.slots["W"] = ["U"]
+			key_program.slots["S"] = ["D"]
+			key_program.slots["A"] = ["L"]
+			key_program.slots["D"] = ["R"]
 
 
 func _ensure_key_program() -> void:

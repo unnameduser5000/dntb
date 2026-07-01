@@ -9,6 +9,7 @@ static var _debug_player_frames_cache: SpriteFrames
 func _ready() -> void:
 	super()
 	_ensure_visual_nodes()
+	_setup_facing_box()
 	if install_debug_frames_on_ready and not _has_sprite_visual() and sprite != null:
 		if _debug_player_frames_cache == null:
 			_debug_player_frames_cache = _build_debug_player_frames()
@@ -28,6 +29,8 @@ func _sprite_tint(_actor_color: Color) -> Color:
 func _update_facing_label() -> void:
 	if facing_label == null:
 		return
+	facing_label.position = Vector2(-12, -12)
+	facing_label.custom_minimum_size = Vector2(24, 24)
 	facing_label.visible = actor_state != null
 	if actor_state == null:
 		facing_label.text = ""
@@ -45,6 +48,24 @@ func _facing_arrow_text() -> String:
 	if actor_state.facing == Vector2i.LEFT:
 		return "<"
 	return ">"
+
+
+func _setup_facing_box() -> void:
+	if facing_label == null:
+		return
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.06, 0.09, 0.1, 0.62)
+	box.border_color = Color(0.66, 0.9, 0.95, 0.88)
+	box.border_width_left = 1
+	box.border_width_top = 1
+	box.border_width_right = 1
+	box.border_width_bottom = 1
+	box.corner_radius_top_left = 2
+	box.corner_radius_top_right = 2
+	box.corner_radius_bottom_left = 2
+	box.corner_radius_bottom_right = 2
+	facing_label.add_theme_stylebox_override("normal", box)
+	facing_label.add_theme_color_override("font_color", Color(0.92, 0.99, 1.0, 1.0))
 
 
 func _build_debug_player_frames() -> SpriteFrames:
