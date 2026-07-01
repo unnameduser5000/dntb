@@ -2,16 +2,18 @@ class_name ActionProgramController
 extends RefCounted
 
 ## Thin wrapper around KeyProgram.
-## This controller owns only the editable input-program layer:
+## This controller owns the editable key-program layer:
 ## - slot existence
 ## - slot token order
 ## - spare/pool token management
 ##
 ## Current design:
 ## - there are twelve physical keyboard slots: QWER / ASDF / ZXCV
+## - slots can hold both movement tokens and base-action tokens
+## - weapon techniques are not direct slot tokens; they are follow-up results
+##   recognized later from ActionTrace
 ## - reset_default_slots() builds the absolute starter preset
 ## - reset_starter_slots(preset_id) applies a specific starter preset
-## - TL / TR / F remain programmable tokens and can be added later
 
 const STARTER_PRESET_ABSOLUTE := "absolute"
 const STARTER_PRESET_RELATIVE := "relative"
@@ -23,8 +25,13 @@ const TOKEN_NAMES := {
 	"L": "左",
 	"R": "右",
 	"F": "前进",
+	"B": "后退",
 	"TL": "左转",
 	"TR": "右转",
+	"A": "攻击",
+	"G": "防御",
+	"W": "等待",
+	"J": "跳跃",
 }
 const KEY_DIRECTIONS := {
 	"U": Vector2i.UP,
@@ -32,11 +39,11 @@ const KEY_DIRECTIONS := {
 	"L": Vector2i.LEFT,
 	"R": Vector2i.RIGHT,
 }
-const ACTION_TOKENS: Array[String] = ["F", "TL", "TR"]
+const ACTION_TOKENS: Array[String] = ["F", "B", "TL", "TR", "A", "G", "W", "J"]
 ## Shared token-drop pool for future room / reward sources.
 ## This keeps mixed drops aligned with the same legal token set as the
 ## program editor and save/load layer.
-const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "TL", "TR"]
+const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "G", "W", "J"]
 const KeyProgramScript := preload("res://scripts/runtime/KeyProgram.gd")
 
 var key_program = null
@@ -90,14 +97,7 @@ func token_display_name(token_id: String, state = null) -> String:
 		if state != null and state.has_method("key_name"):
 			token_name = state.key_name(token_id)
 		return "%s键" % token_name
-	if token_id == "F":
-		return "前进"
-	if token_id == "TL":
-		return "左转"
-	if token_id == "TR":
-		return "右转"
-
-	return token_id
+	return String(TOKEN_NAMES.get(token_id, token_id))
 
 
 func get_save_data() -> Dictionary:

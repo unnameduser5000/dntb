@@ -1,5 +1,173 @@
 # Develop Log
 
+## 2026-07-02 Weapon model rewritten into action API
+
+- Rewrote the live weapon model away from `WeaponDef hook + combo technique`
+  and into a simpler action-owned model:
+  - one weapon corresponds to one attack action
+  - the generic attack token now resolves to the equipped weapon's
+    `attack_action`
+- Simplified `WeaponDef.gd` into a thin data resource with:
+  - `id`
+  - `display_name`
+  - `description`
+  - `attack_action`
+- Reconfigured the current three weapons:
+  - `impact_shield` -> `attack`
+  - `iron_spear` -> `charge_thrust`
+  - `greatblade` -> `great_sweep`
+- Removed the old combo/hook model from the main gameplay path:
+  - `DirectionalTechniqueResolver.gd` now chooses weapon attack actions during
+    plan build
+  - `TurnController.gd` no longer executes weapon combo follow-up actions
+  - `ActionPreviewService.gd` no longer predicts combo techniques
+  - `ActionResolver.gd` no longer calls weapon hit/miss/collision hooks
+  - `RunSidebar.gd` and `Game.gd` inventory/debug output now show weapon +
+    attack action instead of weapon techniques
+- Removed old run-state persistence for unlocked weapon techniques.
+- Deleted the old deprecated weapon-side API artifacts that were no longer on
+  the main gameplay path:
+  - `scripts/data/WeaponTechniqueDef.gd`
+  - `data/weapon_techniques/*`
+  - `scripts/runtime/CombatContext.gd`
+  - `scripts/tests/ProbeWeaponDef.gd`
+- Rewrote collaboration and API checklist docs so they now describe the live
+  `weapon -> attack_action -> ActionResolver` model instead of the removed
+  combo / hook architecture.
+
+Validation notes:
+
+- Did not run `SmokeTest.gd` in this pass.
+- Used static checks instead:
+  - verified `A` token can resolve through `DirectionalTechniqueResolver` to
+    `active_weapon.attack_action`
+  - verified room/rest/player equip flow still assigns `active_weapon`
+  - verified turn execution no longer references combo follow-up resolution
+  - verified save/load still persists `run_weapon_id`
+
+## 2026-07-02 Removed temporary in-game testing flow
+
+- Removed the temporary run-start testing flow that had been added only for
+  manual in-game verification:
+  - no more forced opening weapon-selection reward gate
+  - no more auto-seeded starter pool of extra base-action test tokens
+- Rest-site copy was cleaned back to normal run-facing wording instead of
+  explicit "test here" guidance.
+
+Validation notes:
+
+- Did not run `SmokeTest.gd` in this cleanup pass.
+- Used static checks instead:
+  - verified `Game.gd` no longer references `start_weapon_select`
+  - verified `_setup_default_key_slots()` no longer injects extra test tokens
+  - verified reward flow falls back to the normal map-advance path again
+
+## 2026-07-02 Attack result-layer pass
+
+- Added `scripts/runtime/AttackResult.gd` so attack execution now has a
+  project-owned runtime result shape alongside `MovementResult.gd`.
+- Refactored `ActionResolver.gd` so:
+  - `_resolve_attack()` builds and returns an `AttackResult`
+  - `_resolve_lunge()` builds and returns an `AttackResult`
+- The new attack result currently records:
+  - attempted cells
+  - hit targets
+  - hit cells
+  - produced damage packets
+  - miss cell
+  - whether a weapon hook handled the hit
+  - whether the attack also moved the actor, as in miss-then-lunge movement
+- This does not yet mean move and attack are fully unified under one generic
+  action-result API, but it removes the biggest asymmetry in the current
+  execution layer.
+
+Validation notes:
+
+- Did not run `SmokeTest.gd` in this pass.
+- Used static checks instead:
+  - verified normal `attack` and `lunge` now both instantiate `AttackResult`
+  - verified weapon hit/miss hooks still execute on the same code path
+  - verified no existing callers depend on `_resolve_attack()` returning `void`
+
+## 2026-07-02 Key-program boundary regression to design doc
+
+- Re-aligned the programmable key system with the documented core fantasy:
+  editable key slots now represent base actions, not only direction input.
+- Expanded `ActionProgramController.gd` legal token set to include:
+  - `B`
+  - `A`
+  - `G`
+  - `W`
+  - `J`
+  while keeping `U / D / L / R / F / TL / TR`.
+- Expanded `DirectionalTechniqueResolver.gd` so key-slot execution can now
+  translate:
+  - movement tokens
+  - turn tokens
+  - attack
+  - guard
+  - wait
+  - jump
+  into runtime base actions on the same path.
+- Kept weapon techniques out of the key-token layer:
+  - weapon combos still trigger later from real `ActionTrace`
+  - `lunge` / `sweep` / `charge_thrust` / `great_sweep` remain follow-up
+    payoffs instead of draggable direct tokens
+- Seeded the starter unassigned-token pool with the now-implemented base action
+  tokens so opening-camp testing no longer depends on reward flow before the
+  player can verify attack/guard/wait/jump/backstep chains.
+- Corrected documentation drift in:
+  - `docs/01_系统设计文档.md`
+  - `docs/04_键位扩展清单.md`
+  - inline notes in `Game.gd`
+
+Validation notes:
+
+- Did not run `SmokeTest.gd` in this pass because repeated local smoke runs are
+  known unstable in the current environment and the user explicitly asked not
+  to use that route.
+- Used static cross-checks instead:
+  - verified corresponding `ActionDef` resources already exist for `move_back`,
+    `attack`, `guard`, `wait`, and `jump`
+  - verified `Game.gd` already registers those action ids in `_action_by_id`
+  - verified the key-program pool/UI path consumes generic token ids without a
+    separate direction-only assumption
+  - verified weapon-combo follow-up flow still remains outside the token layer
+
+## 2026-07-02 Movement API consolidation pass
+
+- Started treating movement as a first-class runtime API instead of leaving it
+  only as scattered `ActionResolver` helper behavior.
+- Added `scripts/runtime/MovementResult.gd` as the shared result shape for:
+  - basic move-to-cell
+  - forced directional movement
+  - swap
+  - teleport
+- Refactored `ActionResolver.gd` movement helpers so the internal authoritative
+  path now goes through:
+  - `resolve_move_actor_to_cell()`
+  - `resolve_forced_directional_move()`
+  - `resolve_swap_actors()`
+  - `resolve_teleport_actor()`
+  while keeping the older `try_*` helpers as compatibility wrappers.
+- Kept presentation and signal emission centralized around these movement
+  result objects, so later movement semantics do not need to hand-roll their
+  own emit logic again.
+- Rewrote the API checklist docs to state explicitly that movement should be
+  treated as its own layer alongside weapon, effect, and presentation APIs.
+
+Validation notes:
+
+- Did not run `SmokeTest.gd` in this pass for the same local-stability reason
+  already noted above.
+- Used static checks instead:
+  - verified `EffectPipeline.gd` still calls the existing `try_*` movement
+    entry points, so the refactor remains source-compatible
+  - verified swap / teleport presentation hooks still receive the same payload
+    fields from `ActionResolver.gd`
+  - verified `actor_moved` signal emission remains on the authoritative move
+    path rather than being duplicated at callsites
+
 ## 2026-07-02 High-fit weapon pass
 
 - Added two new combo-first weapons that fit the current `ActionTrace ->

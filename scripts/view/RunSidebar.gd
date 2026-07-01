@@ -117,15 +117,12 @@ func _build_debug_state_text(state) -> String:
 		return _build_world_slice_debug_text(state)
 
 	var weapon_name := "-"
-	var technique_ids: Array[String] = []
+	var attack_action_name := "-"
 	if state.player.active_weapon != null:
 		weapon_name = str(state.player.active_weapon.display_name)
-		var combo_techniques = state.player.active_weapon.get("combo_techniques")
-		if combo_techniques is Array:
-			for technique in combo_techniques:
-				if technique == null:
-					continue
-				technique_ids.append(String(technique.resolved_technique_id()))
+		var attack_action = state.player.active_weapon.get("attack_action")
+		if attack_action != null:
+			attack_action_name = String(attack_action.display_name)
 
 	var trace_text := "-"
 	var move_text := "-"
@@ -133,14 +130,7 @@ func _build_debug_state_text(state) -> String:
 		trace_text = state.action_trace.debug_string_for_actor(int(state.player.id), 4)
 		move_text = _recent_move_dirs_text(state)
 
-	var combo_text := "-"
-	if state.has_method("get_weapon_combo_matches_for_actor"):
-		var combo_ids: Array[String] = []
-		for match_data in state.get_weapon_combo_matches_for_actor(int(state.player.id), 1):
-			combo_ids.append(str(match_data.get("technique_id", "")))
-		combo_text = " -> ".join(combo_ids) if not combo_ids.is_empty() else "-"
-
-	return "Mode: %s\nPos: %s\nFacing: %s\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV: %s\nWeapon: %s\nTechniques: %s\nTrace: %s\nMoveDir: %s\nCombo: %s\nHP: %d / %d\nSAN: %d / %d\nRoom: %s" % [
+	return "Mode: %s\nPos: %s\nFacing: %s\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV: %s\nWeapon: %s\nAttack Action: %s\nTrace: %s\nMoveDir: %s\nHP: %d / %d\nSAN: %d / %d\nRoom: %s" % [
 		str(state.map_node_kind),
 		str(state.player.grid_pos),
 		_move_dir_label(state.player.facing),
@@ -150,10 +140,9 @@ func _build_debug_state_text(state) -> String:
 		"on" if bool(state.reveal_all_debug) else "off",
 		str(state.last_visibility_recompute_reason),
 		weapon_name,
-		(", ".join(technique_ids) if not technique_ids.is_empty() else "-"),
+		attack_action_name,
 		trace_text,
 		move_text,
-		combo_text,
 		state.player.hp,
 		state.player.max_hp,
 		state.player.san,
@@ -165,30 +154,15 @@ func _build_debug_state_text(state) -> String:
 func _build_world_slice_debug_text(state) -> String:
 	var terrain_counts: Dictionary = state.map_data.get_terrain_counts()
 	var weapon_name := "-"
-	var technique_lines: Array[String] = []
+	var attack_action_name := "-"
 	if state.player.active_weapon != null:
 		weapon_name = str(state.player.active_weapon.display_name)
-		var combo_techniques = state.player.active_weapon.get("combo_techniques")
-		if combo_techniques is Array:
-			for technique in combo_techniques:
-				if technique == null:
-					continue
-				technique_lines.append("- %s: %s" % [String(technique.display_name), _technique_summary(technique)])
-
-	var combo_line := "-"
-	if state.has_method("get_weapon_combo_matches_for_actor"):
-		var combo_ids: Array[String] = []
-		for match_data in state.get_weapon_combo_matches_for_actor(int(state.player.id), 1):
-			var technique_id := String(match_data.get("technique_id", ""))
-			var matched_dir := _move_dir_label(Vector2i(match_data.get("matched_move_dir", Vector2i.ZERO)))
-			if matched_dir != "-":
-				combo_ids.append("%s(%s)" % [technique_id, matched_dir])
-			else:
-				combo_ids.append(technique_id)
-		combo_line = " -> ".join(combo_ids) if not combo_ids.is_empty() else "-"
+		var attack_action = state.player.active_weapon.get("attack_action")
+		if attack_action != null:
+			attack_action_name = String(attack_action.display_name)
 
 	var render_rect: Rect2i = state.render_window_rect
-	return "Mode: %s\nSeed: %s\nMap Size: %dx%d\nPlayer: %s\nFacing: %s\nCurrent Tile: %s\nProgram Edit: %s\nWindow: %s size=%s tiles=%d\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV Reason: %s\nBoard Refreshes: %d (%.2f ms)\nFOV Recomputes: %d (%.2f ms)\nHUD Refreshes: %d\nEntity Visuals: %d\nGeneration: %.2f ms\nGeneration Breakdown: %s\nEnemy Stream: active %d / target %d | refresh %d | +%d/-%d | total +%d/-%d | reason %s\nWeapon: %s\nTechniques:\n%s\nTrace: %s\nMoveDir: %s\nCombo: %s\nTavern: %s\nChallenge: %d\nChest: %d\nRuin: %d\nEgg: %d\nTerrain: plain %d | forest %d | tree %d | hill %d | mountain %d | peak %d | water %d | river %d | bridge %d | swamp %d | desert %d\nReachable: %d\nUnreachable POI: %d\nCarved Passes: %d\nHotkeys: F5 same seed | F6 new seed | V reveal | M summary" % [
+	return "Mode: %s\nSeed: %s\nMap Size: %dx%d\nPlayer: %s\nFacing: %s\nCurrent Tile: %s\nProgram Edit: %s\nWindow: %s size=%s tiles=%d\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV Reason: %s\nBoard Refreshes: %d (%.2f ms)\nFOV Recomputes: %d (%.2f ms)\nHUD Refreshes: %d\nEntity Visuals: %d\nGeneration: %.2f ms\nGeneration Breakdown: %s\nEnemy Stream: active %d / target %d | refresh %d | +%d/-%d | total +%d/-%d | reason %s\nWeapon: %s\nAttack Action: %s\nTrace: %s\nMoveDir: %s\nTavern: %s\nChallenge: %d\nChest: %d\nRuin: %d\nEgg: %d\nTerrain: plain %d | forest %d | tree %d | hill %d | mountain %d | peak %d | water %d | river %d | bridge %d | swamp %d | desert %d\nReachable: %d\nUnreachable POI: %d\nCarved Passes: %d\nHotkeys: F5 same seed | F6 new seed | V reveal | M summary" % [
 		str(state.map_node_kind),
 		str(state.map_data.seed),
 		int(state.map_data.width),
@@ -222,10 +196,9 @@ func _build_world_slice_debug_text(state) -> String:
 		int(state.world_enemy_stream_despawn_total),
 		str(state.world_enemy_stream_last_reason),
 		weapon_name,
-		("\n".join(technique_lines) if not technique_lines.is_empty() else "-"),
+		attack_action_name,
 		state.action_trace.debug_string_for_actor(int(state.player.id), 6) if state.action_trace != null else "-",
 		_recent_move_dirs_text(state),
-		combo_line,
 		str(state.map_data.tavern_cell),
 		state.map_data.challenge_cells.size(),
 		state.map_data.chest_cells.size(),
@@ -270,16 +243,6 @@ func _move_dir_label(direction: Vector2i) -> String:
 		return "R"
 	return "-"
 
-
-func _technique_summary(technique) -> String:
-	if technique == null:
-		return "-"
-	if int(technique.pattern_type) == int(WeaponTechniqueDef.PatternType.SAME_MOVE_DIRECTION):
-		return "same move direction x%d" % max(0, int(technique.required_move_count))
-	var parts: Array[String] = []
-	for symbol in technique.pattern:
-		parts.append(String(symbol))
-	return " -> ".join(parts)
 
 
 func _generation_breakdown_text(breakdown: Dictionary) -> String:

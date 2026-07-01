@@ -6,12 +6,13 @@ extends RefCounted
 ##
 ## Current responsibility:
 ## - convert absolute direction tokens into move_key actions
-## - convert control tokens such as F / turn into their base ActionDef
+## - convert base-action tokens such as move / turn / attack / guard / wait /
+##   jump into their base ActionDef
 ##
 ## Important boundary:
-## - it does not recognize weapon techniques from KeyProgram
-## - battle-time weapon-technique triggering happens later from ActionTrace,
-##   after terrain/collision/effect changes have already shaped the real result
+## - it does not recognize weapon-specific combos
+## - weapon identity only changes which concrete attack action is bound to the
+##   generic attack token
 
 const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 
@@ -23,8 +24,13 @@ const KEY_DIRECTIONS := {
 }
 const TOKEN_ACTION_IDS := {
 	"F": "move_forward",
+	"B": "move_back",
 	"TL": "turn_left",
 	"TR": "turn_right",
+	"A": "attack",
+	"G": "guard",
+	"W": "wait",
+	"J": "jump",
 }
 
 var action_by_id: Dictionary = {}
@@ -57,9 +63,11 @@ func is_action_token(token_id: String) -> bool:
 	return TOKEN_ACTION_IDS.has(token_id)
 
 
-## Input tokens remain absolute/user-facing here.
-## Relative combo semantics are introduced later by ActionTrace, which records
-## the executed result as F / B / SL / SR / TL / TR / J.
+## Input tokens remain user-facing here.
+## - U / D / L / R are absolute map directions
+## - F / B / TL / TR / A / G / W / J are explicit base-action inputs
+## Relative trace semantics are introduced later by ActionTrace, which records
+## the executed result as F / B / SL / SR / TL / TR / J / A / G / W.
 func _build_spec(token_id: String) -> Dictionary:
 	if is_direction_token(token_id):
 		return {
@@ -87,7 +95,7 @@ func _build_action_from_spec(spec: Dictionary, actor):
 
 	var action_def = spec.get("action_def")
 	if action_def == null:
-		action_def = move_key_action if action_id == "move_key" else action_by_id.get(action_id)
+		action_def = _resolve_action_def(action_id, actor)
 	if action_def == null:
 		return null
 
@@ -100,3 +108,15 @@ func _build_action_from_spec(spec: Dictionary, actor):
 	action.chosen_dir = spec.get("chosen_dir", Vector2i.ZERO)
 	action.key_id = String(spec.get("token_id", action_id))
 	return action
+
+
+func _resolve_action_def(action_id: String, actor):
+	if action_id == "move_key":
+		return move_key_action
+	if action_id == "attack" and actor != null:
+		var active_weapon = actor.get("active_weapon")
+		if active_weapon != null:
+			var weapon_attack = active_weapon.get("attack_action")
+			if weapon_attack != null:
+				return weapon_attack
+	return action_by_id.get(action_id)
