@@ -28,10 +28,17 @@ const ACTION_WAIT := preload("res://data/actions/wait.tres")
 const ACTION_GUARD := preload("res://data/actions/guard.tres")
 const ACTION_LUNGE := preload("res://data/actions/lunge.tres")
 const ACTION_SWEEP := preload("res://data/actions/sweep.tres")
+const ACTION_CHARGE_THRUST := preload("res://data/actions/charge_thrust.tres")
+const ACTION_GREAT_SWEEP := preload("res://data/actions/great_sweep.tres")
 const ACTION_MOVE_KEY := preload("res://data/actions/move_key.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
+const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
+const GREATBLADE := preload("res://data/weapons/greatblade.tres")
 const WEAPON_TECHNIQUE_LUNGE := preload("res://data/weapon_techniques/impact_lunge.tres")
 const WEAPON_TECHNIQUE_SWEEP := preload("res://data/weapon_techniques/impact_sweep.tres")
+const WEAPON_TECHNIQUE_CHARGE_THRUST := preload("res://data/weapon_techniques/spear_charge_thrust.tres")
+const WEAPON_TECHNIQUE_GREAT_SWEEP_LEFT := preload("res://data/weapon_techniques/great_sweep_left.tres")
+const WEAPON_TECHNIQUE_GREAT_SWEEP_RIGHT := preload("res://data/weapon_techniques/great_sweep_right.tres")
 
 const MOD_ECHO_STRIKE := preload("res://data/modifiers/echo_strike.tres")
 const MOD_ECHO_STEP := preload("res://data/modifiers/echo_step.tres")
@@ -157,9 +164,11 @@ var _run_player_atk := 2
 var _run_seed = ""
 var _action_by_id: Dictionary = {}
 var _modifier_by_id: Dictionary = {}
+var _weapon_by_id: Dictionary = {}
 var _weapon_technique_by_id: Dictionary = {}
 var _run_modifier_ids: Array[String] = []
 var _run_weapon_technique_ids: Array[String] = []
+var _run_weapon_id := "impact_shield"
 var _action_program
 var _action_preview
 var _directional_techniques
@@ -183,6 +192,8 @@ func _ready() -> void:
 		"guard": ACTION_GUARD,
 		"lunge": ACTION_LUNGE,
 		"sweep": ACTION_SWEEP,
+		"charge_thrust": ACTION_CHARGE_THRUST,
+		"great_sweep": ACTION_GREAT_SWEEP,
 		"move_key": ACTION_MOVE_KEY,
 	}
 	_modifier_by_id = {
@@ -190,9 +201,17 @@ func _ready() -> void:
 		"echo_step": MOD_ECHO_STEP,
 		"force_prism": MOD_FORCE_PRISM,
 	}
+	_weapon_by_id = {
+		"impact_shield": IMPACT_SHIELD,
+		"iron_spear": IRON_SPEAR,
+		"greatblade": GREATBLADE,
+	}
 	_weapon_technique_by_id = {
 		"lunge": WEAPON_TECHNIQUE_LUNGE,
 		"sweep": WEAPON_TECHNIQUE_SWEEP,
+		"charge_thrust": WEAPON_TECHNIQUE_CHARGE_THRUST,
+		"great_sweep_left": WEAPON_TECHNIQUE_GREAT_SWEEP_LEFT,
+		"great_sweep_right": WEAPON_TECHNIQUE_GREAT_SWEEP_RIGHT,
 	}
 	_action_program = ActionProgramControllerScript.new()
 	_action_program.setup()
@@ -414,6 +433,7 @@ func _start_new_run(seed_value) -> void:
 		curse_service.reset_run()
 	_run_modifier_ids.clear()
 	_run_weapon_technique_ids.clear()
+	_run_weapon_id = _default_run_weapon_id()
 	_setup_default_key_slots()
 	_refresh_inventory_ui()
 	_start_map_node(_current_map_node_index)
@@ -713,6 +733,7 @@ func _create_room_state(room_index: int):
 	player.max_san = _run_player_max_san
 	player.san = min(_run_player_san, _run_player_max_san)
 	player.atk = _run_player_atk
+	player.active_weapon = _current_run_weapon()
 
 	for enemy_data in room["enemies"]:
 		_add_actor(new_state, _enemy_def(String(enemy_data["def"])), enemy_data["cell"])
@@ -741,6 +762,7 @@ func _create_rest_state(node: Dictionary):
 	player.max_san = _run_player_max_san
 	player.san = min(_run_player_san, _run_player_max_san)
 	player.atk = _run_player_atk
+	player.active_weapon = _current_run_weapon()
 
 	var heal_amount := int(node.get("heal", 0))
 	if heal_amount > 0:
@@ -806,8 +828,8 @@ func _build_rewards() -> Array:
 		]
 
 	return [
-		{"name": "获得遗物：回响步", "kind": "add_modifier", "modifier": MOD_ECHO_STEP},
-		{"name": "获得遗物：力场棱镜", "kind": "add_modifier", "modifier": MOD_FORCE_PRISM},
+		{"name": "更换武器：铁枪", "kind": "equip_weapon", "weapon_id": "iron_spear"},
+		{"name": "更换武器：巨剑", "kind": "equip_weapon", "weapon_id": "greatblade"},
 		{"name": "攻击 +1", "kind": "attack", "value": 1},
 	]
 
@@ -827,6 +849,8 @@ func _apply_reward(reward: Dictionary) -> void:
 			_run_player_atk += int(reward["value"])
 		"heal":
 			_run_player_hp = min(_run_player_max_hp, _run_player_hp + int(reward["value"]))
+		"equip_weapon":
+			_equip_run_weapon_by_id(String(reward.get("weapon_id", "")))
 	_refresh_inventory_ui()
 
 func _add_run_modifier(modifier) -> bool:
@@ -844,6 +868,7 @@ func _add_run_modifier(modifier) -> bool:
 func _apply_run_modifiers_to_player() -> void:
 	if state == null or state.player == null:
 		return
+	state.player.active_weapon = _current_run_weapon()
 	for modifier_id in _run_modifier_ids:
 		var modifier = _modifier_for_id(modifier_id)
 		if modifier != null:
@@ -1197,6 +1222,7 @@ func get_save_data() -> Dictionary:
 		"run_player_atk": _run_player_atk,
 		"run_seed": _run_seed,
 		"run_modifier_ids": _run_modifier_ids,
+		"run_weapon_id": _run_weapon_id,
 		"run_weapon_technique_ids": _run_weapon_technique_ids,
 		"key_slots": key_program_save["key_slots"],
 		"pool_tokens": key_program_save["pool_tokens"],
@@ -1214,6 +1240,9 @@ func load_save_data(data: Dictionary) -> void:
 	_run_player_san = int(data.get("run_player_san", _run_player_max_san))
 	_run_player_atk = int(data.get("run_player_atk", PLAYER_DEF.atk))
 	_run_seed = data.get("run_seed", "")
+	_run_weapon_id = String(data.get("run_weapon_id", _default_run_weapon_id()))
+	if _weapon_for_id(_run_weapon_id) == null:
+		_run_weapon_id = _default_run_weapon_id()
 	_run_weapon_technique_ids.clear()
 	for technique_id in data.get("run_weapon_technique_ids", []):
 		_unlock_weapon_technique(String(technique_id))
@@ -1241,6 +1270,33 @@ func _unlock_weapon_technique(technique_id: String) -> bool:
 	_run_weapon_technique_ids.append(technique_id)
 	if state != null:
 		state.set_unlocked_weapon_technique_ids(_run_weapon_technique_ids)
+	return true
+
+
+func _default_run_weapon_id() -> String:
+	if PLAYER_DEF.default_weapon != null and not String(PLAYER_DEF.default_weapon.id).is_empty():
+		return String(PLAYER_DEF.default_weapon.id)
+	return "impact_shield"
+
+
+func _weapon_for_id(weapon_id: String):
+	return _weapon_by_id.get(weapon_id)
+
+
+func _current_run_weapon():
+	var weapon = _weapon_for_id(_run_weapon_id)
+	if weapon != null:
+		return weapon
+	return PLAYER_DEF.default_weapon
+
+
+func _equip_run_weapon_by_id(weapon_id: String) -> bool:
+	var weapon = _weapon_for_id(weapon_id)
+	if weapon == null:
+		return false
+	_run_weapon_id = weapon_id
+	if state != null and state.player != null:
+		state.player.active_weapon = weapon
 	return true
 
 func _has_unlocked_weapon_technique(technique_id: String) -> bool:

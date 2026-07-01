@@ -24,6 +24,7 @@ var target_cell: Vector2i = Vector2i.ZERO
 var direction: Vector2i = Vector2i.ZERO
 var speed: int = 1
 var damage: int = 0
+var hit_handled_by_weapon: bool = false
 var chain_actions: Array = []
 var tags: Array[String] = []
 
@@ -38,6 +39,7 @@ func setup_move_collision(new_state, new_action, new_source, new_target, new_dir
 	direction = new_direction
 	speed = maxi(1, new_speed)
 	damage = 0
+	hit_handled_by_weapon = false
 	chain_actions.clear()
 	tags = ["move_collision"]
 
@@ -52,6 +54,7 @@ func setup_attack_hit(new_state, new_action, new_source, new_target, new_target_
 	direction = new_direction
 	speed = maxi(1, new_speed)
 	damage = maxi(0, new_damage)
+	hit_handled_by_weapon = false
 	chain_actions.clear()
 	tags = ["attack", "hit"]
 
@@ -66,6 +69,7 @@ func setup_attack_miss(new_state, new_action, new_source, new_target_cell: Vecto
 	direction = new_direction
 	speed = maxi(1, new_speed)
 	damage = 0
+	hit_handled_by_weapon = false
 	chain_actions.clear()
 	tags = ["attack", "miss"]
 
@@ -81,6 +85,7 @@ func setup_action_chain_finished(new_state, new_source, new_actions: Array) -> v
 	direction = Vector2i.ZERO
 	speed = 1
 	damage = 0
+	hit_handled_by_weapon = false
 	for chain_action in chain_actions:
 		if chain_action == null:
 			continue

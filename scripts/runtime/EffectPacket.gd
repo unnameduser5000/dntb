@@ -14,6 +14,9 @@ const SELF_PATH := "res://scripts/runtime/EffectPacket.gd"
 const KIND_DAMAGE := &"damage"
 const KIND_MOVE := &"move"
 const KIND_KNOCKBACK := &"knockback"
+const KIND_PULL := &"pull"
+const KIND_SWAP := &"swap"
+const KIND_TELEPORT := &"teleport"
 const KIND_MESSAGE := &"message"
 
 var kind: StringName = &""
@@ -76,6 +79,49 @@ static func make_knockback(new_source, new_target, new_direction: Vector2i, new_
 	if new_target != null:
 		packet.target_cell = new_target.grid_pos
 	packet.add_tag(&"knockback")
+	return packet
+
+
+static func make_pull(new_source, new_target, new_direction: Vector2i, new_distance: int, new_action = null):
+	var packet = load(SELF_PATH).new()
+	packet.kind = KIND_PULL
+	packet.source = new_source
+	packet.target = new_target
+	packet.action = new_action
+	packet.direction = new_direction
+	packet.amount = maxi(0, new_distance)
+	if new_source != null:
+		packet.source_cell = new_source.grid_pos
+	if new_target != null:
+		packet.target_cell = new_target.grid_pos
+	packet.add_tag(&"pull")
+	return packet
+
+
+static func make_swap(new_source, new_target, new_action = null):
+	var packet = load(SELF_PATH).new()
+	packet.kind = KIND_SWAP
+	packet.source = new_source
+	packet.target = new_target
+	packet.action = new_action
+	if new_source != null:
+		packet.source_cell = new_source.grid_pos
+	if new_target != null:
+		packet.target_cell = new_target.grid_pos
+	packet.add_tag(&"swap")
+	return packet
+
+
+static func make_teleport(new_source, new_target_cell: Vector2i, new_action = null):
+	var packet = load(SELF_PATH).new()
+	packet.kind = KIND_TELEPORT
+	packet.source = new_source
+	packet.action = new_action
+	packet.target_cell = new_target_cell
+	if new_source != null:
+		packet.source_cell = new_source.grid_pos
+		packet.direction = new_target_cell - new_source.grid_pos
+	packet.add_tag(&"teleport")
 	return packet
 
 

@@ -1,5 +1,45 @@
 # Develop Log
 
+## 2026-07-02 High-fit weapon pass
+
+- Added two new combo-first weapons that fit the current `ActionTrace ->
+  WeaponTechniqueDef -> follow-up ActionDef` path without reopening the combat
+  architecture:
+  - `iron_spear`
+    - reuses `lunge`
+    - adds `charge_thrust` from three consecutive same-direction moves
+  - `greatblade`
+    - adds mirrored heavy sweep techniques from `TL -> TR` and `TR -> TL`
+- Added new follow-up action resources:
+  - `charge_thrust`
+  - `great_sweep`
+- Updated both runtime and preview attack-shape logic so `great_sweep` uses the
+  same three-cell sweep footprint as `sweep`, while keeping its own damage
+  tuning.
+- Added run-level weapon ownership instead of keeping the player's weapon fixed
+  to the actor definition for the whole run:
+  - `Game.gd` now tracks `run_weapon_id`
+  - room/rest state creation now re-equips the current run weapon
+  - save/load now persists the current run weapon id
+- Added weapon-swap rewards for later combat rewards:
+  - `更换武器：铁枪`
+  - `更换武器：巨剑`
+- Updated sidebar debug output so non-world-slice weapon technique lists are no
+  longer hardcoded to only `lunge` / `sweep`, and now read the equipped
+  weapon's real `combo_techniques`.
+
+Validation notes:
+
+- Did not use `SmokeTest.gd` in this pass because repeated local smoke runs are
+  unstable in the current environment.
+- Used static cross-checks instead:
+  - verified new actions are registered in `Game.gd`
+  - verified new weapon technique ids are registered in `Game.gd`
+  - verified room/rest state creation re-equips the current run weapon
+  - verified reward flow writes `equip_weapon` into `_apply_reward()`
+  - verified save/load reads and writes `run_weapon_id`
+  - verified both runtime and preview recognize `great_sweep`
+
 ## 2026-06-30 Bag pause-and-bind pass
 
 - Reworked the backpack page into the live key-program editor/viewer for the

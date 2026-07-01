@@ -1,7 +1,7 @@
 class_name BattleEffect
 extends Node2D
 
-@export_enum("action_started", "actor_damaged", "attack_missed", "move_collision", "actor_died") var effect_kind := "actor_damaged"
+@export_enum("action_started", "actor_damaged", "attack_missed", "move_collision", "actor_died", "combo_triggered", "teleport", "swap") var effect_kind := "actor_damaged"
 @export var duration: float = 0.2
 @export var radius: float = 18.0
 @export var line_width: float = 2.0
@@ -65,6 +65,12 @@ func _draw() -> void:
 			_draw_move_collision(main, accent, scale_factor)
 		"actor_died":
 			_draw_actor_died(main, accent, scale_factor)
+		"combo_triggered":
+			_draw_combo_triggered(main, accent, scale_factor)
+		"teleport":
+			_draw_teleport(main, accent, scale_factor)
+		"swap":
+			_draw_swap(main, accent, scale_factor)
 		_:
 			_draw_actor_damaged(main, accent, scale_factor)
 
@@ -194,6 +200,42 @@ func _draw_actor_died(main: Color, accent: Color, scale_factor: float) -> void:
 		var direction := Vector2.from_angle(angle)
 		var shard_center: Vector2 = direction * local_radius * 0.72
 		draw_circle(shard_center, local_radius * 0.12, _with_alpha(accent, accent.a * (0.95 - index * 0.12)))
+
+
+func _draw_combo_triggered(main: Color, accent: Color, scale_factor: float) -> void:
+	var local_radius: float = radius * scale_factor * lerpf(0.4, 1.2, _progress)
+	draw_arc(Vector2.ZERO, local_radius * 0.9, -0.85, 0.85, 20, accent, line_width + 1.0)
+	draw_arc(Vector2.ZERO, local_radius * 0.55, PI - 0.85, PI + 0.85, 20, main, line_width)
+	var tip := Vector2(local_radius * 1.05, 0)
+	draw_line(Vector2(-local_radius * 0.25, 0), tip, main, line_width)
+	draw_line(tip + Vector2(-local_radius * 0.22, -local_radius * 0.18), tip, accent, line_width)
+	draw_line(tip + Vector2(-local_radius * 0.22, local_radius * 0.18), tip, accent, line_width)
+
+
+func _draw_teleport(main: Color, accent: Color, scale_factor: float) -> void:
+	var local_radius: float = radius * scale_factor * lerpf(0.35, 1.1, _progress)
+	for index in range(3):
+		var ring_alpha := 0.9 - float(index) * 0.2
+		draw_arc(Vector2.ZERO, local_radius * (0.35 + float(index) * 0.22), 0.0, TAU, 24, _with_alpha(accent if index % 2 == 0 else main, ring_alpha), maxf(1.0, line_width - float(index) * 0.35))
+	var slash_extent := local_radius * 0.7
+	draw_line(Vector2(-slash_extent, -slash_extent), Vector2(slash_extent, slash_extent), main, line_width)
+	draw_line(Vector2(-slash_extent * 0.4, slash_extent), Vector2(slash_extent, -slash_extent * 0.4), accent, line_width)
+
+
+func _draw_swap(main: Color, accent: Color, scale_factor: float) -> void:
+	var local_radius: float = radius * scale_factor * lerpf(0.45, 1.15, _progress)
+	var left_center := Vector2(-local_radius * 0.42, 0)
+	var right_center := Vector2(local_radius * 0.42, 0)
+	draw_circle(left_center, local_radius * 0.18, _with_alpha(main, main.a * 0.75))
+	draw_circle(right_center, local_radius * 0.18, _with_alpha(accent, accent.a * 0.75))
+	draw_arc(Vector2.ZERO, local_radius * 0.75, PI * 0.2, PI * 0.8, 18, main, line_width)
+	draw_arc(Vector2.ZERO, local_radius * 0.75, PI * 1.2, PI * 1.8, 18, accent, line_width)
+	var upper_tip := Vector2(local_radius * 0.3, -local_radius * 0.66)
+	var lower_tip := Vector2(-local_radius * 0.3, local_radius * 0.66)
+	draw_line(upper_tip + Vector2(-local_radius * 0.15, 0), upper_tip, main, line_width)
+	draw_line(upper_tip + Vector2(0, local_radius * 0.15), upper_tip, main, line_width)
+	draw_line(lower_tip + Vector2(local_radius * 0.15, 0), lower_tip, accent, line_width)
+	draw_line(lower_tip + Vector2(0, -local_radius * 0.15), lower_tip, accent, line_width)
 
 
 func _extract_direction(raw_direction) -> Vector2:

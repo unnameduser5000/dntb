@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActionDef.gd" id="1_action"]
+
+[resource]
+script = ExtResource("1_action")
+id = "great_sweep"
+display_name = "重横扫"
+short_name = "重扫"
+kind = 1
+range = 1
+power = 2
+direction_mode = "facing"

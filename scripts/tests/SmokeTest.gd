@@ -10,8 +10,11 @@ const DuplicateMoveModifierScript := preload("res://scripts/tests/DuplicateMoveM
 const AmplifyKnockbackModifierScript := preload("res://scripts/tests/AmplifyKnockbackModifierDef.gd")
 const OnHitBonusDamageModifierScript := preload("res://scripts/tests/OnHitBonusDamageModifierDef.gd")
 const OnMoveZapAheadModifierScript := preload("res://scripts/tests/OnMoveZapAheadModifierDef.gd")
+const SwapOnHitWeaponScript := preload("res://scripts/tests/SwapOnHitWeaponDef.gd")
 const WorldSliceControllerScript := preload("res://scripts/core/WorldSliceController.gd")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
+const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
+const GREATBLADE := preload("res://data/weapons/greatblade.tres")
 
 func _init() -> void:
 	var game = GameScene.instantiate()
@@ -229,6 +232,18 @@ func _init() -> void:
 	combo_mix_preview_game.state.player.facing = Vector2i.DOWN
 	var combo_mix_preview: Dictionary = combo_mix_preview_game._build_key_slot_preview(["TL", "TR", "F", "F"])
 	_require(_array_equals(combo_mix_preview.get("predicted_combo_match_ids", []), ["sweep", "lunge"]), "preview predicts sweep + lunge for TL,TR,F,F")
+
+	var spear_combo_game = await _make_weapon_combo_game("weapon-combo-spear", Vector2i(7, 2))
+	spear_combo_game.state.player.active_weapon = IRON_SPEAR
+	_require(await _run_weapon_combo_chain(spear_combo_game, ["R", "R", "R"], Vector2i.RIGHT, Vector2i(2, 2), "charge_thrust") == 1, "iron spear triggers charge_thrust from three same-direction moves")
+	_require(spear_combo_game.state.grid.get_actor(Vector2i(7, 2)).hp < 10, "charge_thrust follow-up can hit a distant target")
+
+	var greatblade_left_game = await _make_weapon_combo_game("weapon-combo-greatblade-left", Vector2i(3, 3))
+	greatblade_left_game.state.player.active_weapon = GREATBLADE
+	_require(await _run_weapon_combo_chain(greatblade_left_game, ["TL", "TR"], Vector2i.DOWN, Vector2i(2, 3), "great_sweep_left") == 1, "greatblade triggers left heavy sweep from TL,TR")
+	var greatblade_right_game = await _make_weapon_combo_game("weapon-combo-greatblade-right", Vector2i(3, 3))
+	greatblade_right_game.state.player.active_weapon = GREATBLADE
+	_require(await _run_weapon_combo_chain(greatblade_right_game, ["TR", "TL"], Vector2i.DOWN, Vector2i(2, 3), "great_sweep_right") == 1, "greatblade triggers right heavy sweep from TR,TL")
 
 	var trace_semantic_game = await _make_weapon_combo_game("weapon-combo-trace-semantics")
 	_move_player_to(trace_semantic_game, Vector2i(2, 2))
@@ -524,6 +539,23 @@ func _init() -> void:
 	_require(amplified_enemy.hp == 9, "knockback modifier does not change impact shield damage")
 	_require(amplified_enemy.grid_pos == Vector2i(4, 1), "amplified knockback packet pushes farther")
 
+	game.start_seeded_run("weapon-reward")
+	await process_frame
+	game._on_rest_continue_requested()
+	await process_frame
+	game._on_battle_finished(true)
+	await process_frame
+	game._on_reward_chosen(0)
+	await process_frame
+	game._on_rest_continue_requested()
+	await process_frame
+	game._on_battle_finished(true)
+	await process_frame
+	_require(_reward_list_has_kind(game._current_rewards, "equip_weapon"), "later combat reward pool can offer weapon swaps")
+	game._on_reward_chosen(0)
+	await process_frame
+	_require(game.state.player.active_weapon == IRON_SPEAR, "weapon reward can equip iron spear for the run")
+
 	await _start_seeded_combat_run(game, "modifier-reward")
 	game._current_rewards = game._build_rewards()
 	game._on_reward_chosen(0)
@@ -554,6 +586,77 @@ func _init() -> void:
 	_require(on_hit_bonus.triggered_count == 1, "effect event modifier reacts to attack damage dealt")
 	_require(on_hit_enemy.hp == 17, "on-hit event can generate a follow-up damage packet")
 
+	await _start_seeded_combat_run(game, "effect-event-attack-hit-confirmed")
+	game.state.player.active_weapon = null
+	game.enemy_planner.enemies_are_static = true
+	var confirmed_enemy = _prepare_single_enemy_room(game, Vector2i(2, 1), 10)
+	confirmed_enemy.guarded = true
+	var confirmed_event_types: Array[StringName] = []
+	var on_confirmed_event = func(event) -> void:
+		if event == null:
+			return
+		confirmed_event_types.append(StringName(event.event_type))
+	if not game.resolver.combat_event_emitted.is_connected(on_confirmed_event):
+		game.resolver.combat_event_emitted.connect(on_confirmed_event)
+	var confirmed_plan: Array = [_make_player_action(game, "attack")]
+	game.turn_controller.submit_player_plan(confirmed_plan)
+	await process_frame
+	if game.resolver.combat_event_emitted.is_connected(on_confirmed_event):
+		game.resolver.combat_event_emitted.disconnect(on_confirmed_event)
+	_require(confirmed_event_types.has(&"attack_hit_confirmed"), "attack hit confirmed event fires even when guard reduces damage to zero")
+	_require(not confirmed_event_types.has(&"damage_dealt"), "guarded zero-damage hit does not fake a damage dealt event")
+
+	await _start_seeded_combat_run(game, "effect-packet-teleport")
+	game.state.player.active_weapon = null
+	game.enemy_planner.enemies_are_static = true
+	_move_player_to(game, Vector2i(2, 2))
+	var teleport_events: Array[StringName] = []
+	var on_teleport_event = func(event) -> void:
+		if event != null:
+			teleport_events.append(StringName(event.event_type))
+	if not game.resolver.combat_event_emitted.is_connected(on_teleport_event):
+		game.resolver.combat_event_emitted.connect(on_teleport_event)
+	game.resolver.apply_effect_teleport(game.state.player, Vector2i(4, 2), game.state, null, [&"teleport_test"])
+	if game.resolver.combat_event_emitted.is_connected(on_teleport_event):
+		game.resolver.combat_event_emitted.disconnect(on_teleport_event)
+	_require(game.state.player.grid_pos == Vector2i(4, 2), "teleport packet moves the actor to the target cell")
+	_require(teleport_events.has(&"teleport_applied"), "teleport packet emits teleport_applied event")
+
+	await _start_seeded_combat_run(game, "effect-packet-pull")
+	game.state.player.active_weapon = null
+	game.enemy_planner.enemies_are_static = true
+	_move_player_to(game, Vector2i(2, 2))
+	var pull_enemy = _prepare_single_enemy_room(game, Vector2i(5, 2), 10, Vector2i(2, 2))
+	var pull_events: Array[StringName] = []
+	var on_pull_event = func(event) -> void:
+		if event != null:
+			pull_events.append(StringName(event.event_type))
+	if not game.resolver.combat_event_emitted.is_connected(on_pull_event):
+		game.resolver.combat_event_emitted.connect(on_pull_event)
+	game.resolver.apply_effect_pull(game.state.player, pull_enemy, Vector2i.LEFT, 3, game.state, null, [&"pull_test"])
+	if game.resolver.combat_event_emitted.is_connected(on_pull_event):
+		game.resolver.combat_event_emitted.disconnect(on_pull_event)
+	_require(pull_enemy.grid_pos == Vector2i(3, 2), "pull packet stops the target one cell before the source")
+	_require(pull_events.has(&"pull_applied"), "pull packet emits pull_applied event")
+
+	await _start_seeded_combat_run(game, "effect-packet-swap")
+	game.state.player.active_weapon = null
+	game.enemy_planner.enemies_are_static = true
+	_move_player_to(game, Vector2i(2, 2))
+	var swap_enemy = _prepare_single_enemy_room(game, Vector2i(4, 2), 10, Vector2i(2, 2))
+	var swap_events: Array[StringName] = []
+	var on_swap_event = func(event) -> void:
+		if event != null:
+			swap_events.append(StringName(event.event_type))
+	if not game.resolver.combat_event_emitted.is_connected(on_swap_event):
+		game.resolver.combat_event_emitted.connect(on_swap_event)
+	game.resolver.apply_effect_swap(game.state.player, swap_enemy, game.state, null, [&"swap_test"])
+	if game.resolver.combat_event_emitted.is_connected(on_swap_event):
+		game.resolver.combat_event_emitted.disconnect(on_swap_event)
+	_require(game.state.player.grid_pos == Vector2i(4, 2), "swap packet moves source actor into target cell")
+	_require(swap_enemy.grid_pos == Vector2i(2, 2), "swap packet moves target actor into source cell")
+	_require(swap_events.has(&"swap_applied"), "swap packet emits swap_applied event")
+
 	await _start_seeded_combat_run(game, "effect-event-on-move")
 	game.state.player.active_weapon = null
 	game.enemy_planner.enemies_are_static = true
@@ -568,6 +671,37 @@ func _init() -> void:
 	_require(on_move_zap.triggered_count == 1, "effect event modifier reacts to actor moved")
 	_require(game.state.player.grid_pos == Vector2i(3, 2), "on-move event keeps normal movement result")
 	_require(on_move_enemy.hp == 9, "on-move event can generate a follow-up damage packet")
+
+	var combo_event_game = await _make_weapon_combo_game("combo-triggered-event")
+	var combo_event_types: Array[StringName] = []
+	var combo_event_technique_ids: Array[String] = []
+	var on_combo_event = func(event) -> void:
+		if event == null:
+			return
+		combo_event_types.append(StringName(event.event_type))
+		if StringName(event.event_type) == &"combo_triggered":
+			combo_event_technique_ids.append(String(event.metadata.get("technique_id", "")))
+	if not combo_event_game.resolver.combat_event_emitted.is_connected(on_combo_event):
+		combo_event_game.resolver.combat_event_emitted.connect(on_combo_event)
+	await _run_weapon_combo_chain(combo_event_game, ["R", "R"], Vector2i.DOWN, Vector2i(2, 3), "lunge")
+	if combo_event_game.resolver.combat_event_emitted.is_connected(on_combo_event):
+		combo_event_game.resolver.combat_event_emitted.disconnect(on_combo_event)
+	_require(combo_event_types.has(&"combo_triggered"), "combo follow-up emits combo_triggered event")
+	_require(combo_event_technique_ids.has("lunge"), "combo event metadata stores the technique id")
+
+	await _start_seeded_combat_run(game, "weapon-after-hit-hook")
+	game.enemy_planner.enemies_are_static = true
+	var swap_on_hit_weapon = SwapOnHitWeaponScript.new()
+	game.state.player.active_weapon = swap_on_hit_weapon
+	_move_player_to(game, Vector2i(1, 1))
+	var after_hit_enemy = _prepare_single_enemy_room(game, Vector2i(2, 1), 10, Vector2i(1, 1))
+	var after_hit_plan: Array = [_make_player_action(game, "attack")]
+	game.turn_controller.submit_player_plan(after_hit_plan)
+	await process_frame
+	_require(swap_on_hit_weapon.after_hit_calls == 1, "weapon after_attack_hit hook runs once per confirmed hit")
+	_require(swap_on_hit_weapon.swapped_count == 1, "weapon after_attack_hit hook can apply swap effect packets")
+	_require(game.state.player.grid_pos == Vector2i(2, 1), "after_attack_hit hook can move the attacker through swap")
+	_require(after_hit_enemy.grid_pos == Vector2i(1, 1), "after_attack_hit hook can move the target through swap")
 
 	var achievement_service = root.get_node_or_null("/root/AchievementService")
 	_require(achievement_service != null, "achievement service autoload exists")

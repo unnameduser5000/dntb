@@ -2,6 +2,7 @@ class_name ActionResolver
 extends Node
 
 const CombatContextScript := preload("res://scripts/runtime/CombatContext.gd")
+const EffectEventScript := preload("res://scripts/runtime/EffectEvent.gd")
 const EffectPacketScript := preload("res://scripts/runtime/EffectPacket.gd")
 const EffectPipelineScript := preload("res://scripts/runtime/EffectPipeline.gd")
 
@@ -11,6 +12,7 @@ signal actor_died(actor)
 signal attack_missed(actor, target_cell: Vector2i)
 signal key_picked(actor, key_id: String, cell: Vector2i)
 signal rule_message(message: String)
+signal combat_event_emitted(event)
 
 var effect_pipeline = EffectPipelineScript.new()
 var _presentation_frames: Array = []
@@ -107,13 +109,18 @@ func _resolve_attack(action, state) -> void:
 
 		hit_any = true
 		var damage: int = int(actor.atk) * int(action.def.power)
-		if not _resolve_weapon_attack_hit(action, target, target_cell, dir, damage, state):
+		var hit_context = _make_attack_hit_context(action, target, target_cell, dir, damage, state)
+		var handled_by_weapon := _resolve_weapon_attack_hit(hit_context)
+		hit_context.hit_handled_by_weapon = handled_by_weapon
+		if not handled_by_weapon:
 			apply_effect_damage(actor, target, damage, state, action, [&"attack"])
+		_run_weapon_after_attack_hit(hit_context)
 
 	if not hit_any:
 		var miss_cell: Vector2i = actor.grid_pos + dir
 		if not _resolve_weapon_attack_miss(action, miss_cell, dir, state):
 			attack_missed.emit(actor, miss_cell)
+			_emit_attack_miss_event(actor, action, miss_cell, dir)
 			_append_presentation_frame("attack_missed", {
 				"actor": actor,
 				"target_cell": miss_cell,
@@ -145,8 +152,12 @@ func _resolve_lunge(action, state) -> void:
 	if target != null and target.team != actor.team:
 		_add_message(state, "%s 突刺命中。" % actor.def.display_name)
 		var damage: int = int(actor.atk) * int(action.def.power)
-		if not _resolve_weapon_attack_hit(action, target, target_cell, dir, damage, state):
+		var hit_context = _make_attack_hit_context(action, target, target_cell, dir, damage, state)
+		var handled_by_weapon := _resolve_weapon_attack_hit(hit_context)
+		hit_context.hit_handled_by_weapon = handled_by_weapon
+		if not handled_by_weapon:
 			apply_effect_damage(actor, target, damage, state, action, [&"attack", &"lunge"])
+		_run_weapon_after_attack_hit(hit_context)
 		return
 
 	_resolve_move(action, state)
@@ -185,7 +196,7 @@ func _get_action_dir(action) -> Vector2i:
 func _get_attack_cells(action) -> Array[Vector2i]:
 	var actor = action.actor
 	var dir = _get_action_dir(action)
-	if action.def.id == "sweep":
+	if action.def.id == "sweep" or action.def.id == "great_sweep":
 		var left := Vector2i(dir.y, -dir.x)
 		var right := Vector2i(-dir.y, dir.x)
 		return [
@@ -284,6 +295,46 @@ func apply_effect_knockback(source, target, direction: Vector2i, distance: int, 
 		"phase": "knockback",
 	})
 
+func apply_effect_pull(source, target, direction: Vector2i, distance: int, state, action = null, extra_tags: Array = []) -> Array:
+	if target == null or direction == Vector2i.ZERO or distance <= 0:
+		return []
+
+	var packet = EffectPacketScript.make_pull(source, target, direction, distance, action)
+	for tag in extra_tags:
+		packet.add_tag(tag)
+	return apply_effect_packets(source, [packet], state, {
+		"action": action,
+		"target": target,
+		"direction": direction,
+		"phase": "pull",
+	})
+
+func apply_effect_swap(source, target, state, action = null, extra_tags: Array = []) -> Array:
+	if source == null or target == null:
+		return []
+
+	var packet = EffectPacketScript.make_swap(source, target, action)
+	for tag in extra_tags:
+		packet.add_tag(tag)
+	return apply_effect_packets(source, [packet], state, {
+		"action": action,
+		"target": target,
+		"phase": "swap",
+	})
+
+func apply_effect_teleport(source, target_cell: Vector2i, state, action = null, extra_tags: Array = []) -> Array:
+	if source == null:
+		return []
+
+	var packet = EffectPacketScript.make_teleport(source, target_cell, action)
+	for tag in extra_tags:
+		packet.add_tag(tag)
+	return apply_effect_packets(source, [packet], state, {
+		"action": action,
+		"target_cell": target_cell,
+		"phase": "teleport",
+	})
+
 func apply_effect_packets(source, packets: Array, state, context: Dictionary = {}) -> Array:
 	var modifiers := _get_effect_modifiers(source, state)
 	context["state"] = state
@@ -349,6 +400,76 @@ func try_knockback(actor, direction: Vector2i, distance: int, state) -> int:
 
 	return moved
 
+func try_pull_actor(actor, direction: Vector2i, distance: int, state) -> int:
+	if actor == null or direction == Vector2i.ZERO or distance <= 0:
+		return 0
+
+	var moved := 0
+	for _step in range(distance):
+		var target_cell: Vector2i = actor.grid_pos + direction
+		if not state.grid.can_enter(target_cell):
+			break
+		if try_move_actor(actor, target_cell, state):
+			moved += 1
+
+	return moved
+
+func try_swap_actors(first_actor, second_actor, state) -> bool:
+	if first_actor == null or second_actor == null or state == null or state.grid == null:
+		return false
+	if first_actor == second_actor:
+		return false
+
+	var first_from: Vector2i = first_actor.grid_pos
+	var second_from: Vector2i = second_actor.grid_pos
+	if first_from == second_from:
+		return false
+	if not state.grid.is_inside(first_from) or not state.grid.is_inside(second_from):
+		return false
+	if state.grid.is_blocked(first_from) or state.grid.is_blocked(second_from):
+		return false
+
+	state.grid.remove_actor(first_actor)
+	state.grid.remove_actor(second_actor)
+	var first_ok: bool = state.grid.place_actor(first_actor, second_from)
+	var second_ok: bool = state.grid.place_actor(second_actor, first_from)
+	if not first_ok or not second_ok:
+		state.grid.remove_actor(first_actor)
+		state.grid.remove_actor(second_actor)
+		state.grid.place_actor(first_actor, first_from)
+		state.grid.place_actor(second_actor, second_from)
+		return false
+
+	actor_moved.emit(first_actor, first_from, second_from)
+	actor_moved.emit(second_actor, second_from, first_from)
+	_append_presentation_frame("swap", {
+		"actor": first_actor,
+		"target": second_actor,
+		"from_cell": first_from,
+		"to_cell": second_from,
+		"target_from_cell": second_from,
+		"target_to_cell": first_from,
+	})
+	return true
+
+func try_teleport_actor(actor, target_cell: Vector2i, state) -> bool:
+	if actor == null or state == null or state.grid == null:
+		return false
+	if not state.grid.can_enter(target_cell):
+		return false
+
+	var from_cell: Vector2i = actor.grid_pos
+	if not state.grid.move_actor(actor, target_cell):
+		return false
+	actor_moved.emit(actor, from_cell, target_cell)
+	_append_presentation_frame("teleport", {
+		"actor": actor,
+		"from_cell": from_cell,
+		"to_cell": target_cell,
+		"direction": target_cell - from_cell,
+	})
+	return true
+
 func add_rule_message(message: String) -> void:
 	if message.is_empty():
 		return
@@ -356,6 +477,11 @@ func add_rule_message(message: String) -> void:
 
 func add_state_message(state, message: String) -> void:
 	_add_message(state, message)
+
+func emit_combat_event(event) -> void:
+	if event == null:
+		return
+	combat_event_emitted.emit(event)
 
 func _kill_actor(actor, state) -> void:
 	state.grid.remove_actor(actor)
@@ -412,15 +538,22 @@ func _resolve_move_collision(action, target, direction: Vector2i, state) -> bool
 	context.setup_move_collision(state, action, actor, target, direction, max(1, int(action.chain_speed)))
 	return bool(weapon.resolve_move_collision(context, self))
 
-func _resolve_weapon_attack_hit(action, target, target_cell: Vector2i, direction: Vector2i, damage: int, state) -> bool:
-	var actor = action.actor
+func _resolve_weapon_attack_hit(context) -> bool:
+	if context == null:
+		return false
+	var actor = context.source
 	var weapon = actor.active_weapon
 	if weapon == null or not weapon.has_method("resolve_attack_hit"):
 		return false
-
-	var context = CombatContextScript.new()
-	context.setup_attack_hit(state, action, actor, target, target_cell, direction, damage, _get_action_momentum_speed(action))
 	return bool(weapon.resolve_attack_hit(context, self))
+
+func _run_weapon_after_attack_hit(context) -> void:
+	if context == null or context.source == null:
+		return
+	var weapon = context.source.active_weapon
+	if weapon == null or not weapon.has_method("after_attack_hit"):
+		return
+	weapon.after_attack_hit(context, self)
 
 func _resolve_weapon_attack_miss(action, target_cell: Vector2i, direction: Vector2i, state) -> bool:
 	var actor = action.actor
@@ -443,6 +576,26 @@ func resolve_action_chain_finished(actor, actions: Array, state) -> void:
 	var context = CombatContextScript.new()
 	context.setup_action_chain_finished(state, actor, actions)
 	weapon.resolve_action_chain_finished(context, self)
+
+func _make_attack_hit_context(action, target, target_cell: Vector2i, direction: Vector2i, damage: int, state):
+	var context = CombatContextScript.new()
+	context.setup_attack_hit(state, action, action.actor, target, target_cell, direction, damage, _get_action_momentum_speed(action))
+	return context
+
+func _emit_attack_miss_event(actor, action, target_cell: Vector2i, direction: Vector2i) -> void:
+	var event = EffectEventScript.new()
+	event.event_type = EffectEventScript.TYPE_ATTACK_MISSED_CONFIRMED
+	event.source = actor
+	event.actor = actor
+	event.action = action
+	event.from_cell = actor.grid_pos if actor != null else Vector2i.ZERO
+	event.to_cell = target_cell
+	event.direction = direction
+	if action != null and action.def != null:
+		event.add_tag(StringName(action.def.id))
+		if int(action.def.kind) == int(ActionDef.ActionKind.ATTACK):
+			event.add_tag(&"attack")
+	emit_combat_event(event)
 
 func _get_action_momentum_speed(action) -> int:
 	return maxi(1, int(action.momentum_speed))
