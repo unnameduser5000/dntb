@@ -97,6 +97,7 @@ func toggle_bag() -> void:
 	else:
 		_bag_ui.visible = true
 		_bag_ui.open_bag()
+	get_viewport().gui_release_focus()
 
 
 func is_bag_open() -> bool:
