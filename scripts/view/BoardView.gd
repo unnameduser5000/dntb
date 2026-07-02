@@ -17,6 +17,11 @@ const EXPLORED_FOG_DESATURATE := 0.18
 @export var world_slice_bottom_margin: int = 24
 @export var world_slice_reserved_right_width: int = 404
 @export var world_slice_right_gap: int = 24
+@export var world_slice_zoom_min: int = 15
+@export var world_slice_zoom_max: int = 45
+@export var world_slice_zoom_step: int = 6
+
+signal pan_refresh_requested
 
 @onready var _grid: GridContainer = %AsciiGrid
 var _render_window_origin: Vector2i = Vector2i.ZERO
@@ -24,6 +29,12 @@ var _render_window_size: Vector2i = Vector2i.ZERO
 var _cell_pool: Array[Label] = []
 var _pool_window_size: Vector2i = Vector2i.ZERO
 var _pool_cell_size: int = -1
+var _zoom_window_size: Vector2i = Vector2i.ZERO
+var _pan_offset: Vector2i = Vector2i.ZERO
+var _map_control_mode: String = "pointer"
+var _is_panning: bool = false
+var _pan_last_mouse: Vector2 = Vector2.ZERO
+var _last_state = null
 var _stylebox_cache: Dictionary = {}
 var _texture_stylebox_cache: Dictionary = {}
 var _loaded_tile_textures: Dictionary = {}
@@ -32,7 +43,35 @@ var _derived_tile_textures: Dictionary = {}
 
 func _ready() -> void:
 	position = board_origin
+	_zoom_window_size = world_slice_window_size
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_rebuild_cell_pool(_compute_pool_size())
+
+
+func _gui_input(event: InputEvent) -> void:
+	if _map_control_mode != "pan":
+		return
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				_is_panning = true
+				_pan_last_mouse = event.position
+				accept_event()
+			else:
+				_is_panning = false
+	elif event is InputEventMouseMotion and _is_panning:
+		var delta_pixels: Vector2 = event.position - _pan_last_mouse
+		_pan_last_mouse = event.position
+		if cell_size > 0:
+			var delta_cells := Vector2i(
+				-roundi(delta_pixels.x / float(cell_size + 1)),
+				-roundi(delta_pixels.y / float(cell_size + 1))
+			)
+			if delta_cells != Vector2i.ZERO:
+				_pan_offset += delta_cells
+				render(_last_state)
+				pan_refresh_requested.emit()
+		accept_event()
 
 
 func grid_to_world(cell: Vector2i) -> Vector2:
@@ -55,6 +94,7 @@ func is_cell_in_render_window(cell: Vector2i) -> bool:
 
 
 func render(state) -> void:
+	_last_state = state
 	if state != null and bool(state.is_world_slice):
 		_apply_world_slice_layout()
 	var started_at: int = Time.get_ticks_msec()
@@ -94,8 +134,8 @@ func _compute_render_window(state) -> Rect2i:
 	var grid_width: int = int(state.grid.width)
 	var grid_height: int = int(state.grid.height)
 	var window_size: Vector2i = Vector2i(
-		min(world_slice_window_size.x, grid_width),
-		min(world_slice_window_size.y, grid_height)
+		min(_zoom_window_size.x, grid_width),
+		min(_zoom_window_size.y, grid_height)
 	)
 	if window_size.x <= 0 or window_size.y <= 0:
 		return Rect2i(Vector2i.ZERO, Vector2i.ZERO)
@@ -106,8 +146,12 @@ func _compute_render_window(state) -> Rect2i:
 
 	var half_window: Vector2i = Vector2i(int(window_size.x / 2), int(window_size.y / 2))
 	var origin: Vector2i = Vector2i(
-		clampi(player_cell.x - half_window.x, 0, max(0, grid_width - window_size.x)),
-		clampi(player_cell.y - half_window.y, 0, max(0, grid_height - window_size.y))
+		player_cell.x - half_window.x + _pan_offset.x,
+		player_cell.y - half_window.y + _pan_offset.y
+	)
+	origin = Vector2i(
+		clampi(origin.x, 0, max(0, grid_width - window_size.x)),
+		clampi(origin.y, 0, max(0, grid_height - window_size.y))
 	)
 	return Rect2i(origin, window_size)
 
@@ -336,7 +380,7 @@ func _rebuild_cell_pool(window_size: Vector2i) -> void:
 
 
 func _compute_pool_size() -> Vector2i:
-	return Vector2i(max(1, world_slice_window_size.x), max(1, world_slice_window_size.y))
+	return Vector2i(max(1, world_slice_zoom_max), max(1, world_slice_zoom_max))
 
 
 func _apply_world_slice_layout() -> void:
@@ -346,13 +390,13 @@ func _apply_world_slice_layout() -> void:
 
 	var available_width: float = maxf(120.0, viewport_rect.size.x - float(world_slice_left_margin + world_slice_reserved_right_width + world_slice_right_gap))
 	var available_height: float = maxf(120.0, viewport_rect.size.y - float(world_slice_top_margin + world_slice_bottom_margin))
-	var width_steps: int = max(1, world_slice_window_size.x)
-	var height_steps: int = max(1, world_slice_window_size.y)
+	var width_steps: int = max(1, _zoom_window_size.x)
+	var height_steps: int = max(1, _zoom_window_size.y)
 	var fit_cell_width: int = int(floor((available_width - float(width_steps - 1)) / float(width_steps)))
 	var fit_cell_height: int = int(floor((available_height - float(height_steps - 1)) / float(height_steps)))
 	cell_size = clampi(mini(fit_cell_width, fit_cell_height), world_slice_min_cell_size, world_slice_max_cell_size)
 
-	var board_pixels: Vector2 = _window_pixel_size(world_slice_window_size)
+	var board_pixels: Vector2 = _window_pixel_size(_zoom_window_size)
 	var pane_origin := Vector2(float(world_slice_left_margin), float(world_slice_top_margin))
 	board_origin = Vector2(
 		pane_origin.x + floor(maxf(0.0, (available_width - board_pixels.x) * 0.5)),
@@ -368,6 +412,48 @@ func _window_pixel_size(window_size: Vector2i) -> Vector2:
 		float(window_size.x * cell_size + max(0, window_size.x - 1)),
 		float(window_size.y * cell_size + max(0, window_size.y - 1))
 	)
+
+
+func get_render_pixel_rect() -> Rect2:
+	var pixel_size := _window_pixel_size(_render_window_size)
+	return Rect2(position, pixel_size)
+
+
+func set_map_control_mode(mode: String) -> void:
+	_map_control_mode = mode
+	if mode == "pan":
+		mouse_filter = Control.MOUSE_FILTER_STOP
+	else:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_is_panning = false
+
+
+func zoom_in() -> void:
+	_apply_zoom(-1)
+
+
+func zoom_out() -> void:
+	_apply_zoom(1)
+
+
+func _apply_zoom(direction: int) -> void:
+	var next_x := clampi(_zoom_window_size.x + direction * world_slice_zoom_step, world_slice_zoom_min, world_slice_zoom_max)
+	var next_y := clampi(_zoom_window_size.y + direction * world_slice_zoom_step, world_slice_zoom_min, world_slice_zoom_max)
+	_zoom_window_size = Vector2i(next_x, next_y)
+
+
+func reset_pan() -> void:
+	_pan_offset = Vector2i.ZERO
+
+
+func recenter_on_player() -> void:
+	reset_pan()
+
+
+func reset_map_controls() -> void:
+	_zoom_window_size = world_slice_window_size
+	reset_pan()
+	set_map_control_mode("pointer")
 
 
 func _cell_in_set(state, set_name: String, array_name: String, cell: Vector2i) -> bool:

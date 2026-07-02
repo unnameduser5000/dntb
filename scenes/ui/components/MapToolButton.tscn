@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[node name="MapToolButton" type="Button"]
+custom_minimum_size = Vector2(32, 32)
+focus_mode = 0
+theme_type_variation = &"MapToolButton"
+horizontal_alignment = 1
+vertical_alignment = 1

@@ -1,5 +1,15 @@
 # Develop Log
 
+## 2026-07-02 Circular map toolbar (zoom/pan/pointer)
+
+- Added a compact circular-icon toolbar on the right edge of the world-slice map:
+  - `+` zoom in, `−` zoom out, ✋ pan, ☞ pointer.
+- Toolbar lives in `BattleUI` and is dynamically positioned next to the map render rect.
+- Pointer is the default mode; pan mode enables left-click drag to offset the view.
+- Zoom changes the render-window size so the fixed UI frame stays unchanged and out-of-bounds tiles are clipped.
+- Player movement recenters the view automatically.
+- Added `MapToolButton` theme variation and `scenes/ui/components/MapToolButton.tscn`.
+
 ## 2026-06-30 Bag pause-and-bind pass
 
 - Reworked the backpack page into the live key-program editor/viewer for the

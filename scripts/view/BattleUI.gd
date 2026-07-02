@@ -10,6 +10,8 @@ signal key_slot_preview_cleared(slot_id: String)
 signal rest_continue_requested
 signal bag_toggle_requested
 signal pause_menu_requested
+signal map_mode_requested(mode: String)
+signal map_zoom_requested(direction: int)
 
 const UiActionCardScene := preload("res://scenes/ui/components/UiActionCard.tscn")
 const BagUIScript = preload("res://scripts/view/BagUI.gd")
@@ -23,6 +25,11 @@ const BagUIScript = preload("res://scripts/view/BagUI.gd")
 @onready var _overlay_body: Label = %OverlayBody
 @onready var _overlay_buttons: VBoxContainer = %OverlayButtons
 @onready var _bag_ui = %BagUI
+@onready var _map_toolbar: Control = %MapRightToolbar
+@onready var _zoom_in_button: Button = %ZoomInButton
+@onready var _zoom_out_button: Button = %ZoomOutButton
+@onready var _pan_button: Button = %PanButton
+@onready var _pointer_button: Button = %PointerButton
 
 var _key_program_editable := false
 var _permanent_buffs: Array[Dictionary] = []
@@ -37,7 +44,21 @@ func _ready() -> void:
 	_panel.visible = false
 	show_title()
 	_connect_bag_ui_signals()
+	_connect_map_toolbar_signals()
 	_refresh_bag_ui()
+
+
+func _connect_map_toolbar_signals() -> void:
+	_zoom_in_button.pressed.connect(func() -> void: map_zoom_requested.emit(-1))
+	_zoom_out_button.pressed.connect(func() -> void: map_zoom_requested.emit(1))
+	_pan_button.toggled.connect(func(pressed: bool) -> void:
+		if pressed:
+			map_mode_requested.emit("pan")
+	)
+	_pointer_button.toggled.connect(func(pressed: bool) -> void:
+		if pressed:
+			map_mode_requested.emit("pointer")
+	)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -176,6 +197,22 @@ func _show_overlay(title_text: String, body_text: String, buttons: Array) -> voi
 			button.theme_type_variation = &"PrimaryButton"
 		button.pressed.connect(button_data["callback"])
 		_overlay_buttons.add_child(button)
+
+
+func position_map_toolbar(board_rect: Rect2, viewport_size: Vector2) -> void:
+	var toolbar_size := _map_toolbar.get_combined_minimum_size()
+	var padding := 12.0
+	var top_margin := 8.0
+	var target_x := board_rect.position.x + board_rect.size.x + padding
+	var target_y := board_rect.position.y + top_margin
+	var max_x := viewport_size.x - 382.0 - toolbar_size.x - padding
+	if max_x < target_x:
+		target_x = max_x
+	_map_toolbar.position = Vector2(target_x, target_y)
+
+
+func set_map_toolbar_visible(visible: bool) -> void:
+	_map_toolbar.visible = visible
 
 
 func _on_bag_key_token_move_requested(source_slot_id: String, source_index: int, target_slot_id: String) -> void:

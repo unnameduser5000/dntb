@@ -251,6 +251,86 @@ corner_radius_top_right = 5
 corner_radius_bottom_right = 5
 corner_radius_bottom_left = 5
 
+[sub_resource type="StyleBoxFlat" id="StyleMapToolNormal"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.12, 0.18, 0.23, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.55, 0.62, 0.72)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="StyleMapToolHover"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.22, 0.32, 0.38, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.56, 0.7, 0.78, 0.86)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="StyleMapToolPressed"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.08, 0.14, 0.19, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.36, 0.47, 0.54, 0.86)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="StyleMapToolFocus"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.12, 0.18, 0.23, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.6, 0.76, 0.84, 0.9)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="StyleMapToolDisabled"]
+content_margin_left = 0.0
+content_margin_top = 0.0
+content_margin_right = 0.0
+content_margin_bottom = 0.0
+bg_color = Color(0.12, 0.18, 0.23, 0.5)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.55, 0.62, 0.36)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
 [resource]
 default_font_size = 16
 ActionCard/base_type = &"Button"
@@ -364,3 +444,16 @@ VitalSanBar/styles/fill = SubResource("StyleSanFill")
 VitalSanLowBar/base_type = &"ProgressBar"
 VitalSanLowBar/styles/background = SubResource("StyleVitalTrack")
 VitalSanLowBar/styles/fill = SubResource("StyleSanLowFill")
+MapToolButton/base_type = &"Button"
+MapToolButton/colors/font_color = Color(0.94, 0.98, 0.98, 1)
+MapToolButton/colors/font_disabled_color = Color(0.6, 0.65, 0.68, 0.6)
+MapToolButton/colors/font_focus_color = Color(0.94, 0.98, 0.98, 1)
+MapToolButton/colors/font_hover_color = Color(1, 1, 1, 1)
+MapToolButton/colors/font_hover_pressed_color = Color(0.86, 0.91, 0.93, 1)
+MapToolButton/colors/font_pressed_color = Color(0.86, 0.91, 0.93, 1)
+MapToolButton/font_sizes/font_size = 18
+MapToolButton/styles/disabled = SubResource("StyleMapToolDisabled")
+MapToolButton/styles/focus = SubResource("StyleMapToolFocus")
+MapToolButton/styles/hover = SubResource("StyleMapToolHover")
+MapToolButton/styles/normal = SubResource("StyleMapToolNormal")
+MapToolButton/styles/pressed = SubResource("StyleMapToolPressed")

@@ -8,6 +8,9 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/BattleHud.tscn" id="6_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/RunSidebar.tscn" id="7_sidebar"]
 [ext_resource type="PackedScene" path="res://scenes/ui/BagUI.tscn" id="8_bag_ui"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/MapToolButton.tscn" id="9_map_tool_button"]
+
+[sub_resource type="ButtonGroup" id="MapModeGroup"]
 
 [node name="BattleUI" type="Control"]
 layout_mode = 3
@@ -191,3 +194,35 @@ theme_override_constants/separation = 8
 
 [node name="BagUI" parent="." instance=ExtResource("8_bag_ui")]
 unique_name_in_owner = true
+
+[node name="MapRightToolbar" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_right = 32.0
+offset_bottom = 140.0
+theme_override_constants/separation = 8
+
+[node name="ZoomInButton" parent="MapRightToolbar" instance=ExtResource("9_map_tool_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "+"
+
+[node name="ZoomOutButton" parent="MapRightToolbar" instance=ExtResource("9_map_tool_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "−"
+
+[node name="PanButton" parent="MapRightToolbar" instance=ExtResource("9_map_tool_button")]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+text = "✋"
+button_group = SubResource("MapModeGroup")
+
+[node name="PointerButton" parent="MapRightToolbar" instance=ExtResource("9_map_tool_button")]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+button_pressed = true
+text = "☞"
+button_group = SubResource("MapModeGroup")

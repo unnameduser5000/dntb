@@ -304,6 +304,9 @@ func _connect_signals() -> void:
 	battle_ui.rest_continue_requested.connect(_on_rest_continue_requested)
 	battle_ui.bag_toggle_requested.connect(_toggle_bag)
 	battle_ui.pause_menu_requested.connect(_on_pause_menu_requested)
+	battle_ui.map_mode_requested.connect(_on_map_mode_requested)
+	battle_ui.map_zoom_requested.connect(_on_map_zoom_requested)
+	board_view.pan_refresh_requested.connect(_on_board_pan_refresh)
 	turn_controller.action_finished.connect(func(_action) -> void: _refresh_views())
 	turn_controller.turn_finished.connect(_refresh_views)
 	turn_controller.planning_started.connect(_refresh_views)
@@ -311,6 +314,29 @@ func _connect_signals() -> void:
 	resolver.rule_message.connect(func(_message: String) -> void: _refresh_views())
 	resolver.key_picked.connect(_on_key_picked)
 	resolver.actor_moved.connect(_on_actor_moved)
+
+func _on_map_mode_requested(mode: String) -> void:
+	if board_view == null:
+		return
+	board_view.set_map_control_mode(mode)
+	if mode == "pointer":
+		board_view.recenter_on_player()
+		_refresh_views()
+
+func _on_map_zoom_requested(direction: int) -> void:
+	if board_view == null:
+		return
+	if direction < 0:
+		board_view.zoom_in()
+	else:
+		board_view.zoom_out()
+	_refresh_views()
+
+func _on_board_pan_refresh() -> void:
+	if state == null or _battle_presentation == null:
+		return
+	_battle_presentation.sync_views(state, true)
+	battle_ui.update_state(state)
 
 func start_run() -> void:
 	_close_bag_if_open()
@@ -358,6 +384,7 @@ func start_world_slice_debug() -> void:
 		board_view.world_slice_window_size = Vector2i(29, 29)
 		board_view.board_origin = Vector2(24, 84)
 		board_view.position = board_view.board_origin
+		board_view.reset_map_controls()
 	battle_ui.show_battle()
 	_update_world_slice_editability(true)
 	_refresh_world_visibility("init")
@@ -623,6 +650,15 @@ func _refresh_views() -> void:
 			snap_actor_views = true
 		_battle_presentation.sync_views(state, snap_actor_views)
 	battle_ui.update_state(state)
+	_update_map_toolbar()
+
+
+func _update_map_toolbar() -> void:
+	var is_world_slice: bool = state != null and bool(state.is_world_slice)
+	battle_ui.set_map_toolbar_visible(is_world_slice)
+	if is_world_slice and board_view != null:
+		var board_rect: Rect2 = board_view.get_render_pixel_rect()
+		battle_ui.position_map_toolbar(board_rect, get_viewport().get_visible_rect().size)
 
 
 func _on_actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i) -> void:
@@ -630,6 +666,8 @@ func _on_actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i) -> void:
 		return
 	if not bool(state.is_world_slice):
 		return
+	if actor == state.player and board_view != null:
+		board_view.reset_pan()
 	_world_slice_controller.on_actor_moved(state, actor, from_cell, to_cell)
 	_refresh_views()
 
