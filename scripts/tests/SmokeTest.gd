@@ -386,10 +386,11 @@ func _init() -> void:
 	var stream_refresh_before: int = world_game.state.world_enemy_stream_refresh_count
 	var stream_spawn_total_before: int = world_game.state.world_enemy_stream_spawn_total
 	world_game.enemy_planner.enemies_are_static = true
-	var world_move: Dictionary = _pick_first_walkable_world_move(world_game.state.map_data, world_game.state.player.grid_pos)
+	var world_move: Dictionary = _pick_first_walkable_world_move(world_game.state, world_game.state.player.grid_pos)
 	_require(not world_move.is_empty(), "world slice has at least one walkable move from spawn")
 	var world_action_plan: Array = world_game._build_key_slot_plan([String(world_move.get("token_id", ""))])
 	_require(world_action_plan.size() == 1 and world_action_plan[0].def.id == "move_key", "world slice can generate an action plan from the current key program")
+	world_game.state.player.facing = Vector2i(world_move.get("delta", Vector2i.ZERO))
 	world_game.turn_controller.submit_player_plan(world_action_plan)
 	await process_frame
 	_require(world_game.state.player.grid_pos == Vector2i(world_move.get("target", world_game.state.player.grid_pos)), "world slice executes one movement step through the shared battle core")
@@ -895,8 +896,8 @@ func _pick_far_world_cell(map_data, origin: Vector2i, min_distance: int) -> Vect
 	return Vector2i(-1, -1)
 
 
-func _pick_first_walkable_world_move(map_data, origin: Vector2i) -> Dictionary:
-	if map_data == null:
+func _pick_first_walkable_world_move(state, origin: Vector2i) -> Dictionary:
+	if state == null or state.map_data == null or state.grid == null:
 		return {}
 	var options := [
 		{"token_id": "U", "delta": Vector2i.UP},
@@ -906,8 +907,8 @@ func _pick_first_walkable_world_move(map_data, origin: Vector2i) -> Dictionary:
 	]
 	for option in options:
 		var target: Vector2i = origin + Vector2i(option["delta"])
-		if map_data.is_walkable(target):
-			return {"token_id": String(option["token_id"]), "target": target}
+		if state.map_data.is_walkable(target) and state.grid.can_enter(target):
+			return {"token_id": String(option["token_id"]), "target": target, "delta": Vector2i(option["delta"])}
 	return {}
 
 
