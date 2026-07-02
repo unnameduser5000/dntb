@@ -399,7 +399,7 @@ func _on_locked_slot_interaction(slot_id: String) -> void:
 	if _editable:
 		return
 	var panel = _slot_panels.get(slot_id)
-	if panel != null and panel is UiKeySlot:
+	if panel != null and panel.has_method("play_locked_feedback"):
 		panel.play_locked_feedback()
 
 
