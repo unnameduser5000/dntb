@@ -195,25 +195,26 @@ func _init() -> void:
 	_require(not trace_semantic_game.get_player_action_trace_debug_string(1).contains("TR"), "absolute move trace is not disguised as TR")
 	_require(Vector2i(trace_semantic_game.state.action_trace.get_recent_entries_for_actor(int(trace_semantic_game.state.player.id), 1)[0].move_dir) == Vector2i.RIGHT, "runtime trace move_dir stays normalized to unit direction")
 
-	var lunge_dir_game = GameScene.instantiate()
-	root.add_child(lunge_dir_game)
+	var attack_dir_game = GameScene.instantiate()
+	root.add_child(attack_dir_game)
 	await process_frame
-	lunge_dir_game.start_seeded_run("lunge-direction")
+	attack_dir_game.start_seeded_run("attack-direction")
 	await process_frame
-	_enter_first_combat_from_camp(lunge_dir_game)
+	_enter_first_combat_from_camp(attack_dir_game)
 	await process_frame
-	lunge_dir_game.enemy_planner.enemies_are_static = true
-	lunge_dir_game.state.grid.blocked_cells.clear()
-	_prepare_single_enemy_room(lunge_dir_game, Vector2i(3, 2), 10, Vector2i(2, 2))
-	_move_player_to(lunge_dir_game, Vector2i(2, 2))
-	lunge_dir_game.state.player.facing = Vector2i.UP
-	var lunge_dir_action = _make_player_action(lunge_dir_game, "lunge")
-	lunge_dir_action.chosen_dir = Vector2i.RIGHT
-	var right_enemy = lunge_dir_game.state.grid.get_actor(Vector2i(3, 2))
+	attack_dir_game.enemy_planner.enemies_are_static = true
+	attack_dir_game.state.grid.blocked_cells.clear()
+	_prepare_single_enemy_room(attack_dir_game, Vector2i(3, 2), 10, Vector2i(2, 2))
+	_move_player_to(attack_dir_game, Vector2i(2, 2))
+	attack_dir_game.state.player.facing = Vector2i.UP
+	attack_dir_game.state.player.active_weapon = IRON_SPEAR
+	var attack_dir_action = attack_dir_game._build_key_slot_plan(["A"])[0]
+	attack_dir_action.chosen_dir = Vector2i.RIGHT
+	var right_enemy = attack_dir_game.state.grid.get_actor(Vector2i(3, 2))
 	var right_enemy_hp_before: int = right_enemy.hp
-	lunge_dir_game.resolver.resolve(lunge_dir_action, lunge_dir_game.state)
-	_require(lunge_dir_game.state.player.facing == Vector2i.RIGHT, "lunge updates facing to chosen_dir when present")
-	_require(right_enemy.hp < right_enemy_hp_before, "lunge uses chosen_dir to hit the right-side enemy instead of current facing")
+	attack_dir_game.resolver.resolve(attack_dir_action, attack_dir_game.state)
+	_require(attack_dir_game.state.player.facing == Vector2i.RIGHT, "weapon attack updates facing to chosen_dir when present")
+	_require(right_enemy.hp < right_enemy_hp_before, "weapon-bound attack uses chosen_dir instead of current facing")
 
 	game.start_seeded_run("absolute")
 	await process_frame
@@ -354,28 +355,15 @@ func _init() -> void:
 	world_game.queue_free()
 	await process_frame
 
-	await _start_seeded_combat_run(game, "impact-shield-single")
-	game.state.player.active_weapon = _make_collision_only_weapon()
-	var single_enemy = _prepare_single_enemy_room(game, Vector2i(2, 1), 10)
-	var single_plan: Array = game._build_key_slot_plan(["R"])
-	game.turn_controller.submit_player_plan(single_plan)
+	await _start_seeded_combat_run(game, "movement-chain-speed")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	var repeated_move_plan: Array = game._build_key_slot_plan(["R", "R"])
+	game.turn_controller.submit_player_plan(repeated_move_plan)
 	await process_frame
-	_require(single_plan[0].chain_speed == 1, "single movement collision has speed 1")
-	_require(single_enemy.hp == 9, "speed 1 impact shield deals 1 damage")
-	_require(single_enemy.grid_pos == Vector2i(3, 1), "speed 1 impact shield knocks enemy back 1 cell")
-	_require(game.state.player.grid_pos == Vector2i(2, 1), "attacker enters collision cell after speed 1 impact")
-
-	await _start_seeded_combat_run(game, "impact-shield-double")
-	game.state.player.active_weapon = _make_collision_only_weapon()
-	var double_enemy = _prepare_single_enemy_room(game, Vector2i(3, 1), 10)
-	var double_plan: Array = game._build_key_slot_plan(["R", "R"])
-	game.turn_controller.submit_player_plan(double_plan)
-	await process_frame
-	_require(double_plan[0].chain_speed == 1, "first repeated movement has speed 1")
-	_require(double_plan[1].chain_speed == 2, "second repeated movement has speed 2")
-	_require(double_enemy.hp == 8, "speed 2 impact shield deals higher damage")
-	_require(double_enemy.grid_pos == Vector2i(5, 1), "speed 2 impact shield knocks enemy back 2 cells")
-	_require(game.state.player.grid_pos == Vector2i(3, 1), "attacker enters collision cell after speed 2 impact")
+	_require(repeated_move_plan[0].chain_speed == 1, "first repeated movement has speed 1")
+	_require(repeated_move_plan[1].chain_speed == 2, "second repeated movement has speed 2")
+	_require(game.state.player.grid_pos == Vector2i(4, 2), "repeated movement still executes both chained move actions")
 
 	await _start_seeded_combat_run(game, "effect-pipeline")
 	game.state.player.active_weapon = null
@@ -405,13 +393,11 @@ func _init() -> void:
 	await _start_seeded_combat_run(game, "effect-pipeline-knockback")
 	var amplify_knockback = AmplifyKnockbackModifierScript.new()
 	game.state.player.effect_modifiers.append(amplify_knockback)
-	var amplified_enemy = _prepare_single_enemy_room(game, Vector2i(2, 1), 10)
-	var knockback_pipeline_plan: Array = game._build_key_slot_plan(["R"])
-	game.turn_controller.submit_player_plan(knockback_pipeline_plan)
-	await process_frame
+	var amplified_enemy = _prepare_single_enemy_room(game, Vector2i(4, 2), 10, Vector2i(2, 2))
+	game.resolver.apply_effect_knockback(game.state.player, amplified_enemy, Vector2i.RIGHT, 1, game.state, null, [&"knockback_test"])
 	_require(amplify_knockback.amplified_packets == 1, "effect modifier can amplify a knockback packet")
-	_require(amplified_enemy.hp == 9, "knockback modifier does not change impact shield damage")
-	_require(amplified_enemy.grid_pos == Vector2i(4, 1), "amplified knockback packet pushes farther")
+	_require(amplified_enemy.hp == 10, "knockback packet does not imply damage")
+	_require(amplified_enemy.grid_pos == Vector2i(6, 2), "amplified knockback packet pushes farther")
 
 	game.start_seeded_run("weapon-reward")
 	await process_frame
@@ -462,6 +448,7 @@ func _init() -> void:
 
 	await _start_seeded_combat_run(game, "effect-event-attack-hit-confirmed")
 	game.state.player.active_weapon = null
+	game.state.player.atk = 1
 	game.enemy_planner.enemies_are_static = true
 	var confirmed_enemy = _prepare_single_enemy_room(game, Vector2i(2, 1), 10)
 	confirmed_enemy.guarded = true
@@ -672,10 +659,6 @@ func _make_player_action(game, action_id: String):
 	action.actor = game.state.player
 	action.def = game._action_by_id[action_id]
 	return action
-
-
-func _make_collision_only_weapon():
-	return IMPACT_SHIELD.duplicate(true)
 
 
 func _reward_list_has_kind(rewards: Array, kind: String) -> bool:

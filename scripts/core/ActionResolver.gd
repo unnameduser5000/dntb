@@ -35,10 +35,7 @@ func resolve(action, state) -> void:
 			_resolve_move(action, state)
 
 		ActionDefScript.ActionKind.ATTACK:
-			if action.def.id == "lunge":
-				_resolve_lunge(action, state)
-			else:
-				_resolve_attack(action, state)
+			_resolve_attack(action, state)
 
 		ActionDefScript.ActionKind.TURN:
 			_resolve_turn(action, state)
@@ -101,6 +98,8 @@ func _resolve_jump(action, state, actor, dir: Vector2i, distance: int) -> void:
 func _resolve_attack(action, state):
 	var actor = action.actor
 	var dir = _get_action_dir(action)
+	if dir != Vector2i.ZERO and action.chosen_dir != Vector2i.ZERO:
+		actor.facing = dir
 	var attack_cells = _get_attack_cells(action)
 	var result = AttackResultScript.new()
 	result.setup(actor, action, dir)
@@ -128,43 +127,6 @@ func _resolve_attack(action, state):
 			"speed": _get_action_momentum_speed(action),
 		})
 		_add_message(state, "%s 攻击落空。" % actor.def.display_name)
-	return result
-
-func _resolve_lunge(action, state):
-	var actor = action.actor
-	# Transitional note:
-	# lunge is still implemented as a concrete action resource and currently
-	# resolves from actor.facing at runtime. If future combo/technique work
-	# wants "chosen technique direction" to be authoritative, this is one of
-	# the places that will need to be revisited.
-	#
-	# Current consequence:
-	# - preview / derived-technique build may decide lunge from token pattern
-	# - runtime strike direction still comes from actor.facing at resolve time
-	var dir := _get_action_dir(action)
-	var result = AttackResultScript.new()
-	var actor_before_cell: Vector2i = actor.grid_pos
-	if dir == Vector2i.ZERO:
-		dir = actor.facing
-	else:
-		actor.facing = dir
-	result.setup(actor, action, dir)
-
-	var target_cell = actor.grid_pos + dir
-	result.record_attempted_cell(target_cell)
-	var target = state.grid.get_actor(target_cell)
-
-	if target != null and target.team != actor.team:
-		_add_message(state, "%s 突刺命中。" % actor.def.display_name)
-		var damage: int = int(actor.atk) * int(action.def.power)
-		var damage_packets: Array = []
-		damage_packets = apply_effect_damage(actor, target, damage, state, action, [&"attack", &"lunge"])
-		result.record_hit(target, target_cell, damage_packets, false, damage)
-		return result
-
-	result.record_miss(target_cell)
-	_resolve_move(action, state)
-	result.moved_during_attack = actor.grid_pos != actor_before_cell
 	return result
 
 func _resolve_turn(action, state) -> void:
