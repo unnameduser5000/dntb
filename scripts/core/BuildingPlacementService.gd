@@ -222,6 +222,7 @@ func _build_poi_record(map_data, poi_type: String, pattern_def: Dictionary, stam
 		"interaction_cell": interaction_cell,
 		"entrance_cells": Array(stamp_result.get("entrance_cells", [])),
 		"occupied_cells": Array(stamp_result.get("occupied_cells", [])),
+		"npc_spawn_slots": Array(pattern_def.get("npc_spawn_slots", [])),
 		"tags": [
 			"poi:%s" % poi_type,
 			"building:%s" % String(pattern_def.get("id", "")),

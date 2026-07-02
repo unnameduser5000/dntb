@@ -96,6 +96,8 @@ func resolve_symbol_from_execution(
 	var moved := actor_before_cell != actor_after_cell
 	if action.def.kind == ActionDefScript.ActionKind.MOVE and not moved:
 		return &""
+	if action.def.kind == ActionDefScript.ActionKind.INTERACT:
+		return &""
 	match action_id:
 		"move_key":
 			return _relative_symbol_for_direction(action.chosen_dir, actor_before_facing)

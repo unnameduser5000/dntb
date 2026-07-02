@@ -28,6 +28,7 @@ const TOKEN_ACTION_IDS := {
 	"TL": "turn_left",
 	"TR": "turn_right",
 	"A": "attack",
+	"I": "interact",
 	"G": "guard",
 	"W": "wait",
 	"J": "jump",

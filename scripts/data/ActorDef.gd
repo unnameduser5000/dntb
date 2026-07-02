@@ -21,3 +21,10 @@ extends Resource
 @export var view_scale: Vector2 = Vector2.ONE
 # Base tint for the default glyph fallback and sprite-driven actor views.
 @export var color: Color = Color.WHITE
+@export var interaction_enabled: bool = false
+@export var interaction_title: String = ""
+@export var interaction_prompt: String = "交互"
+@export var interaction_range: int = 1
+@export var interaction_lines: PackedStringArray = []
+@export var dialogue_resource_path: String = ""
+@export var dialogue_cue: String = ""
