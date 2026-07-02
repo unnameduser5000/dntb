@@ -1,5 +1,79 @@
 # Develop Log
 
+## 2026-07-02 Safe-zone NPC interaction pass
+
+- Added a lightweight world-slice NPC interaction layer anchored to tavern
+  safe zones instead of scattering neutral actors across the full generated
+  map.
+- Introduced `NpcDef.gd` plus two first-pass tavern residents:
+  - `酒馆掌柜`
+  - `旧路巡记员`
+- Added the first world-slice interaction service layer; this later evolved into
+  the current actor-based interaction path:
+  - player uses `ui_accept` / 确认键
+  - service resolves a nearby safe-zone resident
+  - output lands in `GameState.messages`
+- Updated `WorldSliceController.gd` so NPC spawn selection is derived from the
+  stamped tavern footprint that contains the player spawn:
+  - NPC candidates come from tavern `occupied_cells`
+  - only walkable tavern-floor / yard cells are considered
+  - occupied spawn, interaction, and reserved cells are excluded
+  - result stays constrained to the safe area by construction
+- Kept the existing world placeholder prop and enemy streaming flow intact;
+  this pass only adds tavern-local neutral residents and interaction text.
+- Documented the current building-generation chain more explicitly as:
+  - anchor picking in `POIPlacementService.gd`
+  - staged local/global candidate search in `BuildingPlacementService.gd`
+  - final footprint stamping in `PatternStampService.gd`
+- Follow-up pass:
+  - moved NPC eligibility into tavern pattern data via `npc_spawn_slots`
+  - kept the first live strategy intentionally narrow: only the player-spawn
+    tavern generates one `tavern_keeper`
+  - added runtime tracking fields for:
+    - NPC world coordinates
+    - tracked NPC id
+    - relative-direction hint text
+    - display-toggle bool
+  - world-slice interaction was initially wired to `F` as a direct shortcut;
+    later passes moved it into a real `interact` token on the physical `F`
+    key slot instead of keeping the old direct-trigger path
+  - added a dedicated bottom-center dialogue panel in `BattleUI` for world-slice
+    NPC interaction:
+    - initial live NPC is the `K` glyph tavern keeper
+    - a dedicated dialogue panel was added first, then later simplified so each
+      interaction only shows one line and the panel closes on any key press
+    - while the panel is open, world-slice action submission is frozen so the
+      next enemy turn cannot begin before the interaction ends
+  - follow-up fix:
+    - world-slice NPC interaction now submits a dedicated `interact` action
+      through `TurnController` / `ActionResolver` instead of only calling the
+      service directly from `Game.gd`
+    - tavern NPC spawn candidates now hard-exclude entrance cells and their
+      immediate doorway corridor, preventing the initial NPC from blocking the
+      tavern exit
+  - actor-system unification pass:
+    - promoted interaction capability fields from `NpcDef` into `ActorDef`
+    - added `ActorInteractionService.gd` as the main interaction service
+    - kept `NpcInteractionService.gd` only as a compatibility shell
+    - added a `talkative_slime` sample actor to prove monsters can use the same
+      interaction capability pipeline
+    - validated that tavern NPCs can still be damaged and killed through the
+      same actor combat rules as monsters
+  - interaction UX + spawn follow-up:
+    - world-slice dialogue panel now shows one line at a time and closes on
+      any key press instead of paging through lines with `F`
+    - tavern interactable actor spawn scoring now prefers wall-adjacent cells,
+      while still hard-avoiding doors and doorway corridors
+    - documented the current world-slice enemy generation model: initial spawn
+      pass plus distance-based streamed refill/despawn
+    - `interact` target resolution is now constrained to the actor standing in
+      front of the player, instead of any adjacent actor
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+
 ## 2026-07-02 World-slice tavern editability bug fix
 
 - Fixed the world-slice backpack editor so it no longer unlocks only on a

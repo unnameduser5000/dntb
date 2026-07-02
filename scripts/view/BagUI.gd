@@ -18,6 +18,7 @@ const TOKEN_DESCRIPTIONS := {
 	"TL": "原地向左转，改变后续动作朝向。",
 	"TR": "原地向右转，改变后续动作朝向。",
 	"A": "触发当前武器的基础攻击动作。",
+	"I": "尝试与相邻目标交互；若附近无人响应，则不会触发对话。",
 	"G": "进入防御，减少下一次受到的伤害。",
 	"W": "等待一拍，不移动也不攻击。",
 	"J": "朝当前朝向跳跃到落点；落点被阻挡则失败。",
@@ -398,7 +399,7 @@ func _on_locked_slot_interaction(slot_id: String) -> void:
 	if _editable:
 		return
 	var panel = _slot_panels.get(slot_id)
-	if panel != null and panel is UiKeySlot:
+	if panel != null and panel.has_method("play_locked_feedback"):
 		panel.play_locked_feedback()
 
 
