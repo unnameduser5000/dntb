@@ -30,6 +30,34 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	visible = false
 	_find_nodes()
+	_disable_button_focus()
+
+
+func _gui_input(event: InputEvent) -> void:
+	if not visible:
+		return
+	if not (event is InputEventMouseButton):
+		return
+	var mouse_event := event as InputEventMouseButton
+	if not mouse_event.pressed or mouse_event.button_index != MOUSE_BUTTON_LEFT:
+		return
+
+	var bag_panel := find_child("BagPanel", true, false) as Control
+	if bag_panel == null:
+		close_requested.emit()
+		accept_event()
+		return
+
+	if not bag_panel.get_global_rect().has_point(get_global_mouse_position()):
+		close_requested.emit()
+		accept_event()
+
+
+func _disable_button_focus(node: Node = self) -> void:
+	for child in node.get_children():
+		if child is Button:
+			child.focus_mode = Control.FOCUS_NONE
+		_disable_button_focus(child)
 
 
 func _find_nodes() -> void:
@@ -125,6 +153,8 @@ func _refresh() -> void:
 				buff_label.mouse_filter = Control.MOUSE_FILTER_STOP
 				buff_label.theme_type_variation = &"BattleMessage"
 				_buffs_list.add_child(buff_label)
+
+	_disable_button_focus()
 
 
 func _make_key_slot_panel(key_id: String) -> PanelContainer:

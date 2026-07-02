@@ -32,11 +32,11 @@ const KEY_DIRECTIONS := {
 	"L": Vector2i.LEFT,
 	"R": Vector2i.RIGHT,
 }
-const ACTION_TOKENS: Array[String] = ["F", "TL", "TR"]
+const ACTION_TOKENS: Array[String] = ["F", "TL", "TR", "J"]
 ## Shared token-drop pool for future room / reward sources.
 ## This keeps mixed drops aligned with the same legal token set as the
 ## program editor and save/load layer.
-const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "TL", "TR"]
+const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "TL", "TR", "J"]
 const KeyProgramScript := preload("res://scripts/runtime/KeyProgram.gd")
 
 var key_program = null
