@@ -50,13 +50,9 @@ func build_preview_from_actions(actions: Array, state) -> Dictionary:
 				else:
 					after_pos = _preview_move(state, preview_pos, action_dir, move_cells, attack_cells, max(1, int(action_def.range)))
 			ActionDefScript.ActionKind.ATTACK:
-				if action_id == "lunge":
-					var lunge_cells := _preview_attack_cells(state, preview_pos, action_dir, action_def)
-					_add_unique_cells(attack_cells, lunge_cells)
-					if not _preview_hits_enemy(state, lunge_cells):
-						after_pos = _preview_move(state, preview_pos, action_dir, move_cells, attack_cells, max(1, int(action_def.range)))
-				else:
-					_add_unique_cells(attack_cells, _preview_attack_cells(state, preview_pos, action_dir, action_def))
+				if action.chosen_dir != Vector2i.ZERO and action_dir != Vector2i.ZERO:
+					preview_facing = action_dir
+				_add_unique_cells(attack_cells, _preview_attack_cells(state, preview_pos, action_dir, action_def))
 			ActionDefScript.ActionKind.TURN:
 				preview_facing = _preview_turn(preview_facing, action_id)
 			_:
@@ -174,14 +170,6 @@ func _add_preview_attack_cell(state, cells: Array[Vector2i], cell: Vector2i) -> 
 		return
 	if not cells.has(cell):
 		cells.append(cell)
-
-
-func _preview_hits_enemy(state, cells: Array[Vector2i]) -> bool:
-	for cell in cells:
-		var actor = state.grid.get_actor(cell)
-		if actor != null and actor.team != state.player.team:
-			return true
-	return false
 
 
 func _add_unique_cells(target: Array[Vector2i], cells: Array[Vector2i]) -> void:
