@@ -5,8 +5,6 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/components/UiPanel.tscn" id="3_panel"]
 [ext_resource type="PackedScene" path="res://scenes/ui/components/UiButton.tscn" id="4_button"]
 
-[sub_resource type="ButtonGroup" id="MapModeGroup"]
-
 [node name="RunSidebar" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -157,50 +155,3 @@ custom_minimum_size = Vector2(104, 52)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "菜单"
-
-[node name="MapControlButtons" type="HBoxContainer" parent="."]
-layout_mode = 0
-anchor_left = 0.0
-anchor_top = 1.0
-anchor_right = 0.0
-anchor_bottom = 1.0
-offset_left = 20.0
-offset_top = -72.0
-offset_right = 20.0
-offset_bottom = -20.0
-grow_horizontal = 2
-grow_vertical = 0
-theme_override_constants/separation = 10
-
-[node name="ZoomInButton" parent="MapControlButtons" instance=ExtResource("4_button")]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(72, 52)
-layout_mode = 2
-focus_mode = 0
-text = "放大"
-
-[node name="ZoomOutButton" parent="MapControlButtons" instance=ExtResource("4_button")]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(72, 52)
-layout_mode = 2
-focus_mode = 0
-text = "缩小"
-
-[node name="PanButton" parent="MapControlButtons" instance=ExtResource("4_button")]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(72, 52)
-layout_mode = 2
-focus_mode = 0
-toggle_mode = true
-text = "平移"
-button_group = SubResource("MapModeGroup")
-
-[node name="PointerButton" parent="MapControlButtons" instance=ExtResource("4_button")]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(72, 52)
-layout_mode = 2
-focus_mode = 0
-toggle_mode = true
-button_pressed = true
-text = "指针"
-button_group = SubResource("MapModeGroup")

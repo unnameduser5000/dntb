@@ -10,8 +10,6 @@ signal key_slot_preview_cleared(slot_id: String)
 signal rest_continue_requested
 signal bag_toggle_requested
 signal pause_menu_requested
-signal map_mode_requested(mode: String)
-signal map_zoom_requested(direction: int)
 
 const UiActionCardScene := preload("res://scenes/ui/components/UiActionCard.tscn")
 const BagUIScript = preload("res://scripts/view/BagUI.gd")
@@ -59,8 +57,6 @@ func _connect_bag_ui_signals() -> void:
 	_bag_ui.close_requested.connect(_on_bag_close_requested)
 	_run_sidebar.bag_requested.connect(_on_run_sidebar_bag_requested)
 	_run_sidebar.menu_requested.connect(_on_run_sidebar_menu_requested)
-	_run_sidebar.map_mode_requested.connect(func(mode: String) -> void: map_mode_requested.emit(mode))
-	_run_sidebar.map_zoom_requested.connect(func(direction: int) -> void: map_zoom_requested.emit(direction))
 
 
 func _refresh_bag_ui() -> void:
