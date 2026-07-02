@@ -5,8 +5,10 @@ signal back_requested
 
 const UiButtonScene := preload("res://scenes/ui/components/UiButton.tscn")
 
-@onready var resolution_option: OptionButton = $Panel/Margin/Content/ResolutionRow/Option
-@onready var fullscreen_toggle: CheckButton = $Panel/Margin/Content/FullscreenRow/Toggle
+@onready var panel: Control = $Panel
+@onready var scroll: ScrollContainer = %Scroll
+@onready var resolution_option: OptionButton = %ResolutionRow.get_node("Option")
+@onready var fullscreen_toggle: CheckButton = %FullscreenRow.get_node("Toggle")
 @onready var controls_hint: Label = %ControlsHint
 @onready var key_bindings_container: VBoxContainer = %KeyBindingsContainer
 @onready var reset_bindings_button: Button = %ResetBindingsButton
@@ -24,7 +26,9 @@ func _ready() -> void:
 	fullscreen_toggle.toggled.connect(_on_fullscreen_toggled)
 	reset_bindings_button.pressed.connect(_reset_bindings)
 	back_button.pressed.connect(back_requested.emit)
+	get_viewport().size_changed.connect(_update_layout)
 	_build_key_binding_rows()
+	_update_layout()
 	refresh_controls()
 
 
@@ -55,6 +59,7 @@ func refresh_controls() -> void:
 	resolution_option.select(SettingsService.resolution_index)
 	fullscreen_toggle.set_pressed_no_signal(SettingsService.is_fullscreen)
 	_refresh_key_binding_rows()
+	scroll.scroll_vertical = 0
 
 
 func _on_resolution_selected(index: int) -> void:
@@ -71,10 +76,18 @@ func _build_key_binding_rows() -> void:
 	_binding_buttons.clear()
 
 	var labels := {
-		PlayerInputService.ACTION_UP: "上 / Move Up",
-		PlayerInputService.ACTION_DOWN: "下 / Move Down",
-		PlayerInputService.ACTION_LEFT: "左 / Move Left",
-		PlayerInputService.ACTION_RIGHT: "右 / Move Right",
+		PlayerInputService.ACTION_Q: "Q 键 / Key Q",
+		PlayerInputService.ACTION_W: "上 / Move Up",
+		PlayerInputService.ACTION_E: "E 键 / Key E",
+		PlayerInputService.ACTION_R: "R 键 / Key R",
+		PlayerInputService.ACTION_A: "左 / Move Left",
+		PlayerInputService.ACTION_S: "下 / Move Down",
+		PlayerInputService.ACTION_D: "右 / Move Right",
+		PlayerInputService.ACTION_F: "F 键 / Key F",
+		PlayerInputService.ACTION_Z: "Z 键 / Key Z",
+		PlayerInputService.ACTION_X: "X 键 / Key X",
+		PlayerInputService.ACTION_C: "C 键 / Key C",
+		PlayerInputService.ACTION_V: "V 键 / Key V",
 	}
 
 	for action_name in PlayerInputService.get_program_actions():
@@ -102,7 +115,7 @@ func _refresh_key_binding_rows() -> void:
 		return
 
 	if _pending_rebind_action.is_empty():
-		controls_hint.text = "WASD 默认控制上下左右，点击任意按键后再按新键即可改键。"
+		controls_hint.text = "默认布局为 QWER / ASDF / ZXCV，其中 WASD 默认控制上下左右。点击任意键位后再按新键即可改键。"
 	else:
 		controls_hint.text = "请按下新的按键；按 Esc 取消。"
 
@@ -123,3 +136,15 @@ func _reset_bindings() -> void:
 	_pending_rebind_action = ""
 	PlayerInputService.reset_bindings()
 	refresh_controls()
+
+
+func _update_layout() -> void:
+	var viewport_size := get_viewport_rect().size
+	var target_width := minf(500.0, viewport_size.x - 48.0)
+	var target_height := minf(600.0, viewport_size.y - 48.0)
+	var panel_size := Vector2(maxf(320.0, target_width), maxf(360.0, target_height))
+	panel.offset_left = -panel_size.x * 0.5
+	panel.offset_top = -panel_size.y * 0.5
+	panel.offset_right = panel_size.x * 0.5
+	panel.offset_bottom = panel_size.y * 0.5
+	scroll.custom_minimum_size = Vector2(0.0, maxf(180.0, panel_size.y - 240.0))
