@@ -159,8 +159,6 @@ func _prepare_state_shell(state) -> void:
 	state.explored_cell_set.clear()
 	state.actors.clear()
 	state.player = null
-	var empty_weapon_techniques: Array[String] = []
-	state.set_unlocked_weapon_technique_ids(empty_weapon_techniques)
 
 
 func _rebuild_world_slice_state(state, seed_value: String, visibility_reason: String) -> void:
@@ -229,7 +227,6 @@ func _reset_runtime_state(state) -> void:
 	state.generation_breakdown_ms = {}
 	if state.action_trace != null:
 		state.action_trace.clear()
-	state.clear_weapon_combo_matches()
 
 
 func _apply_generated_map_state(state, visibility_reason: String) -> void:

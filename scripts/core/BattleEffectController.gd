@@ -6,6 +6,9 @@ const ActorDamagedEffectScene := preload("res://scenes/effects/BattleHitEffect.t
 const AttackMissedEffectScene := preload("res://scenes/effects/BattleMissEffect.tscn")
 const MoveCollisionEffectScene := preload("res://scenes/effects/BattleImpactEffect.tscn")
 const ActorDiedEffectScene := preload("res://scenes/effects/BattleDeathEffect.tscn")
+const ComboTriggeredEffectScene := preload("res://scenes/effects/BattleComboEffect.tscn")
+const TeleportEffectScene := preload("res://scenes/effects/BattleTeleportEffect.tscn")
+const SwapEffectScene := preload("res://scenes/effects/BattleSwapEffect.tscn")
 
 var board_view = null
 var effect_root: Node = null
@@ -16,6 +19,9 @@ var effect_scenes: Dictionary = {
 	"attack_missed": AttackMissedEffectScene,
 	"move_collision": MoveCollisionEffectScene,
 	"actor_died": ActorDiedEffectScene,
+	"combo_triggered": ComboTriggeredEffectScene,
+	"teleport": TeleportEffectScene,
+	"swap": SwapEffectScene,
 }
 
 
@@ -77,6 +83,27 @@ func play_frame(frame: Dictionary) -> void:
 				"direction": _actor_facing(dead_actor),
 				"intensity": 1.15,
 				"tint": _actor_color(dead_actor),
+			})
+		"combo_triggered":
+			var combo_actor = frame.get("actor")
+			spawn_effect_world("combo_triggered", _world_for_actor(combo_actor), {
+				"direction": frame.get("direction", _actor_facing(combo_actor)),
+				"intensity": 1.15,
+				"tint": _actor_color(combo_actor),
+			})
+		"teleport":
+			var teleport_actor = frame.get("actor")
+			spawn_effect_world("teleport", _world_for_actor(teleport_actor), {
+				"direction": frame.get("direction", _actor_facing(teleport_actor)),
+				"intensity": 1.0,
+				"tint": _actor_color(teleport_actor),
+			})
+		"swap":
+			var swap_actor = frame.get("actor")
+			spawn_effect_world("swap", _world_for_actor(swap_actor), {
+				"direction": frame.get("direction", _actor_facing(swap_actor)),
+				"intensity": 1.1,
+				"tint": _actor_color(swap_actor),
 			})
 		_:
 			pass

@@ -1,13 +1,11 @@
-[gd_resource type="Resource" script_class="ImpactShieldDef" format=3 uid="uid://dk5chr2gtcjgn"]
+[gd_resource type="Resource" script_class="WeaponDef" format=3 uid="uid://dk5chr2gtcjgn"]
 
-[ext_resource type="Script" uid="uid://2r3o4ivsfman" path="res://scripts/data/ImpactShieldDef.gd" id="1_weapon"]
-[ext_resource type="Resource" path="res://data/weapon_techniques/impact_lunge.tres" id="2_lunge"]
-[ext_resource type="Resource" path="res://data/weapon_techniques/impact_sweep.tres" id="3_sweep"]
+[ext_resource type="Script" path="res://scripts/data/WeaponDef.gd" id="1_weapon"]
+[ext_resource type="Resource" path="res://data/actions/attack.tres" id="2_action"]
 
 [resource]
 script = ExtResource("1_weapon")
 id = "impact_shield"
 display_name = "冲击盾"
-description = "移动撞上敌人时按速度造成伤害，并击退目标。连续同方向移动会提高速度。"
-weapon_technique_ids = Array[String](["lunge", "sweep"])
-combo_techniques = [ExtResource("2_lunge"), ExtResource("3_sweep")]
+description = "基础攻击动作是盾击。"
+attack_action = ExtResource("2_action")

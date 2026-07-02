@@ -1,5 +1,5 @@
 class_name EnemyActorView
-extends ActorView
+extends "res://scripts/view/ActorView.gd"
 
 var _installed_actor_def_id := ""
 static var _debug_enemy_frames_cache: Dictionary = {}

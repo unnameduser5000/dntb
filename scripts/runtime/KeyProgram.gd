@@ -2,12 +2,13 @@ class_name KeyProgram
 extends RefCounted
 
 ## Player-edited key program model.
-## This layer stores absolute input-token sequences only:
+## This layer stores user-facing programmable token sequences:
 ## - per-key slot token chains
 ## - spare/pool tokens not assigned to a slot
 ##
 ## In the current architecture this is the stable storage layer for the
-## player's programmable input layout. Action translation, relative trace
+## player's programmable input layout. Tokens may represent either absolute
+## directions or explicit base actions. Action translation, relative trace
 ## semantics, weapon patterns, and interference rules are built on top of it.
 ##
 ## Current token identity stays intentionally simple:
