@@ -162,9 +162,13 @@ func _build_world_slice_debug_text(state) -> String:
 		var attack_action = state.player.active_weapon.get("attack_action")
 		if attack_action != null:
 			attack_action_name = String(attack_action.display_name)
-	if not String(state.tracked_world_npc_id).is_empty():
-		tracked_name = String(state.world_npc_display_names.get(String(state.tracked_world_npc_id), String(state.tracked_world_npc_id)))
-		tracked_hint = String(state.tracked_world_npc_relative_hint) if bool(state.show_tracked_world_npc_hint) else "off"
+	var tracked_actor_id := String(state.tracked_world_actor_id) if state.get("tracked_world_actor_id") != null else ""
+	if tracked_actor_id.is_empty():
+		tracked_actor_id = String(state.tracked_world_npc_id)
+	if not tracked_actor_id.is_empty():
+		tracked_name = String(state.world_actor_display_names.get(tracked_actor_id, state.world_npc_display_names.get(tracked_actor_id, tracked_actor_id)))
+		var actor_hint := String(state.tracked_world_actor_relative_hint) if state.get("tracked_world_actor_relative_hint") != null else ""
+		tracked_hint = actor_hint if (not actor_hint.is_empty() and bool(state.show_tracked_world_actor_hint)) else (String(state.tracked_world_npc_relative_hint) if bool(state.show_tracked_world_npc_hint) else "off")
 
 	var render_rect: Rect2i = state.render_window_rect
 	return "Mode: %s\nSeed: %s\nMap Size: %dx%d\nPlayer: %s\nFacing: %s\nCurrent Tile: %s\nProgram Edit: %s\nTracked NPC: %s\nTracked Hint: %s\nWindow: %s size=%s tiles=%d\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV Reason: %s\nBoard Refreshes: %d (%.2f ms)\nFOV Recomputes: %d (%.2f ms)\nHUD Refreshes: %d\nEntity Visuals: %d\nGeneration: %.2f ms\nGeneration Breakdown: %s\nEnemy Stream: active %d / target %d | refresh %d | +%d/-%d | total +%d/-%d | reason %s\nWeapon: %s\nAttack Action: %s\nTrace: %s\nMoveDir: %s\nTavern: %s\nChallenge: %d\nChest: %d\nRuin: %d\nEgg: %d\nTerrain: plain %d | forest %d | tree %d | hill %d | mountain %d | peak %d | water %d | river %d | bridge %d | swamp %d | desert %d\nReachable: %d\nUnreachable POI: %d\nCarved Passes: %d\nHotkeys: F5 same seed | F6 new seed | V reveal | M summary" % [

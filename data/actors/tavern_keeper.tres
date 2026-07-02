@@ -13,6 +13,7 @@ map_char = "K"
 team = "neutral"
 ai_type = "none"
 color = Color(0.95, 0.78, 0.42, 1)
+interaction_enabled = true
 interaction_title = "酒馆掌柜"
 interaction_prompt = "交谈"
 interaction_lines = PackedStringArray("“别急着出门。灰钟山脉今天又起雾了，先把键位排顺再说。”", "“镇上现在靠酒馆地灯认路。灯还亮着，说明外面的路还没彻底断。”", "“每个从北边废道回来的人，都会先摸一遍自己的按键，像在确认手还听话。”")

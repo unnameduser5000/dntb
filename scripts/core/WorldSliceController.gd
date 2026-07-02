@@ -165,11 +165,17 @@ func _prepare_state_shell(state) -> void:
 	state.explored_cell_set.clear()
 	state.actors.clear()
 	state.player = null
+	state.world_actor_positions.clear()
+	state.world_actor_display_names.clear()
+	state.tracked_world_actor_id = ""
+	state.show_tracked_world_actor_hint = false
+	state.tracked_world_actor_relative_hint = ""
 	state.world_npc_positions.clear()
 	state.world_npc_display_names.clear()
 	state.tracked_world_npc_id = ""
 	state.show_tracked_world_npc_hint = false
 	state.tracked_world_npc_relative_hint = ""
+	state.defer_enemy_phase_for_interaction = false
 
 
 func _rebuild_world_slice_state(state, seed_value: String, visibility_reason: String) -> void:
@@ -221,11 +227,17 @@ func _reset_runtime_state(state) -> void:
 	state.enemy_intents.clear()
 	state.messages.clear()
 	state.reveal_all_debug = false
+	state.world_actor_positions.clear()
+	state.world_actor_display_names.clear()
+	state.tracked_world_actor_id = ""
+	state.show_tracked_world_actor_hint = false
+	state.tracked_world_actor_relative_hint = ""
 	state.world_npc_positions.clear()
 	state.world_npc_display_names.clear()
 	state.tracked_world_npc_id = ""
 	state.show_tracked_world_npc_hint = false
 	state.tracked_world_npc_relative_hint = ""
+	state.defer_enemy_phase_for_interaction = false
 	state.last_visibility_recompute_reason = ""
 	state.visible_cells.clear()
 	state.explored_cells.clear()
@@ -358,9 +370,13 @@ func _spawn_safe_zone_npcs(state, reserved: Dictionary) -> int:
 		if not npc.tags.has("tracked_npc_candidate"):
 			npc.tags.append("tracked_npc_candidate")
 		reserved[spawn_cell] = true
+		state.world_actor_positions[npc_id] = spawn_cell
+		state.world_actor_display_names[npc_id] = String(npc.display_name)
 		state.world_npc_positions[npc_id] = spawn_cell
 		state.world_npc_display_names[npc_id] = String(npc.display_name)
 		if bool(slot.get("track_by_default", false)):
+			state.tracked_world_actor_id = npc_id
+			state.show_tracked_world_actor_hint = true
 			state.tracked_world_npc_id = npc_id
 			state.show_tracked_world_npc_hint = true
 		spawned += 1
@@ -392,12 +408,15 @@ func _find_player_tavern_record(map_data) -> Dictionary:
 func _pick_safe_zone_npc_cell_for_slot(map_data, tavern_record: Dictionary, reserved: Dictionary, slot: Dictionary) -> Vector2i:
 	var candidates: Array[Dictionary] = []
 	var interaction_cell: Vector2i = Vector2i(tavern_record.get("interaction_cell", Vector2i(-1, -1)))
+	var protected_cells: Dictionary = _build_tavern_npc_protected_cells(tavern_record)
 	var preferred_tags: Array = slot.get("preferred_tags", [])
 	var avoid_tags: Array = slot.get("avoid_tags", [])
 	var anchor_cell: Vector2i = map_data.player_spawn if String(slot.get("near", "player_spawn")) == "player_spawn" else interaction_cell
 	for cell_value in tavern_record.get("occupied_cells", []):
 		var cell: Vector2i = Vector2i(cell_value)
 		if reserved.has(cell) or not map_data.is_walkable(cell):
+			continue
+		if protected_cells.has(cell):
 			continue
 		if cell == map_data.player_spawn or cell == interaction_cell:
 			continue
@@ -417,7 +436,10 @@ func _pick_safe_zone_npc_cell_for_slot(map_data, tavern_record: Dictionary, rese
 			score += 1.0
 		elif map_cell.tags.has("building_door"):
 			score -= 2.0
+		score += float(_adjacent_blocked_count(map_data, cell)) * 2.2
 		score += float(_count_walkable_cardinal_neighbors(map_data, cell)) * 0.5
+		if _is_wall_hugging_tavern_cell(map_data, cell):
+			score += 4.0
 		if anchor_cell != Vector2i(-1, -1):
 			score -= absf(cell.distance_to(anchor_cell) - 2.0) * 0.8
 		candidates.append({
@@ -432,6 +454,33 @@ func _pick_safe_zone_npc_cell_for_slot(map_data, tavern_record: Dictionary, rese
 		if cell != Vector2i(-1, -1):
 			return cell
 	return Vector2i(-1, -1)
+
+
+func _build_tavern_npc_protected_cells(tavern_record: Dictionary) -> Dictionary:
+	var protected_cells: Dictionary = {}
+	var interaction_cell: Vector2i = Vector2i(tavern_record.get("interaction_cell", Vector2i(-1, -1)))
+	if interaction_cell != Vector2i(-1, -1):
+		protected_cells[interaction_cell] = true
+	for entrance_value in tavern_record.get("entrance_cells", []):
+		var entrance_cell: Vector2i = Vector2i(entrance_value)
+		if entrance_cell == Vector2i(-1, -1):
+			continue
+		protected_cells[entrance_cell] = true
+		for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			protected_cells[entrance_cell + dir] = true
+	return protected_cells
+
+
+func _is_wall_hugging_tavern_cell(map_data, cell: Vector2i) -> bool:
+	if map_data == null:
+		return false
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var neighbor = map_data.get_cell(cell + dir)
+		if neighbor == null:
+			continue
+		if neighbor.tags.has("building_wall") or not bool(neighbor.walkable):
+			return true
+	return false
 
 
 func _pick_enemy_spawn_cells(map_data, player_cell: Vector2i, reserved: Dictionary, required_count: int) -> Array[Vector2i]:
@@ -508,14 +557,22 @@ func _count_walkable_cardinal_neighbors(map_data, cell: Vector2i) -> int:
 func _refresh_world_npc_tracking(state) -> void:
 	if state == null:
 		return
-	if state.tracked_world_npc_id.is_empty() or not bool(state.show_tracked_world_npc_hint):
+	var tracked_actor_id: String = String(state.tracked_world_actor_id)
+	if tracked_actor_id.is_empty():
+		tracked_actor_id = String(state.tracked_world_npc_id)
+	var show_hint: bool = bool(state.show_tracked_world_actor_hint) or bool(state.show_tracked_world_npc_hint)
+	if tracked_actor_id.is_empty() or not show_hint:
+		state.tracked_world_actor_relative_hint = ""
 		state.tracked_world_npc_relative_hint = ""
 		return
-	var tracked_cell: Vector2i = Vector2i(state.world_npc_positions.get(state.tracked_world_npc_id, Vector2i(-1, -1)))
+	var tracked_cell: Vector2i = Vector2i(state.world_actor_positions.get(tracked_actor_id, state.world_npc_positions.get(tracked_actor_id, Vector2i(-1, -1))))
 	if tracked_cell == Vector2i(-1, -1) or state.player == null:
+		state.tracked_world_actor_relative_hint = ""
 		state.tracked_world_npc_relative_hint = ""
 		return
-	state.tracked_world_npc_relative_hint = _relative_direction_label(state.player.grid_pos, tracked_cell)
+	var relative_hint := _relative_direction_label(state.player.grid_pos, tracked_cell)
+	state.tracked_world_actor_relative_hint = relative_hint
+	state.tracked_world_npc_relative_hint = relative_hint
 
 
 func _relative_direction_label(from_cell: Vector2i, to_cell: Vector2i) -> String:
