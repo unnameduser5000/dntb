@@ -1,5 +1,38 @@
 # Develop Log
 
+## 2026-07-02 BagUI fixed-grid layout and tooltip fallback pass
+
+- Reworked the backpack layout away from content-driven stretch sizing, which
+  had started to break once the token set and per-key chains grew.
+- Follow-up fix on `hotfix-bagUI`:
+  - clamped each left-side physical key card to `2` visible token slots by
+    default so the first stable layout does not overgrow again before per-key
+    tuning is in place;
+  - made the left-side key grid and its scroll region advertise an explicit
+    minimum width/height so Godot no longer collapses the key cards into a
+    narrow center strip when the right inventory panel claims space.
+  - fixed the actual left-panel refresh blocker: `BagUI.gd` had been looking
+    up `KeyGrid` and `BuffsList` as direct children of `LeftPanel`, but both
+    live one level deeper under scroll containers, so the left slot area had
+    silently stopped rebuilding at runtime.
+- Bag UI changes:
+  - right-side spare-token inventory now renders as a fixed-grid multi-row
+    panel with configurable column count;
+  - each left-side physical key panel now renders a configurable number of
+    fixed token slots instead of a single endlessly growing row;
+  - permanent buffs now live in a fixed-height scroll region instead of
+    pushing the rest of the bag layout around.
+- Extended token hover so each token now shows a short gameplay summary in the
+  bag UI.
+- Current limitation:
+  - the hover summary still uses a UI-local fallback map because `ActionDef`
+    does not yet expose a unified description / tooltip field.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+
 ## 2026-07-02 CI smoke stabilization on cjy branch
 
 - Replaced the direct `DialogueManager` autoload with a project-local CI-safe

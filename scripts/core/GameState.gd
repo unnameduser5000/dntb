@@ -72,11 +72,11 @@ func get_alive_enemies() -> Array:
 func key_name(key_id: String) -> String:
 	match key_id:
 		"TL":
-			return "宸﹁浆"
+			return "左转"
 		"TR":
-			return "鍙宠浆"
+			return "右转"
 		"J":
-			return "璺宠穬"
+			return "跳跃"
 	return String(KEY_NAMES.get(key_id, key_id))
 
 func drop_key_at(cell: Vector2i, key_id: String) -> void:
