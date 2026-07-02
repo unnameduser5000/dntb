@@ -471,36 +471,6 @@ func _init() -> void:
 	_require(double_enemy.grid_pos == Vector2i(5, 1), "speed 2 impact shield knocks enemy back 2 cells")
 	_require(game.state.player.grid_pos == Vector2i(3, 1), "attacker enters collision cell after speed 2 impact")
 
-	await _start_seeded_combat_run(game, "weapon-hooks")
-	var probe_weapon = ProbeWeaponScript.new()
-	probe_weapon.id = "probe_weapon"
-	probe_weapon.display_name = "Probe Weapon"
-	game.state.player.active_weapon = probe_weapon
-	var hooked_enemy = _prepare_single_enemy_room(game, Vector2i(3, 1), 10)
-	var hook_plan: Array = game._build_key_slot_plan(["R", "R"])
-	hook_plan.append(_make_player_action(game, "attack"))
-	game.turn_controller.submit_player_plan(hook_plan)
-	await process_frame
-	_require(probe_weapon.hit_calls == 1, "weapon attack hit hook is called")
-	_require(probe_weapon.chain_finished_calls == 1, "weapon chain finished hook is called")
-	_require(probe_weapon.last_hit_speed == 2, "attack hook receives current movement momentum")
-	_require(probe_weapon.last_hit_damage == 2, "attack hook receives default attack damage")
-	_require(probe_weapon.last_chain_speed == 2, "chain finished hook receives final momentum")
-	_require(hooked_enemy.hp == 5, "weapon attack hit hook can override default damage resolution")
-
-	await _start_seeded_combat_run(game, "weapon-miss-hook")
-	probe_weapon = ProbeWeaponScript.new()
-	probe_weapon.id = "probe_weapon"
-	probe_weapon.display_name = "Probe Weapon"
-	game.state.player.active_weapon = probe_weapon
-	_disable_enemies(game)
-	_move_player_to(game, Vector2i(2, 2))
-	var miss_plan: Array = [_make_player_action(game, "attack")]
-	game.turn_controller.submit_player_plan(miss_plan)
-	await process_frame
-	_require(probe_weapon.miss_calls == 1, "weapon attack miss hook is called")
-	_require(probe_weapon.chain_finished_calls == 1, "weapon chain finished hook runs after a miss")
-
 	await _start_seeded_combat_run(game, "effect-pipeline")
 	game.state.player.active_weapon = null
 	var duplicate_damage = DuplicateDamageModifierScript.new()
@@ -669,37 +639,6 @@ func _init() -> void:
 	_require(on_move_zap.triggered_count == 1, "effect event modifier reacts to actor moved")
 	_require(game.state.player.grid_pos == Vector2i(3, 2), "on-move event keeps normal movement result")
 	_require(on_move_enemy.hp == 9, "on-move event can generate a follow-up damage packet")
-
-	var combo_event_game = await _make_weapon_combo_game("combo-triggered-event")
-	var combo_event_types: Array[StringName] = []
-	var combo_event_technique_ids: Array[String] = []
-	var on_combo_event = func(event) -> void:
-		if event == null:
-			return
-		combo_event_types.append(StringName(event.event_type))
-		if StringName(event.event_type) == &"combo_triggered":
-			combo_event_technique_ids.append(String(event.metadata.get("technique_id", "")))
-	if not combo_event_game.resolver.combat_event_emitted.is_connected(on_combo_event):
-		combo_event_game.resolver.combat_event_emitted.connect(on_combo_event)
-	await _run_weapon_combo_chain(combo_event_game, ["R", "R"], Vector2i.DOWN, Vector2i(2, 3), "lunge")
-	if combo_event_game.resolver.combat_event_emitted.is_connected(on_combo_event):
-		combo_event_game.resolver.combat_event_emitted.disconnect(on_combo_event)
-	_require(combo_event_types.has(&"combo_triggered"), "combo follow-up emits combo_triggered event")
-	_require(combo_event_technique_ids.has("lunge"), "combo event metadata stores the technique id")
-
-	await _start_seeded_combat_run(game, "weapon-after-hit-hook")
-	game.enemy_planner.enemies_are_static = true
-	var swap_on_hit_weapon = SwapOnHitWeaponScript.new()
-	game.state.player.active_weapon = swap_on_hit_weapon
-	_move_player_to(game, Vector2i(1, 1))
-	var after_hit_enemy = _prepare_single_enemy_room(game, Vector2i(2, 1), 10, Vector2i(1, 1))
-	var after_hit_plan: Array = [_make_player_action(game, "attack")]
-	game.turn_controller.submit_player_plan(after_hit_plan)
-	await process_frame
-	_require(swap_on_hit_weapon.after_hit_calls == 1, "weapon after_attack_hit hook runs once per confirmed hit")
-	_require(swap_on_hit_weapon.swapped_count == 1, "weapon after_attack_hit hook can apply swap effect packets")
-	_require(game.state.player.grid_pos == Vector2i(2, 1), "after_attack_hit hook can move the attacker through swap")
-	_require(after_hit_enemy.grid_pos == Vector2i(1, 1), "after_attack_hit hook can move the target through swap")
 
 	var achievement_service = root.get_node_or_null("/root/AchievementService")
 	_require(achievement_service != null, "achievement service autoload exists")

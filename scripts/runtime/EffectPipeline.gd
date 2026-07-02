@@ -1,6 +1,7 @@
 class_name EffectPipeline
 extends RefCounted
 
+const ActionDefScript := preload("res://scripts/data/ActionDef.gd")
 const EffectPacketScript := preload("res://scripts/runtime/EffectPacket.gd")
 const EffectEventScript := preload("res://scripts/runtime/EffectEvent.gd")
 const DEFAULT_MAX_EVENT_DEPTH := 3
@@ -286,6 +287,6 @@ func _modifier_priority(modifier) -> int:
 func _is_attack_packet(packet) -> bool:
 	if packet == null:
 		return false
-	if packet.action != null and packet.action.def != null and int(packet.action.def.kind) == int(ActionDef.ActionKind.ATTACK):
+	if packet.action != null and packet.action.def != null and int(packet.action.def.kind) == int(ActionDefScript.ActionKind.ATTACK):
 		return true
 	return packet.has_tag(&"attack")

@@ -1,6 +1,7 @@
 class_name ActionPreviewService
 extends RefCounted
 
+const ActionDefScript := preload("res://scripts/data/ActionDef.gd")
 const ActionTraceRecorderScript := preload("res://scripts/core/ActionTraceRecorder.gd")
 
 var _trace_recorder = ActionTraceRecorderScript.new()
@@ -41,14 +42,14 @@ func build_preview_from_actions(actions: Array, state) -> Dictionary:
 		var after_pos := preview_pos
 
 		match int(action_def.kind):
-			ActionDef.ActionKind.MOVE:
+			ActionDefScript.ActionKind.MOVE:
 				if action_id == "move_key" and action_dir != Vector2i.ZERO:
 					preview_facing = action_dir
 				if action_id == "jump":
 					after_pos = _preview_jump(state, preview_pos, action_dir, move_cells, max(1, int(action_def.range)))
 				else:
 					after_pos = _preview_move(state, preview_pos, action_dir, move_cells, attack_cells, max(1, int(action_def.range)))
-			ActionDef.ActionKind.ATTACK:
+			ActionDefScript.ActionKind.ATTACK:
 				if action_id == "lunge":
 					var lunge_cells := _preview_attack_cells(state, preview_pos, action_dir, action_def)
 					_add_unique_cells(attack_cells, lunge_cells)
@@ -56,7 +57,7 @@ func build_preview_from_actions(actions: Array, state) -> Dictionary:
 						after_pos = _preview_move(state, preview_pos, action_dir, move_cells, attack_cells, max(1, int(action_def.range)))
 				else:
 					_add_unique_cells(attack_cells, _preview_attack_cells(state, preview_pos, action_dir, action_def))
-			ActionDef.ActionKind.TURN:
+			ActionDefScript.ActionKind.TURN:
 				preview_facing = _preview_turn(preview_facing, action_id)
 			_:
 				pass
