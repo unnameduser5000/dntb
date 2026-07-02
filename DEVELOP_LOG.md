@@ -1,5 +1,61 @@
 # Develop Log
 
+## 2026-07-02 World-slice tavern editability bug fix
+
+- Fixed the world-slice backpack editor so it no longer unlocks only on a
+  narrow subset of tavern tiles.
+- The previous check only accepted tavern cells tagged as:
+  - `building_floor`
+  - `building_door`
+  - `building_open_ground`
+  which incorrectly relocked the bag when the player stood on the tavern's
+  walkable interaction tile.
+- The new check treats any walkable cell inside the tavern footprint as a
+  valid safe editing area, as long as the cell still carries tavern-related
+  structure tags.
+- Updated the smoke test helper so world-slice editability assertions now also
+  cover a tavern interactable tile.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+
+## 2026-07-02 Bag drag-drop hitbox tolerance pass
+
+- Relaxed bag drag-and-drop targeting so slot assignment no longer requires
+  overly precise placement.
+- The previous interaction issue came from child controls inside a key slot
+  intercepting the drop:
+  - dropping onto an occupied token did not count as dropping onto its slot;
+  - dropping onto an empty placeholder cell could be swallowed before the
+    parent slot received the event.
+- Updated the bag UI so:
+  - dropping onto an existing token now routes to that token's slot/pool;
+  - empty placeholder cells ignore pointer hit-testing for drop handling, so
+    the parent slot panel can accept the drop more reliably.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+
+## 2026-07-02 Locked-slot visual error feedback pass
+
+- Added explicit visual feedback for backpack key slots when the player tries
+  to rearrange bindings while editing is locked.
+- Locked interaction now flashes the touched key slot red instead of failing
+  silently, which makes the "not editable here" state much clearer during
+  battle or outside tavern safe tiles.
+- Also updated the world-slice smoke helper so its manual player relocation
+  path explicitly recomputes visibility/events through the world controller
+  after the tavern safe-area footprint was widened.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+
 ## 2026-07-02 BagUI fixed-grid layout and tooltip fallback pass
 
 - Reworked the backpack layout away from content-driven stretch sizing, which

@@ -615,14 +615,15 @@ func _is_player_in_world_slice_rest_area() -> bool:
 	var map_cell = state.map_data.get_cell(state.player.grid_pos)
 	if map_cell == null:
 		return false
-	if map_cell.tags.has("building_floor") or map_cell.tags.has("building_door") or map_cell.tags.has("building_open_ground"):
-		for tag in map_cell.tags:
-			if String(tag) == "poi:tavern":
-				return true
-			if String(tag).begins_with("structure:tavern"):
-				return true
-			if String(tag).begins_with("building:tavern_"):
-				return true
+	if not bool(map_cell.walkable):
+		return false
+	for tag in map_cell.tags:
+		if String(tag) == "poi:tavern":
+			return true
+		if String(tag).begins_with("structure:tavern"):
+			return true
+		if String(tag).begins_with("building:tavern_"):
+			return true
 	return false
 
 func _update_enemy_preview() -> void:
