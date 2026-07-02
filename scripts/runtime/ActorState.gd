@@ -17,9 +17,11 @@ var effect_modifiers: Array = []
 
 func setup(new_id: int, actor_def, start_cell: Vector2i) -> void:
 	def = actor_def
-	var item_kind := GridItemKind.ENEMY
+	var item_kind := GridItemKind.ACTOR
 	if actor_def.team == "player":
 		item_kind = GridItemKind.PLAYER
+	elif actor_def.team == "enemy":
+		item_kind = GridItemKind.ENEMY
 	setup_grid_item(new_id, actor_def.id, item_kind, start_cell, true)
 	display_name = actor_def.display_name
 	max_hp = actor_def.max_hp

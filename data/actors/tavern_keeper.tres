@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="NpcDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/NpcDef.gd" id="1_npc"]
+
+[resource]
+script = ExtResource("1_npc")
+id = "tavern_keeper"
+display_name = "酒馆掌柜"
+max_hp = 1
+max_san = 0
+atk = 0
+map_char = "K"
+team = "neutral"
+ai_type = "none"
+color = Color(0.95, 0.78, 0.42, 1)
+interaction_title = "酒馆掌柜"
+interaction_prompt = "交谈"
+interaction_lines = PackedStringArray("“别急着出门。灰钟山脉今天又起雾了，先把键位排顺再说。”", "“镇上现在靠酒馆地灯认路。灯还亮着，说明外面的路还没彻底断。”", "“每个从北边废道回来的人，都会先摸一遍自己的按键，像在确认手还听话。”")
