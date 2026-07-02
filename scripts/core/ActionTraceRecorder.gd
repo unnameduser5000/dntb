@@ -1,6 +1,7 @@
 class_name ActionTraceRecorder
 extends RefCounted
 
+const ActionDefScript := preload("res://scripts/data/ActionDef.gd")
 const ActionTraceEntryScript := preload("res://scripts/runtime/ActionTraceEntry.gd")
 
 ## Records a lightweight execution trace after an action has already resolved.
@@ -93,7 +94,7 @@ func resolve_symbol_from_execution(
 
 	var action_id := String(action.def.id)
 	var moved := actor_before_cell != actor_after_cell
-	if action.def.kind == ActionDef.ActionKind.MOVE and not moved:
+	if action.def.kind == ActionDefScript.ActionKind.MOVE and not moved:
 		return &""
 	match action_id:
 		"move_key":
@@ -125,7 +126,7 @@ func _build_tags(action, actor_before_cell: Vector2i, actor_before_facing: Vecto
 		result.append(&"relative_move")
 	if symbol == &"TL" or symbol == &"TR":
 		result.append(&"relative_turn")
-	if action.def.kind == ActionDef.ActionKind.ATTACK:
+	if action.def.kind == ActionDefScript.ActionKind.ATTACK:
 		result.append(&"attack")
 	return result
 

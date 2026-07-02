@@ -16,8 +16,8 @@ const BagUIScript = preload("res://scripts/view/BagUI.gd")
 
 @onready var _panel: PanelContainer = %BattlePanel
 @onready var _overlay: Control = %Overlay
-@onready var _hud: BattleHud = %BattleHud
-@onready var _run_sidebar: RunSidebar = %RunSidebar
+@onready var _hud: Control = %BattleHud
+@onready var _run_sidebar: Control = %RunSidebar
 @onready var _rest_continue_button: Button = %RestContinueButton
 @onready var _overlay_title: Label = %OverlayTitle
 @onready var _overlay_body: Label = %OverlayBody

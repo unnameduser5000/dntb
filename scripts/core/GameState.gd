@@ -56,14 +56,6 @@ var effect_modifiers: Array = []
 var is_safe_training: bool = false
 var is_world_slice: bool = false
 var action_trace = null
-## Battle execution reads unlocked technique ids from state so combo /
-## chain-finished systems do not need to reach back into Game.gd run fields.
-## Reserved for future weapon mastery / sealed-technique rules.
-## Current combo availability comes from the equipped weapon itself.
-var unlocked_weapon_technique_ids: Array[String] = []
-## Latest recognized weapon-combo matches per actor, refreshed when that
-## actor's action chain reaches its chain-finished timing.
-var weapon_combo_matches_by_actor: Dictionary = {}
 
 func add_actor(actor) -> void:
 	actors.append(actor)
@@ -116,27 +108,3 @@ func clear_visibility() -> void:
 	visible_cell_set.clear()
 	explored_cell_set.clear()
 	last_visibility_recompute_reason = ""
-
-
-func set_unlocked_weapon_technique_ids(technique_ids: Array[String]) -> void:
-	unlocked_weapon_technique_ids = technique_ids.duplicate()
-
-
-func set_weapon_combo_matches_for_actor(actor_id: int, matches: Array) -> void:
-	weapon_combo_matches_by_actor[actor_id] = matches.duplicate(true)
-
-
-func clear_weapon_combo_matches() -> void:
-	weapon_combo_matches_by_actor.clear()
-
-
-func get_weapon_combo_matches_for_actor(actor_id: int, trigger_timing: int = -1) -> Array:
-	var cached_matches = weapon_combo_matches_by_actor.get(actor_id, [])
-	if trigger_timing < 0:
-		return cached_matches.duplicate(true)
-
-	var filtered: Array = []
-	for match_data in cached_matches:
-		if int(match_data.get("trigger_timing", -1)) == trigger_timing:
-			filtered.append(match_data.duplicate(true))
-	return filtered

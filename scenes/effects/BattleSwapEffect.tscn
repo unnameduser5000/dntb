@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/BattleEffect.gd" id="1_effect"]
+
+[node name="BattleSwapEffect" type="Node2D"]
+script = ExtResource("1_effect")
+effect_kind = "swap"
+duration = 0.22
+radius = 18.0
+line_width = 2.0
+primary_color = Color(0.568627, 1, 0.627451, 1)
+secondary_color = Color(0.231373, 0.760784, 0.937255, 1)
+align_to_direction = false
+use_particle_burst = true
+particle_amount = 10

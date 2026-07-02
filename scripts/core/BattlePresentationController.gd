@@ -206,7 +206,7 @@ func present_frames_non_blocking(frames: Array) -> void:
 				_present_actor_damaged_non_blocking(frame)
 			"actor_died":
 				_present_actor_died_non_blocking(frame)
-			"attack_missed", "move_collision":
+			"attack_missed", "move_collision", "combo_triggered", "teleport", "swap":
 				if effect_controller != null and effect_controller.has_method("play_frame"):
 					effect_controller.play_frame(frame)
 			_:
@@ -247,7 +247,7 @@ func play_frames(frames: Array) -> void:
 				await _play_actor_damaged(frame)
 			"actor_died":
 				await _play_actor_died(frame)
-			"attack_missed", "move_collision":
+			"attack_missed", "move_collision", "combo_triggered", "teleport", "swap":
 				pass
 			_:
 				pass

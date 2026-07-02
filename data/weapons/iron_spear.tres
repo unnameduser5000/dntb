@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/WeaponDef.gd" id="1_weapon"]
+[ext_resource type="Resource" path="res://data/actions/charge_thrust.tres" id="2_action"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = "iron_spear"
+display_name = "铁枪"
+description = "基础攻击动作是贯刺。"
+attack_action = ExtResource("2_action")

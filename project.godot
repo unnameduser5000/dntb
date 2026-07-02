@@ -27,7 +27,7 @@ PlayerInputService="*res://scripts/core/PlayerInputService.gd"
 CurseService="*res://scripts/core/CurseService.gd"
 EnemySpawnService="*res://scripts/core/EnemySpawnService.gd"
 EconomyService="*res://scripts/core/EconomyService.gd"
-DialogueManager="*res://addons/dialogue_manager/dialogue_manager.gd"
+DialogueManager="*res://scripts/core/DialogueManagerAutoload.gd"
 DialogueService="*res://scripts/core/DialogueService.gd"
 
 [display]
