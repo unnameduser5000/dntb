@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="NpcDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/NpcDef.gd" id="1_npc"]
+
+[resource]
+script = ExtResource("1_npc")
+id = "road_warden"
+display_name = "旧路巡记员"
+max_hp = 1
+max_san = 0
+atk = 0
+map_char = "W"
+team = "neutral"
+ai_type = "none"
+color = Color(0.62, 0.84, 0.95, 1)
+interaction_title = "旧路巡记员"
+interaction_prompt = "交谈"
+interaction_lines = PackedStringArray("“东边山口的路桩昨晚又少了一截。不是风刮的，是有人摸黑把它拖走了。”", "“挑战入口附近常有回声，不像怪物，更像旧机器还在地下喘气。”", "“真要往外走，记住一件事：酒馆是给人重排动作的，不是给人忘路的。”")

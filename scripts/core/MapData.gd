@@ -22,6 +22,7 @@ var connectivity_report: Dictionary = {}
 var generation_total_ms: float = 0.0
 var generation_breakdown_ms: Dictionary = {}
 var poi_records: Array[Dictionary] = []
+var npc_spawn_records: Array[Dictionary] = []
 var building_stamp_results: Array[Dictionary] = []
 var stamp_success_count: int = 0
 var stamp_failure_count: int = 0
@@ -50,6 +51,7 @@ func setup(new_width: int, new_height: int) -> void:
 	generation_total_ms = 0.0
 	generation_breakdown_ms.clear()
 	poi_records.clear()
+	npc_spawn_records.clear()
 	building_stamp_results.clear()
 	stamp_success_count = 0
 	stamp_failure_count = 0
@@ -217,6 +219,7 @@ func get_all_poi_entries() -> Array[Dictionary]:
 				"size": Vector2i(record.get("size", Vector2i.ZERO)),
 				"entrance_cells": Array(record.get("entrance_cells", [])),
 				"occupied_cells": Array(record.get("occupied_cells", [])),
+				"npc_spawn_slots": Array(record.get("npc_spawn_slots", [])),
 				"tags": Array(record.get("tags", [])),
 			}
 			records.append(entry)
@@ -354,6 +357,13 @@ func register_poi_record(record: Dictionary) -> void:
 	elif existing_type_count == 0 and poi_type == "shrine":
 		shrine_cells.clear()
 	poi_records.append(record.duplicate(true))
+	for npc_spawn_record in record.get("npc_spawn_slots", []):
+		var copy: Dictionary = Dictionary(npc_spawn_record).duplicate(true)
+		copy["poi_id"] = String(record.get("id", ""))
+		copy["poi_type"] = poi_type
+		copy["interaction_cell"] = Vector2i(record.get("interaction_cell", INVALID_CELL))
+		copy["occupied_cells"] = Array(record.get("occupied_cells", []))
+		npc_spawn_records.append(copy)
 	var interaction_cell: Vector2i = Vector2i(record.get("interaction_cell", INVALID_CELL))
 	match poi_type:
 		"tavern":
@@ -399,6 +409,10 @@ func get_building_count_by_type() -> Dictionary:
 
 func get_building_failure_summary() -> Dictionary:
 	return building_failure_summary.duplicate(true)
+
+
+func get_npc_spawn_records() -> Array[Dictionary]:
+	return npc_spawn_records.duplicate(true)
 
 
 func _add_tag(cell: Vector2i, tag: String) -> void:

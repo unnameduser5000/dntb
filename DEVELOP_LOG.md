@@ -1,5 +1,49 @@
 # Develop Log
 
+## 2026-07-02 Safe-zone NPC interaction pass
+
+- Added a lightweight world-slice NPC interaction layer anchored to tavern
+  safe zones instead of scattering neutral actors across the full generated
+  map.
+- Introduced `NpcDef.gd` plus two first-pass tavern residents:
+  - `酒馆掌柜`
+  - `旧路巡记员`
+- Added `NpcInteractionService.gd` so world-slice interaction no longer needs
+  to piggyback on the programmable key slots:
+  - player uses `ui_accept` / 确认键
+  - service finds an adjacent NPC
+  - dialogue rotates through short lore lines
+  - output lands in `GameState.messages`
+- Updated `WorldSliceController.gd` so NPC spawn selection is derived from the
+  stamped tavern footprint that contains the player spawn:
+  - NPC candidates come from tavern `occupied_cells`
+  - only walkable tavern-floor / yard cells are considered
+  - occupied spawn, interaction, and reserved cells are excluded
+  - result stays constrained to the safe area by construction
+- Kept the existing world placeholder prop and enemy streaming flow intact;
+  this pass only adds tavern-local neutral residents and interaction text.
+- Documented the current building-generation chain more explicitly as:
+  - anchor picking in `POIPlacementService.gd`
+  - staged local/global candidate search in `BuildingPlacementService.gd`
+  - final footprint stamping in `PatternStampService.gd`
+- Follow-up pass:
+  - moved NPC eligibility into tavern pattern data via `npc_spawn_slots`
+  - kept the first live strategy intentionally narrow: only the player-spawn
+    tavern generates one `tavern_keeper`
+  - added runtime tracking fields for:
+    - NPC world coordinates
+    - tracked NPC id
+    - relative-direction hint text
+    - display-toggle bool
+  - world-slice NPC interaction now also accepts `F` as a direct shortcut when
+    the player is adjacent to the NPC, while preserving the normal `F` key-slot
+    behavior when no interaction target is nearby
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+
 ## 2026-07-02 World-slice tavern editability bug fix
 
 - Fixed the world-slice backpack editor so it no longer unlocks only on a

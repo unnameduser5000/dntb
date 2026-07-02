@@ -283,6 +283,36 @@ func _init() -> void:
 	_require(_is_world_slice_rest_area_cell(world_game.state.map_data, tavern_interactable_cell), "tavern interactable cell also counts as editable rest area")
 	_require(String(world_game.state.messages[0]).contains("酒馆休息区"), "world slice start announces tavern rest-area editing")
 	_require(_count_world_slice_props(world_game.state) >= 1, "world slice places at least one world prop")
+	var world_npcs: Array = world_game.get_world_slice_npcs()
+	_require(world_npcs.size() == 1, "world slice spawns exactly one tavern host NPC near the world spawn")
+	for npc in world_npcs:
+		_require(npc.tags.has("safe_zone_npc"), "world slice NPCs are tagged as safe-zone residents")
+		_require(_is_world_slice_rest_area_cell(world_game.state.map_data, npc.grid_pos), "world slice keeps NPCs inside the tavern safe area")
+	var tavern_keeper = _find_world_slice_npc(world_game, "tavern_keeper")
+	_require(tavern_keeper != null, "world slice includes the tavern keeper NPC")
+	_require(Vector2i(world_game.state.world_npc_positions.get("tavern_keeper", Vector2i(-1, -1))) == tavern_keeper.grid_pos, "world slice records tavern NPC coordinates in runtime state")
+	_require(String(world_game.state.tracked_world_npc_id) == "tavern_keeper", "world slice tracks the tavern keeper by default")
+	_require(bool(world_game.state.show_tracked_world_npc_hint), "world slice enables tracked NPC hint display by default")
+	_require(not String(world_game.state.tracked_world_npc_relative_hint).is_empty(), "world slice computes a relative direction hint to the tracked NPC")
+	var tavern_keeper_talk_cell: Vector2i = _find_walkable_adjacent_world_cell(world_game.state, tavern_keeper.grid_pos)
+	_require(tavern_keeper_talk_cell != Vector2i(-1, -1), "tavern keeper has a reachable adjacent interaction cell")
+	var previous_npc_test_cell: Vector2i = world_game.state.player.grid_pos
+	_move_player_to(world_game, tavern_keeper_talk_cell)
+	if world_game._world_slice_controller != null:
+		world_game._world_slice_controller.on_player_moved(world_game.state, previous_npc_test_cell, tavern_keeper_talk_cell)
+	world_game._refresh_views()
+	await process_frame
+	_require(String(world_game.state.tracked_world_npc_relative_hint) == "西（1 格）" or String(world_game.state.tracked_world_npc_relative_hint) == "东（1 格）" or String(world_game.state.tracked_world_npc_relative_hint) == "北（1 格）" or String(world_game.state.tracked_world_npc_relative_hint) == "南（1 格）", "world slice updates tracked NPC direction after the player moves next to the target")
+	_require(world_game._try_interact_with_world_npc(), "world slice can interact with an adjacent tavern NPC")
+	_require(String(world_game.state.messages[0]).contains("酒馆掌柜"), "world slice NPC interaction adds tavern dialogue to the message log")
+	var interaction_message_before_f: String = String(world_game.state.messages[0])
+	var f_interaction_event := InputEventKey.new()
+	f_interaction_event.keycode = KEY_F
+	f_interaction_event.pressed = true
+	world_game._unhandled_input(f_interaction_event)
+	await process_frame
+	_require(String(world_game.state.messages[0]).contains("酒馆掌柜"), "pressing F near a tavern NPC also triggers interaction")
+	_require(String(world_game.state.messages[0]) != interaction_message_before_f, "F-key interaction advances NPC dialogue instead of replaying the same line")
 	_require(world_game.state.map_data.get_poi_records().size() >= 5, "world slice generates footprint-based poi records")
 	_require(_world_slice_has_poi_type(world_game.state.map_data, "tavern"), "world slice generates a tavern footprint")
 	_require(_world_slice_has_poi_type(world_game.state.map_data, "challenge_entrance"), "world slice generates a challenge footprint")
@@ -854,6 +884,29 @@ func _find_world_slice_tavern_interactable_cell(map_data) -> Vector2i:
 			var text := String(tag)
 			if text == "poi:tavern" or text.begins_with("structure:tavern") or text.begins_with("building:tavern_"):
 				return cell
+	return Vector2i(-1, -1)
+
+
+func _find_world_slice_npc(game, npc_id: String):
+	if game == null:
+		return null
+	for npc in game.get_world_slice_npcs():
+		if npc != null and npc.def != null and String(npc.def.id) == npc_id:
+			return npc
+	return null
+
+
+func _find_walkable_adjacent_world_cell(state, origin: Vector2i) -> Vector2i:
+	if state == null or state.map_data == null or state.grid == null:
+		return Vector2i(-1, -1)
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var cell: Vector2i = origin + dir
+		if not state.map_data.is_walkable(cell):
+			continue
+		var occupant = state.grid.get_actor(cell)
+		if occupant != null and occupant != state.player:
+			continue
+		return cell
 	return Vector2i(-1, -1)
 
 
