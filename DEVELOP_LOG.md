@@ -1,5 +1,25 @@
 # Develop Log
 
+## 2026-07-02 CI smoke stabilization on cjy branch
+
+- Replaced the direct `DialogueManager` autoload with a project-local CI-safe
+  wrapper so headless smoke no longer compiles the third-party runtime plugin
+  graph on this branch.
+- Updated `DialogueService.gd` to query the wrapper's runtime availability
+  instead of assuming the plugin autoload means the runtime is usable.
+- Trimmed and rewritten outdated `SmokeTest.gd` sections that still depended on
+  the removed weapon hook / combo architecture:
+  - removed `supports_technique` assertions
+  - removed combo lab / combo preview / combo follow-up expectations
+  - updated token-pool expectations to match the current programmable token set
+  - updated pool drag logic so tests no longer assume a fixed pool order
+
+Validation notes:
+
+- Did not run Godot locally in this pass.
+- Used the CI failure log plus static cross-checks to remove the identified
+  blocking references and parse-time dependencies.
+
 ## 2026-07-02 Weapon model rewritten into action API
 
 - Rewrote the live weapon model away from `WeaponDef hook + combo technique`

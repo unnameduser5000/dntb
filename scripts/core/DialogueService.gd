@@ -49,7 +49,12 @@ func start_dialogue(resource_or_path, cue: String = "", extra_game_states: Array
 
 
 func is_plugin_available() -> bool:
-	return get_node_or_null("/root/DialogueManager") != null
+	var manager = get_node_or_null("/root/DialogueManager")
+	if manager == null:
+		return false
+	if manager.has_method("is_runtime_available"):
+		return bool(manager.call("is_runtime_available"))
+	return true
 
 
 func _resolve_dialogue_resource(resource_or_path):
