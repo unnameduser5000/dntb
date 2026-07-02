@@ -3,6 +3,8 @@ extends Control
 
 signal bag_requested
 signal menu_requested
+signal map_mode_requested(mode: String)
+signal map_zoom_requested(direction: int)
 
 @onready var _inventory_panel: PanelContainer = %InventoryPanel
 @onready var _debug_panel: PanelContainer = %DebugPanel
@@ -12,6 +14,10 @@ signal menu_requested
 @onready var _debug_close_button: Button = %DebugCloseButton
 @onready var _inventory_list: VBoxContainer = %InventoryList
 @onready var _debug_text: Label = %DebugText
+@onready var _zoom_in_button: Button = %ZoomInButton
+@onready var _zoom_out_button: Button = %ZoomOutButton
+@onready var _pan_button: Button = %PanButton
+@onready var _pointer_button: Button = %PointerButton
 
 var _inventory_items: Array = []
 var _debug_messages: Array[String] = []
@@ -23,6 +29,10 @@ func _ready() -> void:
 	_menu_button.pressed.connect(_on_menu_button_pressed)
 	_inventory_close_button.pressed.connect(func() -> void: _inventory_panel.visible = false)
 	_debug_close_button.pressed.connect(func() -> void: _debug_panel.visible = false)
+	_zoom_in_button.pressed.connect(func() -> void: map_zoom_requested.emit(-1))
+	_zoom_out_button.pressed.connect(func() -> void: map_zoom_requested.emit(1))
+	_pan_button.toggled.connect(func(on: bool) -> void: if on: map_mode_requested.emit("pan"))
+	_pointer_button.toggled.connect(func(on: bool) -> void: if on: map_mode_requested.emit("pointer"))
 	_refresh_inventory()
 	_refresh_debug()
 	_inventory_panel.visible = false
