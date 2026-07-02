@@ -7,16 +7,26 @@ var source_index: int = -1
 var editable: bool = true
 
 
-func setup(new_key_id: String, new_source_slot_id: String, new_source_index: int, label: String, is_editable: bool = true) -> void:
+func setup(
+	new_key_id: String,
+	new_source_slot_id: String,
+	new_source_index: int,
+	label: String,
+	is_editable: bool = true,
+	custom_tooltip: String = "",
+	cell_size: Vector2 = Vector2(54, 36)
+) -> void:
 	key_id = new_key_id
 	source_slot_id = new_source_slot_id
 	source_index = new_source_index
 	editable = is_editable
 	text = label
-	tooltip_text = "拖拽到按键槽里编排行动" if editable else "行动编码已锁定：只能在休息处调整"
-	custom_minimum_size = Vector2(54, 36)
+	tooltip_text = custom_tooltip if not custom_tooltip.is_empty() else ("拖拽到按键槽里编排行动" if editable else "行动编码已锁定：只能在休息处调整")
+	custom_minimum_size = cell_size
 	theme_type_variation = &"ActionCard"
-	disabled = not editable
+	disabled = false
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	focus_mode = Control.FOCUS_NONE
 
 
 func _get_drag_data(_at_position: Vector2):

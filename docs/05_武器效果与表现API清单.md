@@ -266,6 +266,21 @@ Checklist：
 
 优先级：高
 
+#### A-3 缺少统一的动作简介 / tooltip 数据接口
+
+现状问题：
+
+- `ActionDef.gd` 目前只有 `display_name`、`short_name`、`kind`、`range`、`power` 等字段，没有统一 `description`。
+- 背包页在 token hover 时需要显示动作简介，当前只能在 UI 层维护本地说明兜底。
+
+Checklist：
+
+- [ ] 给 `ActionDef` 增加统一 `description` 或 `tooltip_text` 字段。
+- [ ] 明确基础 token（方向、前进、后退、攻击、防御、等待、跳跃）如何映射到对应动作简介。
+- [ ] 让背包 UI 改为直接读取动作数据，而不是继续维护本地 token 说明表。
+
+优先级：中高
+
 ### 3.2 移动系统缺口
 
 #### M-1 缺少统一的阻挡原因与 fallback 约定
