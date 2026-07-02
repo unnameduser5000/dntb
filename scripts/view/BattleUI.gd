@@ -23,6 +23,10 @@ const BagUIScript = preload("res://scripts/view/BagUI.gd")
 @onready var _overlay_body: Label = %OverlayBody
 @onready var _overlay_buttons: VBoxContainer = %OverlayButtons
 @onready var _bag_ui = %BagUI
+@onready var _npc_dialogue_panel: PanelContainer = %NpcDialoguePanel
+@onready var _npc_dialogue_title: Label = %NpcDialogueTitle
+@onready var _npc_dialogue_body: Label = %NpcDialogueBody
+@onready var _npc_dialogue_hint: Label = %NpcDialogueHint
 
 var _key_program_editable := false
 var _permanent_buffs: Array[Dictionary] = []
@@ -102,6 +106,37 @@ func toggle_bag() -> void:
 
 func is_bag_open() -> bool:
 	return _bag_ui.is_open()
+
+
+func show_world_npc_dialogue(title_text: String, body_text: String, hint_text: String = "按任意键关闭") -> void:
+	if _npc_dialogue_panel == null:
+		return
+	_npc_dialogue_title.text = title_text
+	_npc_dialogue_body.text = body_text
+	_npc_dialogue_hint.text = hint_text
+	_npc_dialogue_panel.visible = true
+
+
+func hide_world_npc_dialogue() -> void:
+	if _npc_dialogue_panel == null:
+		return
+	_npc_dialogue_panel.visible = false
+
+
+func is_world_npc_dialogue_visible() -> bool:
+	return _npc_dialogue_panel != null and _npc_dialogue_panel.visible
+
+
+func show_world_actor_dialogue(title_text: String, body_text: String, hint_text: String = "按任意键关闭") -> void:
+	show_world_npc_dialogue(title_text, body_text, hint_text)
+
+
+func hide_world_actor_dialogue() -> void:
+	hide_world_npc_dialogue()
+
+
+func is_world_actor_dialogue_visible() -> bool:
+	return is_world_npc_dialogue_visible()
 
 
 func update_state(state) -> void:

@@ -7,6 +7,7 @@ enum ActionKind {
 	TURN,
 	WAIT,
 	GUARD,
+	INTERACT,
 }
 
 @export var id: String = ""

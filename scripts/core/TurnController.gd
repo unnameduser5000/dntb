@@ -71,6 +71,9 @@ func execute_turn() -> void:
 	_resolve_action_chain_finished(player_plan)
 	if _check_battle_end():
 		return
+	if _should_pause_for_interaction():
+		_abort_turn_cycle_for_interaction()
+		return
 
 	if enemy_planner != null:
 		var enemy_plan = enemy_planner.make_enemy_actions(state)
@@ -202,6 +205,9 @@ func _run_turn_with_presentation() -> void:
 	_resolve_action_chain_finished(player_plan)
 	if _check_battle_end():
 		return
+	if _should_pause_for_interaction():
+		_abort_turn_cycle_for_interaction()
+		return
 
 	if enemy_planner != null:
 		var enemy_plan: Array = enemy_planner.make_enemy_actions(state)
@@ -281,6 +287,18 @@ func _finish_turn_cycle() -> void:
 		curse_service.tick_turn()
 	state.phase = "planning"
 	turn_finished.emit()
+	planning_started.emit()
+
+
+func _should_pause_for_interaction() -> bool:
+	return state != null and bool(state.defer_enemy_phase_for_interaction)
+
+
+func _abort_turn_cycle_for_interaction() -> void:
+	if state == null:
+		return
+	state.defer_enemy_phase_for_interaction = false
+	state.phase = "planning"
 	planning_started.emit()
 
 

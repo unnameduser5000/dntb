@@ -38,6 +38,35 @@
   - world-slice NPC interaction now also accepts `F` as a direct shortcut when
     the player is adjacent to the NPC, while preserving the normal `F` key-slot
     behavior when no interaction target is nearby
+  - added a dedicated bottom-center dialogue panel in `BattleUI` for world-slice
+    NPC interaction:
+    - initial live NPC is the `K` glyph tavern keeper
+    - confirm / `F` advances the current conversation
+    - `Esc` closes the conversation explicitly
+    - while the panel is open, world-slice action submission is frozen so the
+      next enemy turn cannot begin before the interaction ends
+  - follow-up fix:
+    - world-slice NPC interaction now submits a dedicated `interact` action
+      through `TurnController` / `ActionResolver` instead of only calling the
+      service directly from `Game.gd`
+    - tavern NPC spawn candidates now hard-exclude entrance cells and their
+      immediate doorway corridor, preventing the initial NPC from blocking the
+      tavern exit
+  - actor-system unification pass:
+    - promoted interaction capability fields from `NpcDef` into `ActorDef`
+    - added `ActorInteractionService.gd` as the main interaction service
+    - kept `NpcInteractionService.gd` only as a compatibility shell
+    - added a `talkative_slime` sample actor to prove monsters can use the same
+      interaction capability pipeline
+    - validated that tavern NPCs can still be damaged and killed through the
+      same actor combat rules as monsters
+  - interaction UX + spawn follow-up:
+    - world-slice dialogue panel now shows one line at a time and closes on
+      any key press instead of paging through lines with `F`
+    - tavern interactable actor spawn scoring now prefers wall-adjacent cells,
+      while still hard-avoiding doors and doorway corridors
+    - documented the current world-slice enemy generation model: initial spawn
+      pass plus distance-based streamed refill/despawn
 
 Validation:
 

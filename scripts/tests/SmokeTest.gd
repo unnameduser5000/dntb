@@ -10,6 +10,7 @@ const AmplifyKnockbackModifierScript := preload("res://scripts/tests/AmplifyKnoc
 const OnHitBonusDamageModifierScript := preload("res://scripts/tests/OnHitBonusDamageModifierDef.gd")
 const OnMoveZapAheadModifierScript := preload("res://scripts/tests/OnMoveZapAheadModifierDef.gd")
 const WorldSliceControllerScript := preload("res://scripts/core/WorldSliceController.gd")
+const TALKATIVE_SLIME_DEF := preload("res://data/actors/talkative_slime.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
 const GREATBLADE := preload("res://data/weapons/greatblade.tres")
@@ -77,8 +78,10 @@ func _init() -> void:
 	_require(_array_equals(relative_slots["S"], ["TR", "TR", "F"]), "relative starter preset puts TR/TR/F in S")
 	_require(_array_equals(relative_slots["A"], ["TL", "F"]), "relative starter preset puts TL/F in A")
 	_require(_array_equals(relative_slots["D"], ["TR", "F"]), "relative starter preset puts TR/F in D")
-	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "G", "W", "J"]), "token drop pool includes all current program tokens")
+	_require(_array_equals(relative_slots["F"], ["I"]), "starter preset now reserves physical F for the interact token")
+	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J"]), "token drop pool includes all current program tokens")
 	_require(starter_program.is_program_token("F"), "F is a legal program token")
+	_require(starter_program.is_program_token("I"), "I is a legal program token")
 	_require(starter_program.is_program_token("TL"), "TL is a legal program token")
 	_require(starter_program.is_program_token("TR"), "TR is a legal program token")
 	_require(_array_equals(game._build_key_slot_plan(relative_slots["A"]).map(func(action): return action.def.id), ["turn_left", "move_forward"]), "relative starter A slot builds turn_left + move_forward")
@@ -103,6 +106,7 @@ func _init() -> void:
 	_require(_array_equals(relative_starter_slots["S"], ["TR", "TR", "F"]), "relative seeded run puts TR/TR/F in S")
 	_require(_array_equals(relative_starter_slots["A"], ["TL", "F"]), "relative seeded run puts TL/F in A")
 	_require(_array_equals(relative_starter_slots["D"], ["TR", "F"]), "relative seeded run puts TR/F in D")
+	_require(_array_equals(relative_starter_slots["F"], ["I"]), "relative seeded run reserves physical F for interact by default")
 	game.start_seeded_run("absolute")
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "absolute seeded run also starts at camp")
@@ -112,6 +116,8 @@ func _init() -> void:
 	_require(control_plan.size() == 1 and control_plan[0].def.id == "move_key", "default up slot stays a pure move action")
 	var f_plan: Array = game._build_key_slot_plan(["F"])
 	_require(f_plan.size() == 1 and f_plan[0].def.id == "move_forward", "F token maps to move_forward action")
+	var interact_plan: Array = game._build_key_slot_plan(["I"])
+	_require(interact_plan.size() == 1 and interact_plan[0].def.id == "interact", "I token maps to interact action")
 	var tl_plan: Array = game._build_key_slot_plan(["TL"])
 	_require(tl_plan.size() == 1 and tl_plan[0].def.id == "turn_left", "TL token maps to turn_left action")
 	var tr_plan: Array = game._build_key_slot_plan(["TR"])
@@ -220,7 +226,7 @@ func _init() -> void:
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "mixed-drop test starts from camp")
 	_require(game._key_program_editable, "mixed-drop test keeps rest editing enabled")
-	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "G", "W", "J"]), "game exposes the full token drop pool")
+	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J"]), "game exposes the full token drop pool")
 	_require(not game.get_key_program_pool_tokens().has("lunge"), "lunge is not a key program pool token")
 	_require(not game.get_key_program_pool_tokens().has("sweep"), "sweep is not a key program pool token")
 	game.state.drop_key_at(Vector2i(2, 2), "F")
@@ -290,9 +296,19 @@ func _init() -> void:
 		_require(_is_world_slice_rest_area_cell(world_game.state.map_data, npc.grid_pos), "world slice keeps NPCs inside the tavern safe area")
 	var tavern_keeper = _find_world_slice_npc(world_game, "tavern_keeper")
 	_require(tavern_keeper != null, "world slice includes the tavern keeper NPC")
+	_require(bool(tavern_keeper.def.get("interaction_enabled")), "world slice tavern NPC now uses the shared actor interaction capability")
+	var tavern_record: Dictionary = _find_world_slice_poi_record(world_game.state.map_data, "tavern")
+	_require(not tavern_record.is_empty(), "world slice exposes the tavern poi record")
+	_require(not Array(tavern_record.get("entrance_cells", [])).has(tavern_keeper.grid_pos), "world slice NPC does not spawn directly on a tavern entrance cell")
+	_require(not _is_adjacent_to_any_cell(tavern_keeper.grid_pos, Array(tavern_record.get("entrance_cells", []))), "world slice NPC does not block the immediate doorway corridor")
+	_require(_world_slice_cell_hugs_wall(world_game.state.map_data, tavern_keeper.grid_pos), "world slice tavern actor now prefers a wall-hugging spawn cell instead of standing in the middle of the path")
+	_require(Vector2i(world_game.state.world_actor_positions.get("tavern_keeper", Vector2i(-1, -1))) == tavern_keeper.grid_pos, "world slice also records tracked actor coordinates under actor naming")
 	_require(Vector2i(world_game.state.world_npc_positions.get("tavern_keeper", Vector2i(-1, -1))) == tavern_keeper.grid_pos, "world slice records tavern NPC coordinates in runtime state")
+	_require(String(world_game.state.tracked_world_actor_id) == "tavern_keeper", "world slice tracks the tavern keeper by default under actor naming")
 	_require(String(world_game.state.tracked_world_npc_id) == "tavern_keeper", "world slice tracks the tavern keeper by default")
+	_require(bool(world_game.state.show_tracked_world_actor_hint), "world slice enables tracked actor hint display by default")
 	_require(bool(world_game.state.show_tracked_world_npc_hint), "world slice enables tracked NPC hint display by default")
+	_require(not String(world_game.state.tracked_world_actor_relative_hint).is_empty(), "world slice computes a relative direction hint to the tracked actor")
 	_require(not String(world_game.state.tracked_world_npc_relative_hint).is_empty(), "world slice computes a relative direction hint to the tracked NPC")
 	var tavern_keeper_talk_cell: Vector2i = _find_walkable_adjacent_world_cell(world_game.state, tavern_keeper.grid_pos)
 	_require(tavern_keeper_talk_cell != Vector2i(-1, -1), "tavern keeper has a reachable adjacent interaction cell")
@@ -303,16 +319,41 @@ func _init() -> void:
 	world_game._refresh_views()
 	await process_frame
 	_require(String(world_game.state.tracked_world_npc_relative_hint) == "西（1 格）" or String(world_game.state.tracked_world_npc_relative_hint) == "东（1 格）" or String(world_game.state.tracked_world_npc_relative_hint) == "北（1 格）" or String(world_game.state.tracked_world_npc_relative_hint) == "南（1 格）", "world slice updates tracked NPC direction after the player moves next to the target")
-	_require(world_game._try_interact_with_world_npc(), "world slice can interact with an adjacent tavern NPC")
+	world_game.state.player.facing = -(tavern_keeper.grid_pos - world_game.state.player.grid_pos)
+	var message_count_before_wrong_facing: int = world_game.state.messages.size()
+	_require(world_game._submit_world_interact_action(), "interact action still resolves input when facing the wrong direction")
+	_require(not world_game._world_npc_dialogue_active, "interact action does not open dialogue when the target is adjacent but not in front of the player")
+	_require(not world_game.battle_ui.is_world_npc_dialogue_visible(), "wrong-facing interact does not show the dialogue panel")
+	_require(world_game.state.messages.size() >= message_count_before_wrong_facing, "wrong-facing interact can still report that nothing in front responded")
+	world_game.state.player.facing = tavern_keeper.grid_pos - world_game.state.player.grid_pos
+	_require(_array_equals(world_game.get_key_program_slots()["F"], ["I"]), "world slice starts with the interact token on the physical F slot")
+	var npc_turn_count_before_interact: int = int(world_game.state.turn_count)
+	_require(world_game._submit_world_interact_action(), "world slice can submit a dedicated interact action near a tavern NPC")
+	await process_frame
+	_require(world_game.state.turn_count == npc_turn_count_before_interact, "world slice interact action does not consume a combat turn or trigger enemy follow-up")
+	_require(world_game._world_npc_dialogue_active, "world slice NPC interaction opens a dedicated dialogue state")
+	_require(world_game.battle_ui.is_world_npc_dialogue_visible(), "world slice NPC interaction shows a bottom dialogue panel")
+	_require(world_game.battle_ui.get_node("NpcDialoguePanel/Margin/Content/NpcDialogueTitle").text == "酒馆掌柜", "world slice dialogue panel shows the NPC speaker name")
 	_require(String(world_game.state.messages[0]).contains("酒馆掌柜"), "world slice NPC interaction adds tavern dialogue to the message log")
 	var interaction_message_before_f: String = String(world_game.state.messages[0])
+	var npc_turn_count_before_block: int = int(world_game.state.turn_count)
+	var npc_pos_before_block: Vector2i = world_game.state.player.grid_pos
+	world_game._submit_key_chain("W")
+	await process_frame
+	_require(world_game.state.turn_count == npc_turn_count_before_block, "world slice dialogue freezes turn submission until the interaction ends")
+	_require(world_game.state.player.grid_pos == npc_pos_before_block, "world slice dialogue blocks movement while the interaction panel is open")
+	var message_before_close: String = String(world_game.state.messages[0])
 	var f_interaction_event := InputEventKey.new()
 	f_interaction_event.keycode = KEY_F
 	f_interaction_event.pressed = true
 	world_game._unhandled_input(f_interaction_event)
 	await process_frame
-	_require(String(world_game.state.messages[0]).contains("酒馆掌柜"), "pressing F near a tavern NPC also triggers interaction")
-	_require(String(world_game.state.messages[0]) != interaction_message_before_f, "F-key interaction advances NPC dialogue instead of replaying the same line")
+	_require(not world_game._world_npc_dialogue_active, "pressing any key while the dialogue is visible now closes the interaction immediately")
+	_require(not world_game.battle_ui.is_world_npc_dialogue_visible(), "pressing any key hides the dialogue panel immediately")
+	_require(String(world_game.state.messages[0]) == message_before_close, "closing the dialogue does not cycle to a second line")
+	_require(world_game.state.turn_count == npc_turn_count_before_block, "closing the dialogue with a key still does not consume a turn")
+	_require(not world_game._world_npc_dialogue_active, "world slice dialogue can be closed explicitly")
+	_require(not world_game.battle_ui.is_world_npc_dialogue_visible(), "closing the dialogue hides the bottom dialogue panel")
 	_require(world_game.state.map_data.get_poi_records().size() >= 5, "world slice generates footprint-based poi records")
 	_require(_world_slice_has_poi_type(world_game.state.map_data, "tavern"), "world slice generates a tavern footprint")
 	_require(_world_slice_has_poi_type(world_game.state.map_data, "challenge_entrance"), "world slice generates a challenge footprint")
@@ -394,6 +435,14 @@ func _init() -> void:
 	await _start_seeded_combat_run(game, "movement-chain-speed")
 	_disable_enemies(game)
 	_move_player_to(game, Vector2i(2, 2))
+	var talkative_slime = game._add_actor(game.state, TALKATIVE_SLIME_DEF, Vector2i(3, 2))
+	_require(bool(talkative_slime.def.get("interaction_enabled")), "talkative slime sample enables the shared actor interaction capability")
+	var monster_interaction_result: Dictionary = game._actor_interaction_service.interact(game.state, {})
+	_require(bool(monster_interaction_result.get("handled", false)), "shared actor interaction service can interact with a monster actor")
+	_require(String(monster_interaction_result.get("actor_id", "")) == "talkative_slime", "monster interaction uses the same actor-based interaction payload")
+	_require(String(monster_interaction_result.get("title", "")) == "絮语史莱姆", "monster interaction surfaces actor-specific interaction text")
+	game.state.grid.remove_actor(talkative_slime)
+	talkative_slime.hp = 0
 	var repeated_move_plan: Array = game._build_key_slot_plan(["R", "R"])
 	game.turn_controller.submit_player_plan(repeated_move_plan)
 	await process_frame
@@ -695,6 +744,35 @@ func _make_player_action(game, action_id: String):
 	action.actor = game.state.player
 	action.def = game._action_by_id[action_id]
 	return action
+
+
+func _find_world_slice_poi_record(map_data, poi_type: String) -> Dictionary:
+	if map_data == null:
+		return {}
+	for record in map_data.get_poi_records():
+		if String(record.get("type", "")) == poi_type:
+			return record
+	return {}
+
+
+func _is_adjacent_to_any_cell(cell: Vector2i, other_cells: Array) -> bool:
+	for other_value in other_cells:
+		var other_cell: Vector2i = Vector2i(other_value)
+		if absi(cell.x - other_cell.x) + absi(cell.y - other_cell.y) == 1:
+			return true
+	return false
+
+
+func _world_slice_cell_hugs_wall(map_data, cell: Vector2i) -> bool:
+	if map_data == null:
+		return false
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var neighbor = map_data.get_cell(cell + dir)
+		if neighbor == null:
+			continue
+		if neighbor.tags.has("building_wall") or not bool(neighbor.walkable):
+			return true
+	return false
 
 
 func _reward_list_has_kind(rewards: Array, kind: String) -> bool:
