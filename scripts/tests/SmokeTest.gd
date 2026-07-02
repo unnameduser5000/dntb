@@ -278,6 +278,9 @@ func _init() -> void:
 	)
 	_require(world_spawn_cell.tags.has("poi:tavern"), "world slice spawn cell belongs to the tavern footprint")
 	_require(world_game._key_program_editable, "world slice starts with key editing enabled inside the tavern rest area")
+	var tavern_interactable_cell: Vector2i = _find_world_slice_tavern_interactable_cell(world_game.state.map_data)
+	_require(tavern_interactable_cell != Vector2i(-1, -1), "world slice tavern footprint includes a reachable interactable tavern cell")
+	_require(_is_world_slice_rest_area_cell(world_game.state.map_data, tavern_interactable_cell), "tavern interactable cell also counts as editable rest area")
 	_require(String(world_game.state.messages[0]).contains("酒馆休息区"), "world slice start announces tavern rest-area editing")
 	_require(_count_world_slice_props(world_game.state) >= 1, "world slice places at least one world prop")
 	_require(world_game.state.map_data.get_poi_records().size() >= 5, "world slice generates footprint-based poi records")
@@ -325,7 +328,10 @@ func _init() -> void:
 	)
 	var outside_rest_cell: Vector2i = _find_nearest_world_slice_non_rest_area_cell(world_game.state.map_data, world_game.state.player.grid_pos)
 	_require(outside_rest_cell != Vector2i(-1, -1), "world slice exposes a reachable non-rest-area cell")
+	var previous_world_cell: Vector2i = world_game.state.player.grid_pos
 	_move_player_to(world_game, outside_rest_cell)
+	if world_game._world_slice_controller != null:
+		world_game._world_slice_controller.on_player_moved(world_game.state, previous_world_cell, outside_rest_cell)
 	world_game._refresh_views()
 	await process_frame
 	_require(not world_game._key_program_editable, "world slice locks key editing after leaving the tavern rest area")
@@ -826,13 +832,29 @@ func _is_world_slice_rest_area_cell(map_data, cell: Vector2i) -> bool:
 	var map_cell = map_data.get_cell(cell)
 	if map_cell == null:
 		return false
-	if not (map_cell.tags.has("building_floor") or map_cell.tags.has("building_door") or map_cell.tags.has("building_open_ground")):
+	if not bool(map_cell.walkable):
 		return false
 	for tag in map_cell.tags:
 		var text := String(tag)
 		if text == "poi:tavern" or text.begins_with("structure:tavern") or text.begins_with("building:tavern_"):
 			return true
 	return false
+
+
+func _find_world_slice_tavern_interactable_cell(map_data) -> Vector2i:
+	if map_data == null:
+		return Vector2i(-1, -1)
+	for cell in map_data.get_walkable_cells():
+		var map_cell = map_data.get_cell(cell)
+		if map_cell == null:
+			continue
+		if not map_cell.tags.has("interactable"):
+			continue
+		for tag in map_cell.tags:
+			var text := String(tag)
+			if text == "poi:tavern" or text.begins_with("structure:tavern") or text.begins_with("building:tavern_"):
+				return cell
+	return Vector2i(-1, -1)
 
 
 func _find_nearest_world_slice_non_rest_area_cell(map_data, origin: Vector2i) -> Vector2i:

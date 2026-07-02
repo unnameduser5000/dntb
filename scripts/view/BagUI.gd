@@ -52,6 +52,7 @@ var _slot_chains: Dictionary = {}
 var _pool_tokens: Array[String] = []
 var _editable := false
 var _permanent_buffs: Array[Dictionary] = []
+var _slot_panels: Dictionary = {}
 
 
 func _ready() -> void:
@@ -170,6 +171,7 @@ func _refresh() -> void:
 		_pool_title.text = "未分配技能 / Token（%d格起）" % maxi(1, token_pool_visible_capacity)
 
 	if _key_grid:
+		_slot_panels.clear()
 		for child in _key_grid.get_children():
 			child.queue_free()
 		for key_id in SLOT_ORDER:
@@ -214,8 +216,10 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 	panel.key_dropped.connect(_on_key_dropped)
 	panel.preview_requested.connect(_on_key_slot_preview_requested)
 	panel.preview_cleared.connect(_on_key_slot_preview_cleared)
+	panel.interaction_blocked.connect(_on_locked_slot_interaction)
 	panel.custom_minimum_size = Vector2(key_slot_panel_min_width, _key_slot_panel_min_height())
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_slot_panels[key_id] = panel
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 6)
@@ -281,6 +285,10 @@ func _make_token_button(token_id: String, source_slot_id: String, source_index: 
 		_token_tooltip(token_id),
 		token_cell_size
 	)
+	if not token.drop_requested.is_connected(_on_key_dropped):
+		token.drop_requested.connect(_on_key_dropped)
+	if not token.interaction_blocked.is_connected(_on_locked_slot_interaction):
+		token.interaction_blocked.connect(_on_locked_slot_interaction)
 	return token
 
 
@@ -289,7 +297,7 @@ func _make_empty_token_cell() -> Control:
 	panel.custom_minimum_size = token_cell_size
 	panel.theme_type_variation = &"ScreenPanel"
 	panel.tooltip_text = "空槽位"
-	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.15, 0.17, 0.2, 0.95), Color(0.34, 0.38, 0.45, 0.9)))
 	return panel
 
@@ -360,6 +368,14 @@ func _on_key_slot_preview_requested(slot_id: String) -> void:
 
 func _on_key_slot_preview_cleared(slot_id: String) -> void:
 	key_slot_preview_cleared.emit(slot_id)
+
+
+func _on_locked_slot_interaction(slot_id: String) -> void:
+	if _editable:
+		return
+	var panel = _slot_panels.get(slot_id)
+	if panel != null and panel is UiKeySlot:
+		panel.play_locked_feedback()
 
 
 func _on_close_button_pressed() -> void:

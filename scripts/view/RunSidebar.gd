@@ -294,7 +294,7 @@ func _key_program_editable_for_world_slice(state) -> bool:
 	var map_cell = state.map_data.get_cell(state.player.grid_pos)
 	if map_cell == null:
 		return false
-	if not (map_cell.tags.has("building_floor") or map_cell.tags.has("building_door") or map_cell.tags.has("building_open_ground")):
+	if not bool(map_cell.walkable):
 		return false
 	for tag in map_cell.tags:
 		var text := String(tag)
