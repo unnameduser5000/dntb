@@ -25,6 +25,8 @@ const TOKEN_DESCRIPTIONS := {
 
 const UiKeySlotScript := preload("res://scripts/view/UiKeySlot.gd")
 const UiKeyTokenScript := preload("res://scripts/view/UiKeyToken.gd")
+const UiPoolDropAreaScript := preload("res://scripts/view/UiPoolDropArea.gd")
+const UiPoolDropCellScript := preload("res://scripts/view/UiPoolDropCell.gd")
 
 @export var key_grid_columns: int = 4
 @export var key_slot_token_columns: int = 2
@@ -52,6 +54,7 @@ var _slot_chains: Dictionary = {}
 var _pool_tokens: Array[String] = []
 var _editable := false
 var _permanent_buffs: Array[Dictionary] = []
+var _slot_panels: Dictionary = {}
 
 
 func _ready() -> void:
@@ -101,6 +104,12 @@ func _find_nodes() -> void:
 	_buffs_list = get_node_or_null("BagPanel/Margin/Content/LeftPanel/BuffsScroll/BuffsList") as VBoxContainer
 	_pool_title = get_node_or_null("BagPanel/Margin/Content/RightPanel/PoolTitle") as Label
 	_pool_container = get_node_or_null("BagPanel/Margin/Content/RightPanel/PoolScroll/PoolContainer") as GridContainer
+	if _pool_container and _pool_container.has_signal("drop_requested"):
+		if not _pool_container.drop_requested.is_connected(_on_key_dropped):
+			_pool_container.drop_requested.connect(_on_key_dropped)
+	if _pool_container and _pool_container.has_signal("interaction_blocked"):
+		if not _pool_container.interaction_blocked.is_connected(_on_locked_slot_interaction):
+			_pool_container.interaction_blocked.connect(_on_locked_slot_interaction)
 
 	if _close_button and not _close_button.pressed.is_connected(_on_close_button_pressed):
 		_close_button.pressed.connect(_on_close_button_pressed)
@@ -121,6 +130,8 @@ func _apply_layout_settings() -> void:
 	if _left_panel:
 		_left_panel.custom_minimum_size = Vector2(_key_grid_min_size().x, 0.0)
 	if _pool_container:
+		if _pool_container.has_method("setup"):
+			_pool_container.setup(_editable)
 		_pool_container.columns = maxi(1, token_pool_columns)
 	if _buffs_scroll:
 		_buffs_scroll.custom_minimum_size = Vector2(0, buffs_panel_height)
@@ -170,6 +181,7 @@ func _refresh() -> void:
 		_pool_title.text = "未分配技能 / Token（%d格起）" % maxi(1, token_pool_visible_capacity)
 
 	if _key_grid:
+		_slot_panels.clear()
 		for child in _key_grid.get_children():
 			child.queue_free()
 		for key_id in SLOT_ORDER:
@@ -214,8 +226,10 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 	panel.key_dropped.connect(_on_key_dropped)
 	panel.preview_requested.connect(_on_key_slot_preview_requested)
 	panel.preview_cleared.connect(_on_key_slot_preview_cleared)
+	panel.interaction_blocked.connect(_on_locked_slot_interaction)
 	panel.custom_minimum_size = Vector2(key_slot_panel_min_width, _key_slot_panel_min_height())
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_slot_panels[key_id] = panel
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 6)
@@ -253,7 +267,7 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 		if index < token_ids.size():
 			token_grid.add_child(_make_token_button(String(token_ids[index]), key_id, index))
 		else:
-			token_grid.add_child(_make_empty_token_cell())
+			token_grid.add_child(_make_key_slot_empty_cell())
 
 	return panel
 
@@ -261,13 +275,15 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 func _refresh_pool_grid() -> void:
 	if _pool_container == null:
 		return
+	if _pool_container.has_method("setup"):
+		_pool_container.setup(_editable)
 	_pool_container.columns = maxi(1, token_pool_columns)
 	var visible_slots := maxi(maxi(1, token_pool_visible_capacity), _pool_tokens.size())
 	for index in range(visible_slots):
 		if index < _pool_tokens.size():
 			_pool_container.add_child(_make_token_button(String(_pool_tokens[index]), KEY_POOL_ID, index))
 		else:
-			_pool_container.add_child(_make_empty_token_cell())
+			_pool_container.add_child(_make_pool_empty_token_cell())
 
 
 func _make_token_button(token_id: String, source_slot_id: String, source_index: int) -> Control:
@@ -281,16 +297,32 @@ func _make_token_button(token_id: String, source_slot_id: String, source_index: 
 		_token_tooltip(token_id),
 		token_cell_size
 	)
+	if not token.drop_requested.is_connected(_on_key_dropped):
+		token.drop_requested.connect(_on_key_dropped)
+	if not token.interaction_blocked.is_connected(_on_locked_slot_interaction):
+		token.interaction_blocked.connect(_on_locked_slot_interaction)
 	return token
 
 
-func _make_empty_token_cell() -> Control:
+func _make_key_slot_empty_cell() -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = token_cell_size
 	panel.theme_type_variation = &"ScreenPanel"
 	panel.tooltip_text = "空槽位"
-	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.15, 0.17, 0.2, 0.95), Color(0.34, 0.38, 0.45, 0.9)))
+	return panel
+
+
+func _make_pool_empty_token_cell() -> Control:
+	var panel := UiPoolDropCellScript.new()
+	panel.setup(_editable)
+	panel.custom_minimum_size = token_cell_size
+	panel.theme_type_variation = &"ScreenPanel"
+	panel.tooltip_text = "空槽位"
+	panel.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.15, 0.17, 0.2, 0.95), Color(0.34, 0.38, 0.45, 0.9)))
+	if not panel.drop_requested.is_connected(_on_key_dropped):
+		panel.drop_requested.connect(_on_key_dropped)
 	return panel
 
 
@@ -360,6 +392,14 @@ func _on_key_slot_preview_requested(slot_id: String) -> void:
 
 func _on_key_slot_preview_cleared(slot_id: String) -> void:
 	key_slot_preview_cleared.emit(slot_id)
+
+
+func _on_locked_slot_interaction(slot_id: String) -> void:
+	if _editable:
+		return
+	var panel = _slot_panels.get(slot_id)
+	if panel != null and panel is UiKeySlot:
+		panel.play_locked_feedback()
 
 
 func _on_close_button_pressed() -> void:
