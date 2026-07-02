@@ -8,11 +8,10 @@
 - Introduced `NpcDef.gd` plus two first-pass tavern residents:
   - `酒馆掌柜`
   - `旧路巡记员`
-- Added `NpcInteractionService.gd` so world-slice interaction no longer needs
-  to piggyback on the programmable key slots:
+- Added the first world-slice interaction service layer; this later evolved into
+  the current actor-based interaction path:
   - player uses `ui_accept` / 确认键
-  - service finds an adjacent NPC
-  - dialogue rotates through short lore lines
+  - service resolves a nearby safe-zone resident
   - output lands in `GameState.messages`
 - Updated `WorldSliceController.gd` so NPC spawn selection is derived from the
   stamped tavern footprint that contains the player spawn:
@@ -35,14 +34,14 @@
     - tracked NPC id
     - relative-direction hint text
     - display-toggle bool
-  - world-slice NPC interaction now also accepts `F` as a direct shortcut when
-    the player is adjacent to the NPC, while preserving the normal `F` key-slot
-    behavior when no interaction target is nearby
+  - world-slice interaction was initially wired to `F` as a direct shortcut;
+    later passes moved it into a real `interact` token on the physical `F`
+    key slot instead of keeping the old direct-trigger path
   - added a dedicated bottom-center dialogue panel in `BattleUI` for world-slice
     NPC interaction:
     - initial live NPC is the `K` glyph tavern keeper
-    - confirm / `F` advances the current conversation
-    - `Esc` closes the conversation explicitly
+    - a dedicated dialogue panel was added first, then later simplified so each
+      interaction only shows one line and the panel closes on any key press
     - while the panel is open, world-slice action submission is frozen so the
       next enemy turn cannot begin before the interaction ends
   - follow-up fix:
@@ -67,6 +66,8 @@
       while still hard-avoiding doors and doorway corridors
     - documented the current world-slice enemy generation model: initial spawn
       pass plus distance-based streamed refill/despawn
+    - `interact` target resolution is now constrained to the actor standing in
+      front of the player, instead of any adjacent actor
 
 Validation:
 

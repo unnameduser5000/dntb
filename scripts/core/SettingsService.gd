@@ -54,12 +54,15 @@ func get_resolution_label(index: int) -> String:
 
 
 func apply_display_settings() -> void:
+	var resolution: Vector2i = RESOLUTION_OPTIONS[resolution_index]
+	_apply_content_scale(resolution)
+
 	if is_fullscreen:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		DisplayServer.window_set_size(resolution)
 		return
 
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-	var resolution: Vector2i = RESOLUTION_OPTIONS[resolution_index]
 	DisplayServer.window_set_size(resolution)
 	_center_window(resolution)
 
@@ -78,6 +81,11 @@ func _center_window(window_size: Vector2i) -> void:
 	var screen_size := DisplayServer.screen_get_usable_rect(screen).size
 	var centered_position := (screen_size - window_size) / 2
 	DisplayServer.window_set_position(Vector2i(maxi(0, centered_position.x), maxi(0, centered_position.y)))
+
+
+func _apply_content_scale(resolution: Vector2i) -> void:
+	var root := get_tree().root
+	root.content_scale_size = resolution
 
 
 func _closest_resolution_index(window_size: Vector2i) -> int:
