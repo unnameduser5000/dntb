@@ -1,6 +1,7 @@
 class_name TurnController
 extends Node
 
+const ActionDefScript := preload("res://scripts/data/ActionDef.gd")
 const ActionTraceScript := preload("res://scripts/runtime/ActionTrace.gd")
 const ActionTraceRecorderScript := preload("res://scripts/core/ActionTraceRecorder.gd")
 
@@ -153,7 +154,7 @@ func _get_action_dir_for_chain(action) -> Vector2i:
 		return action.chosen_dir
 	if action.def != null and action.def.id == "move_back":
 		return -action.actor.facing
-	if action.def != null and action.def.kind == ActionDef.ActionKind.MOVE:
+	if action.def != null and action.def.kind == ActionDefScript.ActionKind.MOVE:
 		return action.actor.facing
 	return Vector2i.ZERO
 

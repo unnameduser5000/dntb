@@ -1,8 +1,8 @@
 class_name BattleHud
 extends Control
 
-@onready var _health_bar: UiVitalBar = $Panel/Margin/Content/HealthBar
-@onready var _san_bar: UiVitalBar = $Panel/Margin/Content/SanBar
+@onready var _health_bar = $Panel/Margin/Content/HealthBar
+@onready var _san_bar = $Panel/Margin/Content/SanBar
 @onready var _room_value: Label = %RoomValue
 @onready var _turn_value: Label = %TurnValue
 @onready var _player_box: Label = %PlayerBox

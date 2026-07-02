@@ -1,6 +1,7 @@
 class_name ActionResolver
 extends Node
 
+const ActionDefScript := preload("res://scripts/data/ActionDef.gd")
 const EffectEventScript := preload("res://scripts/runtime/EffectEvent.gd")
 const EffectPacketScript := preload("res://scripts/runtime/EffectPacket.gd")
 const EffectPipelineScript := preload("res://scripts/runtime/EffectPipeline.gd")
@@ -30,22 +31,22 @@ func resolve(action, state) -> void:
 		return
 
 	match action.def.kind:
-		ActionDef.ActionKind.MOVE:
+		ActionDefScript.ActionKind.MOVE:
 			_resolve_move(action, state)
 
-		ActionDef.ActionKind.ATTACK:
+		ActionDefScript.ActionKind.ATTACK:
 			if action.def.id == "lunge":
 				_resolve_lunge(action, state)
 			else:
 				_resolve_attack(action, state)
 
-		ActionDef.ActionKind.TURN:
+		ActionDefScript.ActionKind.TURN:
 			_resolve_turn(action, state)
 
-		ActionDef.ActionKind.WAIT:
+		ActionDefScript.ActionKind.WAIT:
 			_add_message(state, "%s 等待。" % action.actor.def.display_name)
 
-		ActionDef.ActionKind.GUARD:
+		ActionDefScript.ActionKind.GUARD:
 			_resolve_guard(action, state)
 
 func _resolve_move(action, state) -> void:
@@ -562,7 +563,7 @@ func _emit_attack_miss_event(actor, action, target_cell: Vector2i, direction: Ve
 	event.direction = direction
 	if action != null and action.def != null:
 		event.add_tag(StringName(action.def.id))
-		if int(action.def.kind) == int(ActionDef.ActionKind.ATTACK):
+		if int(action.def.kind) == int(ActionDefScript.ActionKind.ATTACK):
 			event.add_tag(&"attack")
 	emit_combat_event(event)
 

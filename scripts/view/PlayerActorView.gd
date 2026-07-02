@@ -1,5 +1,5 @@
 class_name PlayerActorView
-extends ActorView
+extends "res://scripts/view/ActorView.gd"
 
 @export var install_debug_frames_on_ready := true
 static var _debug_player_frames_cache: SpriteFrames
