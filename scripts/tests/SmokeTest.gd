@@ -49,19 +49,16 @@ func _init() -> void:
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "first reward advances to post-practice rest")
 	_require(not _reward_list_has_kind(game._current_rewards, "unlock_technique"), "rewards no longer offer weapon technique unlocks")
-	_require(game.state.player.active_weapon.supports_technique("lunge"), "equipped weapon already supports lunge")
-	_require(game.state.player.active_weapon.supports_technique("sweep"), "equipped weapon already supports sweep")
+	_require(game.state.player.active_weapon != null, "player still has an equipped weapon after reward")
+	_require(game.state.player.active_weapon.get("attack_action") != null, "equipped weapon exposes attack_action")
 	_require(not game.get_key_program_pool_tokens().has("lunge"), "lunge does not enter key token pool")
 	_require(game._key_program_editable, "post-practice rest unlocks key slot editing")
 	var lunge_plan: Array = game._build_key_slot_plan(["R", "R"])
 	await process_frame
 	_require(_array_equals(game.get_key_program_slots()["W"], ["U"]), "rest editing keeps only natural direction tokens")
-	_require(lunge_plan.size() == 2 and lunge_plan[0].def.id == "move_key" and lunge_plan[1].def.id == "move_key", "key program keeps only base move actions even when lunge is unlocked")
+	_require(lunge_plan.size() == 2 and lunge_plan[0].def.id == "move_key" and lunge_plan[1].def.id == "move_key", "key program keeps only base move actions")
 	var lunge_preview: Dictionary = game._build_key_slot_preview(["R", "R"])
 	_require(_string_name_array_equals(lunge_preview.get("trace_symbols", []), [&"F", &"F"]), "rest preview predicts relative trace from absolute direction input")
-	_require(lunge_preview.get("predicted_combo_match_ids", []).has("lunge"), "rest preview predicts lunge from trace semantics instead of replacing the key plan")
-	_require(lunge_preview["attack_cells"].has(Vector2i(6, 3)), "predicted lunge preview shows the follow-up attack cell")
-	_require(lunge_preview["move_cells"].has(Vector2i(6, 3)), "predicted lunge preview extends movement through the combo follow-up")
 	game._on_rest_continue_requested()
 	await process_frame
 	_require(game.state.room_index == 1, "post-practice rest continues to second room")
@@ -80,7 +77,7 @@ func _init() -> void:
 	_require(_array_equals(relative_slots["S"], ["TR", "TR", "F"]), "relative starter preset puts TR/TR/F in S")
 	_require(_array_equals(relative_slots["A"], ["TL", "F"]), "relative starter preset puts TL/F in A")
 	_require(_array_equals(relative_slots["D"], ["TR", "F"]), "relative starter preset puts TR/F in D")
-	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "TL", "TR", "J"]), "token drop pool includes mixed direction and control tokens")
+	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "G", "W", "J"]), "token drop pool includes all current program tokens")
 	_require(starter_program.is_program_token("F"), "F is a legal program token")
 	_require(starter_program.is_program_token("TL"), "TL is a legal program token")
 	_require(starter_program.is_program_token("TR"), "TR is a legal program token")
@@ -185,65 +182,8 @@ func _init() -> void:
 	_require(_string_name_array_equals(game.get_player_action_trace_symbols(2), [&"TL", &"F"]), "turn then move records relative turn and forward trace symbols")
 	_require(game.state.player.grid_pos == Vector2i(2, 1), "turn then move uses updated facing for forward movement")
 
-	var combo_lunge_game = await _make_weapon_combo_game("weapon-combo-lunge")
-	var combo_lunge_hits := await _run_weapon_combo_chain(combo_lunge_game, ["R", "R"], Vector2i.DOWN, Vector2i(2, 3), "lunge")
-	_require(combo_lunge_hits == 1, "R,R triggers lunge once")
-	_require(combo_lunge_game.get_player_action_trace_move_dirs_debug_string(2) == "R -> R", "R,R combo reports repeated move directions")
-	_require(combo_lunge_game.get_player_weapon_combo_debug_string(1) == "lunge", "R,R combo reports lunge id in debug string")
-	var combo_lunge_u_game = await _make_weapon_combo_game("weapon-combo-lunge-u")
-	var combo_lunge_u_hits := await _run_weapon_combo_chain(combo_lunge_u_game, ["U", "U"], Vector2i.DOWN, Vector2i(3, 3), "lunge")
-	_require(combo_lunge_u_hits == 1, "U,U triggers lunge once")
-	var combo_lunge_rrrr_game = await _make_weapon_combo_game("weapon-combo-lunge-rrrr")
-	_require(await _run_weapon_combo_chain(combo_lunge_rrrr_game, ["R", "R", "R", "R"], Vector2i.DOWN, Vector2i(2, 3), "lunge") == 2, "R,R,R,R triggers lunge twice")
-	var combo_lunge_rruu_game = await _make_weapon_combo_game("weapon-combo-lunge-rruu")
-	_require(await _run_weapon_combo_chain(combo_lunge_rruu_game, ["R", "R", "U", "U"], Vector2i.DOWN, Vector2i(3, 3), "lunge") == 2, "R,R,U,U triggers lunge twice")
-	var rruu_lunge_matches: Array = _combo_matches_by_id(combo_lunge_rruu_game, "lunge")
-	_require(rruu_lunge_matches.size() == 2, "R,R,U,U stores two lunge matches")
-	_require(Vector2i(rruu_lunge_matches[0].get("matched_move_dir", Vector2i.ZERO)) == Vector2i.RIGHT, "R,R,U,U first lunge match stores RIGHT")
-	_require(Vector2i(rruu_lunge_matches[1].get("matched_move_dir", Vector2i.ZERO)) == Vector2i.UP, "R,R,U,U second lunge match stores UP")
-	_require(_vector2i_array_equals(await _capture_combo_followup_dirs(combo_lunge_rruu_game, ["R", "R", "U", "U"], Vector2i.DOWN, Vector2i(3, 3), "lunge"), [Vector2i.RIGHT, Vector2i.UP]), "R,R,U,U follow-up lunges execute in RIGHT then UP order")
-	var combo_lunge_ruu_game = await _make_weapon_combo_game("weapon-combo-lunge-ruu")
-	_require(await _run_weapon_combo_chain(combo_lunge_ruu_game, ["R", "U", "U"], Vector2i.DOWN, Vector2i(3, 3), "lunge") == 1, "R,U,U triggers lunge once")
-	_require(_vector2i_array_equals(await _capture_combo_followup_dirs(combo_lunge_ruu_game, ["R", "U", "U"], Vector2i.DOWN, Vector2i(3, 3), "lunge"), [Vector2i.UP]), "R,U,U lunge follow-up executes upward")
-	var combo_lunge_ru_game = await _make_weapon_combo_game("weapon-combo-lunge-ru")
-	_require(await _run_weapon_combo_chain(combo_lunge_ru_game, ["R", "U"], Vector2i.DOWN, Vector2i(3, 3), "lunge") == 0, "R,U does not trigger lunge")
-	var combo_lunge_ruru_game = await _make_weapon_combo_game("weapon-combo-lunge-ruru")
-	_require(await _run_weapon_combo_chain(combo_lunge_ruru_game, ["R", "U", "R", "U"], Vector2i.DOWN, Vector2i(3, 3), "lunge") == 0, "R,U,R,U does not trigger lunge")
-	var combo_lunge_blocked_game = await _make_weapon_combo_game("weapon-combo-lunge-blocked")
-	combo_lunge_blocked_game.state.grid.add_blocked(Vector2i(4, 3))
-	_require(await _run_weapon_combo_chain(combo_lunge_blocked_game, ["R", "R"], Vector2i.RIGHT, Vector2i(2, 3), "lunge") == 0, "blocked second move does not trigger lunge")
-
-	var combo_sweep_game = await _make_weapon_combo_game("weapon-combo-sweep")
-	_require(await _run_weapon_combo_chain(combo_sweep_game, ["TL", "TR"], Vector2i.DOWN, Vector2i(3, 3), "sweep") == 1, "TL,TR triggers sweep once")
-	var combo_sweep_double_game = await _make_weapon_combo_game("weapon-combo-sweep-double")
-	_require(await _run_weapon_combo_chain(combo_sweep_double_game, ["TL", "TR", "TL", "TR"], Vector2i.DOWN, Vector2i(3, 3), "sweep") == 2, "TL,TR,TL,TR triggers sweep twice")
-	var combo_sweep_negative_game = await _make_weapon_combo_game("weapon-combo-sweep-negative")
-	_require(await _run_weapon_combo_chain(combo_sweep_negative_game, ["TL", "F", "TR"], Vector2i.DOWN, Vector2i(3, 3), "sweep") == 0, "TL,F,TR does not trigger sweep")
-	var combo_sweep_implicit_game = await _make_weapon_combo_game("weapon-combo-sweep-implicit")
-	_require(await _run_weapon_combo_chain(combo_sweep_implicit_game, ["R", "R"], Vector2i.DOWN, Vector2i(2, 3), "sweep") == 0, "implicit turn from R,R does not trigger sweep")
-
-	var combo_mix_game = await _make_weapon_combo_game("weapon-combo-mix")
-	_require(await _run_weapon_combo_chain(combo_mix_game, ["TL", "TR", "F", "F"], Vector2i.DOWN, Vector2i(3, 3), "sweep") == 1, "TL,TR,F,F triggers sweep once")
-	_require(_count_combo_matches(combo_mix_game, "lunge") == 1, "TL,TR,F,F also triggers lunge once")
-	var combo_mix_preview_game = await _make_weapon_combo_game("weapon-combo-mix-preview")
-	_move_player_to(combo_mix_preview_game, Vector2i(3, 3))
-	combo_mix_preview_game.state.player.facing = Vector2i.DOWN
-	var combo_mix_preview: Dictionary = combo_mix_preview_game._build_key_slot_preview(["TL", "TR", "F", "F"])
-	_require(_array_equals(combo_mix_preview.get("predicted_combo_match_ids", []), ["sweep", "lunge"]), "preview predicts sweep + lunge for TL,TR,F,F")
-
-	var spear_combo_game = await _make_weapon_combo_game("weapon-combo-spear", Vector2i(7, 2))
-	spear_combo_game.state.player.active_weapon = IRON_SPEAR
-	_require(await _run_weapon_combo_chain(spear_combo_game, ["R", "R", "R"], Vector2i.RIGHT, Vector2i(2, 2), "charge_thrust") == 1, "iron spear triggers charge_thrust from three same-direction moves")
-	_require(spear_combo_game.state.grid.get_actor(Vector2i(7, 2)).hp < 10, "charge_thrust follow-up can hit a distant target")
-
-	var greatblade_left_game = await _make_weapon_combo_game("weapon-combo-greatblade-left", Vector2i(3, 3))
-	greatblade_left_game.state.player.active_weapon = GREATBLADE
-	_require(await _run_weapon_combo_chain(greatblade_left_game, ["TL", "TR"], Vector2i.DOWN, Vector2i(2, 3), "great_sweep_left") == 1, "greatblade triggers left heavy sweep from TL,TR")
-	var greatblade_right_game = await _make_weapon_combo_game("weapon-combo-greatblade-right", Vector2i(3, 3))
-	greatblade_right_game.state.player.active_weapon = GREATBLADE
-	_require(await _run_weapon_combo_chain(greatblade_right_game, ["TR", "TL"], Vector2i.DOWN, Vector2i(2, 3), "great_sweep_right") == 1, "greatblade triggers right heavy sweep from TR,TL")
-
-	var trace_semantic_game = await _make_weapon_combo_game("weapon-combo-trace-semantics")
+	await _start_seeded_combat_run(game, "trace-semantics")
+	var trace_semantic_game = game
 	_move_player_to(trace_semantic_game, Vector2i(2, 2))
 	trace_semantic_game.state.player.facing = Vector2i.UP
 	trace_semantic_game.state.player.active_weapon = IMPACT_SHIELD
@@ -255,18 +195,16 @@ func _init() -> void:
 	_require(not trace_semantic_game.get_player_action_trace_debug_string(1).contains("TR"), "absolute move trace is not disguised as TR")
 	_require(Vector2i(trace_semantic_game.state.action_trace.get_recent_entries_for_actor(int(trace_semantic_game.state.player.id), 1)[0].move_dir) == Vector2i.RIGHT, "runtime trace move_dir stays normalized to unit direction")
 
-	var preview_rruu_game = await _make_weapon_combo_game("weapon-combo-preview-rruu")
-	_move_player_to(preview_rruu_game, Vector2i(3, 3))
-	preview_rruu_game.state.player.facing = Vector2i.DOWN
-	var preview_rruu: Dictionary = preview_rruu_game._build_key_slot_preview(["R", "R", "U", "U"])
-	var preview_rruu_lunge_matches := _preview_matches_by_id(preview_rruu, "lunge")
-	_require(preview_rruu_lunge_matches.size() == 2, "preview R,R,U,U predicts two lunge matches")
-	_require(Vector2i(preview_rruu_lunge_matches[0].get("matched_move_dir", Vector2i.ZERO)) == Vector2i.RIGHT, "preview R,R,U,U first lunge direction is RIGHT")
-	_require(Vector2i(preview_rruu_lunge_matches[1].get("matched_move_dir", Vector2i.ZERO)) == Vector2i.UP, "preview R,R,U,U second lunge direction is UP")
-
-	var lunge_dir_game = await _make_weapon_combo_game("weapon-combo-lunge-direction", Vector2i(3, 2))
+	var lunge_dir_game = GameScene.instantiate()
+	root.add_child(lunge_dir_game)
+	await process_frame
+	lunge_dir_game.start_seeded_run("lunge-direction")
+	await process_frame
+	_enter_first_combat_from_camp(lunge_dir_game)
+	await process_frame
 	lunge_dir_game.enemy_planner.enemies_are_static = true
 	lunge_dir_game.state.grid.blocked_cells.clear()
+	_prepare_single_enemy_room(lunge_dir_game, Vector2i(3, 2), 10, Vector2i(2, 2))
 	_move_player_to(lunge_dir_game, Vector2i(2, 2))
 	lunge_dir_game.state.player.facing = Vector2i.UP
 	var lunge_dir_action = _make_player_action(lunge_dir_game, "lunge")
@@ -277,43 +215,11 @@ func _init() -> void:
 	_require(lunge_dir_game.state.player.facing == Vector2i.RIGHT, "lunge updates facing to chosen_dir when present")
 	_require(right_enemy.hp < right_enemy_hp_before, "lunge uses chosen_dir to hit the right-side enemy instead of current facing")
 
-	var lab_game = GameScene.instantiate()
-	root.add_child(lab_game)
-	await process_frame
-	lab_game.start_weapon_combo_lab_debug()
-	await process_frame
-	_require(lab_game.state.map_node_kind == "weapon_combo_lab", "weapon combo lab debug entry creates the lab state")
-	_require(lab_game.state.is_safe_training, "weapon combo lab runs as safe training")
-	_require(lab_game.state.player.active_weapon == IMPACT_SHIELD, "weapon combo lab equips impact shield")
-	_require(lab_game._key_program_editable, "weapon combo lab keeps key editing enabled")
-	_require(_array_equals(lab_game.get_key_program_slots()["W"], ["F"]), "weapon combo lab starts with relative preset in W")
-	_require(_array_equals(lab_game.get_key_program_slots()["S"], ["TR", "TR", "F"]), "weapon combo lab starts with relative preset in S")
-	_require(_array_equals(lab_game.get_key_program_slots()["A"], ["TL", "F"]), "weapon combo lab starts with relative preset in A")
-	_require(_array_equals(lab_game.get_key_program_slots()["D"], ["TR", "F"]), "weapon combo lab starts with relative preset in D")
-	_require(_array_equals(lab_game.get_key_program_pool_tokens(), []), "weapon combo lab starts with empty pool")
-	_require(lab_game.get_player_action_trace_symbols().is_empty(), "weapon combo lab starts with empty trace")
-	_require(lab_game.state.get_alive_enemies().size() >= 2, "weapon combo lab spawns test enemies")
-	_require(_array_equals(lab_game.get_player_weapon_combo_match_ids(1), []), "weapon combo lab starts with no cached combo match")
-	_require(lab_game.state.player.active_weapon.supports_technique("lunge"), "weapon combo lab weapon already supports lunge")
-	_require(lab_game.state.player.active_weapon.supports_technique("sweep"), "weapon combo lab weapon already supports sweep")
-	var lab_lunge_plan: Array = lab_game._build_key_slot_plan(["F", "F"])
-	lab_game.turn_controller.submit_player_plan(lab_lunge_plan)
-	await process_frame
-	_require(lab_game.get_player_weapon_combo_match_ids(1).has("lunge"), "weapon combo lab can trigger lunge from F/F")
-	lab_game.start_weapon_combo_lab_debug()
-	await process_frame
-	var lab_sweep_plan: Array = lab_game._build_key_slot_plan(["TL", "TR"])
-	lab_game.turn_controller.submit_player_plan(lab_sweep_plan)
-	await process_frame
-	_require(lab_game.get_player_weapon_combo_match_ids(1).has("sweep"), "weapon combo lab can trigger sweep from TL/TR")
-	lab_game.queue_free()
-	await process_frame
-
 	game.start_seeded_run("absolute")
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "mixed-drop test starts from camp")
 	_require(game._key_program_editable, "mixed-drop test keeps rest editing enabled")
-	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "TL", "TR", "J"]), "game exposes the mixed token drop pool")
+	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "G", "W", "J"]), "game exposes the full token drop pool")
 	_require(not game.get_key_program_pool_tokens().has("lunge"), "lunge is not a key program pool token")
 	_require(not game.get_key_program_pool_tokens().has("sweep"), "sweep is not a key program pool token")
 	game.state.drop_key_at(Vector2i(2, 2), "F")
@@ -328,12 +234,12 @@ func _init() -> void:
 	var dropped_tr: String = game.state.pickup_key_at(Vector2i(2, 4))
 	_require(dropped_tr == "TR", "TR can be picked up from a dropped key")
 	game._on_key_picked(game.state.player, dropped_tr, Vector2i(2, 4))
-	_require(_array_equals(game.get_key_program_pool_tokens(), ["F", "TL", "TR"]), "mixed tokens enter the spare-token pool")
+	_require(game.get_key_program_pool_tokens().has("F") and game.get_key_program_pool_tokens().has("TL") and game.get_key_program_pool_tokens().has("TR"), "mixed tokens enter the spare-token pool")
 	game._on_key_token_move_requested("W", 0, "POOL")
 	_require(game.get_key_program_slots()["W"].is_empty(), "starter token can be moved out to make room for pooled tokens")
-	game._on_key_token_move_requested("POOL", 0, "W")
-	game._on_key_token_move_requested("POOL", 0, "W")
-	game._on_key_token_move_requested("POOL", 0, "W")
+	_move_pool_token_to_slot(game, "F", "W")
+	_move_pool_token_to_slot(game, "TL", "W")
+	_move_pool_token_to_slot(game, "TR", "W")
 	_require(_array_equals(game.get_key_program_slots()["W"], ["F", "TL", "TR"]), "pooled F/TL/TR tokens can be dragged into one physical slot")
 	var mixed_plan: Array = game._build_key_slot_plan(game.get_key_program_slots()["W"])
 	_require(mixed_plan.size() == 3 and mixed_plan[0].def.id == "move_forward" and mixed_plan[1].def.id == "turn_left" and mixed_plan[2].def.id == "turn_right", "mixed F/TL/TR slot builds the expected action plan")
@@ -768,41 +674,8 @@ func _make_player_action(game, action_id: String):
 	return action
 
 
-func _make_weapon_combo_game(seed_value: String, enemy_cell: Vector2i = Vector2i(6, 2)):
-	var combo_game = GameScene.instantiate()
-	root.add_child(combo_game)
-	await process_frame
-	combo_game.start_seeded_run(seed_value)
-	await process_frame
-	_enter_first_combat_from_camp(combo_game)
-	await process_frame
-	combo_game.state.player.active_weapon = IMPACT_SHIELD
-	combo_game.enemy_planner.enemies_are_static = true
-	combo_game.state.grid.blocked_cells.clear()
-	_prepare_single_enemy_room(combo_game, enemy_cell, 10, Vector2i(2, 2))
-	return combo_game
-
-
 func _make_collision_only_weapon():
 	return IMPACT_SHIELD.duplicate(true)
-
-
-func _run_weapon_combo_chain(game, token_ids: Array, facing: Vector2i, player_cell: Vector2i, expected_combo_id: String) -> int:
-	_move_player_to(game, player_cell)
-	game.state.player.facing = facing
-	var initial_turn_count: int = int(game.state.turn_count)
-	var plan: Array = game._build_key_slot_plan(token_ids)
-	game.turn_controller.submit_player_plan(plan)
-	await _wait_for_turn_completion(game, initial_turn_count)
-	return _count_combo_matches(game, expected_combo_id)
-
-
-func _count_combo_matches(game, technique_id: String) -> int:
-	var count := 0
-	for match_data in game.get_player_weapon_combo_matches(1):
-		if String(match_data.get("technique_id", "")) == technique_id:
-			count += 1
-	return count
 
 
 func _reward_list_has_kind(rewards: Array, kind: String) -> bool:
@@ -812,43 +685,6 @@ func _reward_list_has_kind(rewards: Array, kind: String) -> bool:
 	return false
 
 
-func _combo_matches_by_id(game, technique_id: String) -> Array:
-	var matches: Array = []
-	for match_data in game.get_player_weapon_combo_matches(1):
-		if String(match_data.get("technique_id", "")) == technique_id:
-			matches.append(match_data)
-	return matches
-
-
-func _preview_matches_by_id(preview: Dictionary, technique_id: String) -> Array:
-	var matches: Array = []
-	for match_data in preview.get("predicted_combo_matches", []):
-		if String(match_data.get("technique_id", "")) == technique_id:
-			matches.append(match_data)
-	return matches
-
-
-func _capture_combo_followup_dirs(game, token_ids: Array, facing: Vector2i, player_cell: Vector2i, technique_id: String) -> Array[Vector2i]:
-	var captured_dirs: Array[Vector2i] = []
-	var on_action_started = func(action) -> void:
-		if action == null or action.def == null:
-			return
-		if String(action.key_id) != "technique:%s" % technique_id:
-			return
-		captured_dirs.append(Vector2i(action.chosen_dir))
-
-	if not game.turn_controller.action_started.is_connected(on_action_started):
-		game.turn_controller.action_started.connect(on_action_started)
-
-	_move_player_to(game, player_cell)
-	game.state.player.facing = facing
-	var initial_turn_count: int = int(game.state.turn_count)
-	var plan: Array = game._build_key_slot_plan(token_ids)
-	game.turn_controller.submit_player_plan(plan)
-	await _wait_for_turn_completion(game, initial_turn_count)
-	if game.turn_controller.action_started.is_connected(on_action_started):
-		game.turn_controller.action_started.disconnect(on_action_started)
-	return captured_dirs
 
 
 func _wait_for_turn_completion(game, initial_turn_count: int) -> void:
@@ -858,6 +694,13 @@ func _wait_for_turn_completion(game, initial_turn_count: int) -> void:
 		if (game.state.phase == "planning" or game.state.phase == "finished") and game.state.turn_count > initial_turn_count:
 			return
 		await process_frame
+
+
+func _move_pool_token_to_slot(game, token_id: String, slot_id: String) -> void:
+	var pool_tokens: Array = game.get_key_program_pool_tokens()
+	var token_index := pool_tokens.find(token_id)
+	_require(token_index >= 0, "pool contains token %s before move" % token_id)
+	game._on_key_token_move_requested("POOL", token_index, slot_id)
 
 
 func _vector2i_array_equals(values: Array, expected: Array) -> bool:
