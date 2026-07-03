@@ -17,10 +17,21 @@ func _ready() -> void:
 	main_menu.settings_requested.connect(_show_settings)
 	main_menu.quit_requested.connect(_quit_game)
 	settings_menu.back_requested.connect(_on_settings_back_requested)
+	settings_menu.continue_requested.connect(_on_settings_continue_requested)
 	pause_menu.resume_requested.connect(_resume_game)
 	pause_menu.settings_requested.connect(_show_settings_from_pause)
 	pause_menu.menu_requested.connect(_show_main_menu)
 	game.pause_menu_requested.connect(_show_pause_menu)
+	_show_main_menu()
+
+
+func _on_settings_continue_requested() -> void:
+	if _settings_return_to_pause and _game_is_active:
+		_resume_game()
+		return
+	if _game_is_active:
+		_resume_game()
+		return
 	_show_main_menu()
 
 
