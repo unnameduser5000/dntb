@@ -1,5 +1,25 @@
 # Develop Log
 
+## 2026-07-03 Tavern keeper starter weapon gift
+
+- Added `rusty_sword.tres` as a real sword weapon resource that still reuses the
+  generic forward `attack` action.
+- Hooked the world-slice tavern interaction flow so the spawn tavern keeper now
+  grants that sword on the first successful conversation:
+  - reward is driven inside `Game._try_interact_with_world_npc()`
+  - the gift immediately equips the run weapon and refreshes inventory UI
+  - a follow-up log line explains that the attack key now swings forward with
+    the sword
+- Persisted `world_npc_interaction_counts` in run save data so reloads do not
+  re-trigger the first-talk gift.
+- Extended smoke coverage to verify the first tavern-keeper dialogue equips
+  `rusty_sword` and records the one-time interaction count in save payloads.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+
 ## 2026-07-02 Safe-zone NPC interaction pass
 
 - Added a lightweight world-slice NPC interaction layer anchored to tavern

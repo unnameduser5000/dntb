@@ -335,6 +335,10 @@ func _init() -> void:
 	_require(world_game.battle_ui.is_world_npc_dialogue_visible(), "world slice NPC interaction shows a bottom dialogue panel")
 	_require(world_game.battle_ui.get_node("NpcDialoguePanel/Margin/Content/NpcDialogueTitle").text == "酒馆掌柜", "world slice dialogue panel shows the NPC speaker name")
 	_require(String(world_game.state.messages[0]).contains("酒馆掌柜"), "world slice NPC interaction adds tavern dialogue to the message log")
+	_require(world_game.state.player.active_weapon != null and String(world_game.state.player.active_weapon.id) == "rusty_sword", "tavern keeper first dialogue equips the gifted rusty sword")
+	_require(int(world_game._world_npc_interaction_counts.get("tavern_keeper", 0)) == 1, "tavern keeper first dialogue is tracked for one-time rewards")
+	var world_save_data: Dictionary = world_game.get_save_data()
+	_require(int(Dictionary(world_save_data.get("world_npc_interaction_counts", {})).get("tavern_keeper", 0)) == 1, "world npc interaction counts are included in run save data")
 	var interaction_message_before_f: String = String(world_game.state.messages[0])
 	var npc_turn_count_before_block: int = int(world_game.state.turn_count)
 	var npc_pos_before_block: Vector2i = world_game.state.player.grid_pos
