@@ -16,7 +16,7 @@ const RESOLUTION_OPTIONS := [
 var resolution_index := 0
 var is_fullscreen := false
 
-const WORLD_SLICE_ZOOM_OPTIONS := [0.5, 1.0, 1.5, 2.0, 4.0]
+const WORLD_SLICE_ZOOM_OPTIONS := [1.0, 1.5, 2.0, 4.0]
 
 signal world_slice_zoom_changed(index: int)
 

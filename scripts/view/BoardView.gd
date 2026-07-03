@@ -116,6 +116,13 @@ func compute_world_slice_cell_size() -> int:
 	return clampi(mini(fit_cell_width, fit_cell_height), world_slice_min_cell_size, world_slice_max_cell_size)
 
 
+func compute_world_slice_zoomed_cell_size() -> int:
+	var base_size: int = compute_world_slice_cell_size()
+	var zoom_factor: float = _get_world_slice_zoom_factor()
+	var zoomed_size: int = int(round(float(base_size) * zoom_factor))
+	return clampi(zoomed_size, world_slice_min_zoom_cell_size, world_slice_max_zoom_cell_size)
+
+
 func _get_world_slice_zoom_factor() -> float:
 	var settings_service = get_node_or_null("/root/SettingsService")
 	if settings_service == null:
@@ -202,10 +209,7 @@ func render(state) -> void:
 		# Camera-follow mode chooses cell_size from the viewport first, then
 		# derives the render window, then aligns BoardView.position so the
 		# rendered window maps to the right screen pixels.
-		cell_size = compute_world_slice_cell_size()
-		var zoom_factor: float = _get_world_slice_zoom_factor()
-		cell_size = int(round(float(cell_size) * zoom_factor))
-		cell_size = clampi(cell_size, world_slice_min_zoom_cell_size, world_slice_max_zoom_cell_size)
+		cell_size = compute_world_slice_zoomed_cell_size()
 		render_window = _compute_render_window(state)
 		_render_window_origin = render_window.position
 		_render_window_size = render_window.size
