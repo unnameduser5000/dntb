@@ -55,8 +55,18 @@ func _ready() -> void:
 		settings_service.world_slice_zoom_changed.connect(_on_world_slice_zoom_changed)
 
 
+func center_world_slice_camera_on_player(state) -> void:
+	if _camera_node == null or state == null or state.player == null:
+		return
+	if not world_slice_camera_follow:
+		return
+	var cell_size: int = compute_world_slice_zoomed_cell_size()
+	_camera_node.position = Vector2(state.player.grid_pos) * float(cell_size + 1) + Vector2(cell_size * 0.5, cell_size * 0.5)
+
+
 func _on_world_slice_zoom_changed(_index: int) -> void:
 	if _last_state != null and bool(_last_state.is_world_slice):
+		center_world_slice_camera_on_player(_last_state)
 		render(_last_state)
 
 
