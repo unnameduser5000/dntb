@@ -184,7 +184,7 @@ theme_type_variation = &"ScreenSubtitle"
 autowrap_mode = 3
 horizontal_alignment = 1
 
-[node name="OverlayButtons" type="VBoxContainer" parent="Overlay/Panel/Margin/Content"]
+[node name="OverlayButtons" type="HBoxContainer" parent="Overlay/Panel/Margin/Content"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 8

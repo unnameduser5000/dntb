@@ -1,5 +1,13 @@
 # Develop Log
 
+## 2026-07-03 Prevented enemies from entering the tavern safe zone
+
+- Updated world-slice enemy spawn selection so both the initial enemy batch and
+  later streamed reinforcements now hard-exclude tavern safe-area walkable
+  cells.
+- Extended `SmokeTest.gd` to verify that no initial or streamed enemy spawns
+  inside the tavern footprint rest area.
+
 ## 2026-07-03 First batch prototype: side-step token, light weapon, line enemy
 
 - Added `SL / SR` as real programmable tokens instead of keeping them only as
@@ -28,6 +36,13 @@
   - `line_keeper` straight-line advance behavior
 - Added the first world-slice ruin interaction loop:
   - sidebar/debug text now points to `Boss遗迹` and the nearest small ruin
+  - the normal right-bottom sidebar now also shows those two direction hints
+  - once the player gets close enough to a ruin, the small-ruin hint upgrades to
+    `附近可调查`
+  - clicking either hint now starts a minimal A*-based autopath toward that POI
+  - autopath now switches to a dedicated presentation timing profile and only
+    advances when the previous action's animation cycle has elapsed
+  - autopath pauses immediately when a visible enemy enters the player's sight
   - standing on a ruin interaction cell and pressing confirm investigates it
   - first-pass ruin rewards grant `SL / SR` into the spare token pool
   - ruin claims are stored so the same ruin cannot be farmed repeatedly

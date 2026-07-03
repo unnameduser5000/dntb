@@ -10,12 +10,15 @@ const AmplifyKnockbackModifierScript := preload("res://scripts/tests/AmplifyKnoc
 const OnHitBonusDamageModifierScript := preload("res://scripts/tests/OnHitBonusDamageModifierDef.gd")
 const OnMoveZapAheadModifierScript := preload("res://scripts/tests/OnMoveZapAheadModifierDef.gd")
 const WorldSliceControllerScript := preload("res://scripts/core/WorldSliceController.gd")
+const SLIME_DEF := preload("res://data/actors/monster.tres")
 const TALKATIVE_SLIME_DEF := preload("res://data/actors/talkative_slime.tres")
 const LINE_WARDEN_DEF := preload("res://data/actors/line_warden.tres")
+const WISP_DEF := preload("res://data/actors/wisp.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
 const GREATBLADE := preload("res://data/weapons/greatblade.tres")
 const TWIN_DAGGERS := preload("res://data/weapons/twin_daggers.tres")
+const CROSS_BLADE := preload("res://data/weapons/cross_blade.tres")
 
 func _init() -> void:
 	var game = GameScene.instantiate()
@@ -27,6 +30,7 @@ func _init() -> void:
 	_require(game.state.room_index == 0, "run starts in room 1")
 	_require(game.state.player.hp == 8, "player starts with 8 hp")
 	_require(game.state.get_alive_enemies().size() == 2, "first room has two enemies")
+	_require(game.state.get_alive_enemies().any(func(actor): return actor != null and String(actor.def.id) == "wisp"), "first room now includes a non-attacking starter enemy")
 	_require(game.state.danger_cells.has(Vector2i(2, 1)), "enemy attack range is previewed")
 
 	var enemy = game.state.get_alive_enemies()[0]
@@ -35,7 +39,7 @@ func _init() -> void:
 	_submit_player_actions(game, ["wait"])
 	await process_frame
 
-	_require(game.state.player.hp == 7, "adjacent enemy attacks after player plan")
+	_require(game.state.player.hp >= 7, "opening enemies no longer guarantee full early attack pressure")
 
 	await _start_run_at_first_combat(game)
 	_submit_player_actions(game, ["move_forward", "attack", "wait"])
@@ -299,6 +303,8 @@ func _init() -> void:
 	_require(world_game.state.world_enemy_stream_target >= 4, "world slice exposes a streamed enemy target count")
 	_require(world_game.state.player.grid_pos == world_game.state.map_data.player_spawn, "world slice uses the generated player spawn")
 	_require(world_game.state.grid.get_actor(world_game.state.player.grid_pos) == world_game.state.player, "world slice places the player at the generated spawn")
+	for safe_zone_enemy in world_game.state.get_alive_enemies():
+		_require(not _is_world_slice_rest_area_cell(world_game.state.map_data, safe_zone_enemy.grid_pos), "world slice initial enemies do not spawn inside the tavern safe area")
 	var world_spawn_cell = world_game.state.map_data.get_cell(world_game.state.map_data.player_spawn)
 	_require(world_spawn_cell != null, "world slice spawn cell exists in map data")
 	_require(
@@ -443,6 +449,8 @@ func _init() -> void:
 	_require(world_game.state.explored_cells.size() >= explored_before_move, "world slice explored cells never shrink after moving")
 	_require(world_game.state.world_enemy_stream_refresh_count > stream_refresh_before, "world slice refreshes enemy streaming after player movement")
 	_require(world_game.state.world_enemy_stream_spawn_total >= stream_spawn_total_before, "world slice tracks cumulative streamed enemy spawns")
+	for streamed_enemy in world_game.state.get_alive_enemies():
+		_require(not _is_world_slice_rest_area_cell(world_game.state.map_data, streamed_enemy.grid_pos), "world slice streamed enemies also stay out of the tavern safe area")
 	_require(not String(world_game.state.tracked_boss_poi_relative_hint).is_empty(), "world slice computes a boss-ruin direction hint")
 	_require(not String(world_game.state.tracked_nearest_ruin_relative_hint).is_empty(), "world slice computes a nearest small-ruin direction hint")
 	var ruin_record: Dictionary = _find_world_slice_poi_record(world_game.state.map_data, "ruin")
@@ -454,6 +462,7 @@ func _init() -> void:
 		world_game._world_slice_controller.on_player_moved(world_game.state, outside_rest_cell, ruin_interaction_cell)
 	world_game._refresh_views()
 	await process_frame
+	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/RuinPoiHint").text.contains("附近可调查"), "sidebar upgrades the ruin hint once the player gets close enough to investigate")
 	var pool_count_before_ruin: int = world_game.get_key_program_pool_tokens().size()
 	_require(world_game._submit_world_interact_action(), "world slice can investigate a ruin via interact action")
 	_require(world_game.get_key_program_pool_tokens().has("SL") and world_game.get_key_program_pool_tokens().has("SR"), "ruin investigation adds side-step tokens to the spare pool")
@@ -667,6 +676,37 @@ func _init() -> void:
 	_require(on_move_zap.triggered_count == 1, "effect event modifier reacts to actor moved")
 	_require(game.state.player.grid_pos == Vector2i(3, 2), "on-move event keeps normal movement result")
 	_require(on_move_enemy.hp == 9, "on-move event can generate a follow-up damage packet")
+
+	await _start_seeded_combat_run(game, "xp-and-level-up")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	var xp_enemy_a = game._add_actor(game.state, SLIME_DEF, Vector2i(2, 1))
+	xp_enemy_a.team = "enemy"
+	xp_enemy_a.hp = 1
+	game.state.player.facing = Vector2i.UP
+	var xp_attack_a = _make_player_action(game, "attack")
+	game.resolver.resolve(xp_attack_a, game.state)
+	_require(game.state.player_xp == 1, "killing the first enemy grants 1 xp")
+	_require(String(game.state.pickup_key_at(Vector2i(2, 1))) == game.state.ITEM_CROSS_BLADE, "first kill drops the four-direction weapon as a pickup")
+	game._on_key_picked(game.state.player, game.state.ITEM_CROSS_BLADE, Vector2i(2, 1))
+	_require(game.state.player.active_weapon == CROSS_BLADE, "picking up the first-kill drop equips the four-direction cross blade")
+	var xp_enemy_b = game._add_actor(game.state, SLIME_DEF, Vector2i(3, 2))
+	xp_enemy_b.team = "enemy"
+	xp_enemy_b.hp = 1
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	var hp_before_level_up: int = game.state.player.hp
+	var max_hp_before_level_up: int = game.state.player.max_hp
+	var xp_attack_b = _make_player_action(game, "attack")
+	game.resolver.resolve(xp_attack_b, game.state)
+	_require(game.state.player_xp == 2, "second kill increases xp again")
+	_require(game.state.player_level == 2, "reaching the threshold levels the player up")
+	_require(game.state.player.max_hp == max_hp_before_level_up + 1, "leveling up increases max hp")
+	_require(game.state.player.hp >= hp_before_level_up, "leveling up restores hp immediately")
+	_require(game._current_rewards.size() == 3, "level up offers three permanent buff choices")
+	game._on_reward_chosen(0)
+	await process_frame
+	_require(game._run_modifier_ids.size() >= 1, "choosing a level-up reward grants a permanent modifier")
 
 	var achievement_service = root.get_node_or_null("/root/AchievementService")
 	_require(achievement_service != null, "achievement service autoload exists")

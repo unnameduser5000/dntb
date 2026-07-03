@@ -162,6 +162,11 @@ func _preview_attack_cells(state, origin: Vector2i, direction: Vector2i, action_
 			_add_preview_attack_cell(state, cells, cell)
 		return cells
 
+	if action_def.id == "cross_attack":
+		for cell in [origin + Vector2i.UP, origin + Vector2i.DOWN, origin + Vector2i.LEFT, origin + Vector2i.RIGHT]:
+			_add_preview_attack_cell(state, cells, cell)
+		return cells
+
 	for step in range(1, max(1, int(action_def.range)) + 1):
 		var cell: Vector2i = origin + direction * step
 		if not state.grid.is_inside(cell) or state.grid.is_blocked(cell):

@@ -7,6 +7,7 @@ const KEY_NAMES := {
 	"L": "左",
 	"R": "右",
 }
+const ITEM_CROSS_BLADE := "cross_blade_pickup"
 
 var grid
 var map_data = null
@@ -66,11 +67,15 @@ var tracked_boss_poi_cell: Vector2i = Vector2i(-1, -1)
 var tracked_boss_poi_relative_hint: String = ""
 var tracked_nearest_ruin_cell: Vector2i = Vector2i(-1, -1)
 var tracked_nearest_ruin_relative_hint: String = ""
+var tracked_safe_zone_cell: Vector2i = Vector2i(-1, -1)
+var tracked_safe_zone_relative_hint: String = ""
 var defer_enemy_phase_for_interaction: bool = false
 var effect_modifiers: Array = []
 var is_safe_training: bool = false
 var is_world_slice: bool = false
 var action_trace = null
+var player_xp: int = 0
+var player_level: int = 1
 
 func add_actor(actor) -> void:
 	actors.append(actor)
@@ -86,6 +91,8 @@ func get_alive_enemies() -> Array:
 
 func key_name(key_id: String) -> String:
 	match key_id:
+		ITEM_CROSS_BLADE:
+			return "十字刃"
 		"TL":
 			return "左转"
 		"TR":

@@ -190,6 +190,14 @@ func _get_attack_cells(action) -> Array[Vector2i]:
 			actor.grid_pos + right,
 		]
 
+	if action.def.id == "cross_attack":
+		return [
+			actor.grid_pos + Vector2i.UP,
+			actor.grid_pos + Vector2i.DOWN,
+			actor.grid_pos + Vector2i.LEFT,
+			actor.grid_pos + Vector2i.RIGHT,
+		]
+
 	var cells: Array[Vector2i] = []
 	for step in range(1, max(1, int(action.def.range)) + 1):
 		cells.append(actor.grid_pos + dir * step)
@@ -608,6 +616,8 @@ func _try_pickup_key(actor, state) -> void:
 	if key_id.is_empty():
 		return
 
-	#state.add_key(key_id, 1)
 	key_picked.emit(actor, key_id, actor.grid_pos)
-	_add_message(state, "拾取了%s按键。" % state.key_name(key_id))
+	if key_id == state.ITEM_CROSS_BLADE:
+		_add_message(state, "拾取了%s。" % state.key_name(key_id))
+	else:
+		_add_message(state, "拾取了%s按键。" % state.key_name(key_id))

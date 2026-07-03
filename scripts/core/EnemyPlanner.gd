@@ -140,6 +140,9 @@ func _make_attack(enemy, direction: Vector2i):
 func describe_action(action) -> String:
 	if action == null:
 		return ""
+	if action.actor != null and action.actor.def != null and int(action.actor.def.atk) <= 0:
+		var dir_name := _dir_name(action.chosen_dir)
+		return "%s 正在向%s靠近（不会主动造成伤害）" % [action.actor.def.display_name, dir_name]
 
 	if action.def.id == "attack":
 		return "%s 准备向%s攻击" % [action.actor.def.display_name, _dir_name(action.chosen_dir)]

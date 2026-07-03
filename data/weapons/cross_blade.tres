@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/WeaponDef.gd" id="1_weapon"]
+[ext_resource type="Resource" path="res://data/actions/cross_attack.tres" id="2_action"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = "cross_blade"
+display_name = "十字刃"
+description = "基础攻击动作会同时攻击上下左右四个相邻格。"
+attack_action = ExtResource("2_action")

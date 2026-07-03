@@ -140,10 +140,13 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 		}
 
 	if (is_visible or reveal_all) and state.items_at.has(cell):
+		var item_id := String(state.items_at[cell])
+		var item_char := _item_display_char(item_id)
+		var item_tooltip := _item_tooltip(state, item_id)
 		return {
-			"char": String(state.items_at[cell]),
+			"char": item_char,
 			"style": _preview_cell_style(is_danger, is_preview_move, is_preview_attack, "BoardItemCell"),
-			"tooltip": _preview_prefix(is_preview_move, is_preview_attack) + _danger_prefix(is_danger) + "Key token: %s" % String(state.items_at[cell]),
+			"tooltip": _preview_prefix(is_preview_move, is_preview_attack) + _danger_prefix(is_danger) + item_tooltip,
 		}
 
 	var grid_items: Array = state.grid.get_grid_items(cell)
@@ -291,6 +294,18 @@ func _preview_cell_style(is_danger: bool, is_preview_move: bool, is_preview_atta
 	if is_danger:
 		return "BoardDangerCell"
 	return fallback_style
+
+
+func _item_display_char(item_id: String) -> String:
+	if item_id == "cross_blade_pickup":
+		return "+"
+	return item_id
+
+
+func _item_tooltip(state, item_id: String) -> String:
+	if state != null and String(item_id) == String(state.ITEM_CROSS_BLADE):
+		return "Weapon pickup: 十字刃"
+	return "Key token: %s" % item_id
 
 
 func _player_facing_char(facing: Vector2i) -> String:
