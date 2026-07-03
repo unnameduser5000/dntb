@@ -1,5 +1,49 @@
 # Develop Log
 
+## 2026-07-03 First batch prototype: side-step token, light weapon, line enemy
+
+- Added `SL / SR` as real programmable tokens instead of keeping them only as
+  trace semantics.
+- Added `step_left.tres` and `step_right.tres`, and wired them through:
+  - `ActionProgramController.gd`
+  - `DirectionalTechniqueResolver.gd`
+  - `ActionResolver.gd`
+  - `ActionPreviewService.gd`
+  - `BagUI.gd`
+- Kept the first-pass side-step rule intentionally narrow:
+  - move one tile relative to current facing
+  - do not rotate the actor
+- Added `twin_daggers.tres` as the first light-weapon prototype for the
+  side-step batch.
+- Added `line_warden.tres` plus `line_keeper` enemy AI as the first straight-line
+  pressure enemy prototype.
+- Follow-up doc pass:
+  - clarified that future action/token content should primarily come from map
+    drops plus limited teaching rewards;
+  - clarified that future weapons should primarily come from relic/ruin/chest or
+    room-level reward choices instead of common map drops.
+- Extended `SmokeTest.gd` to cover:
+  - `SL / SR` token legality and plan mapping
+  - `SL` preview and actual execution
+  - `line_keeper` straight-line advance behavior
+- Added the first world-slice ruin interaction loop:
+  - sidebar/debug text now points to `Boss遗迹` and the nearest small ruin
+  - standing on a ruin interaction cell and pressing confirm investigates it
+  - first-pass ruin rewards grant `SL / SR` into the spare token pool
+  - ruin claims are stored so the same ruin cannot be farmed repeatedly
+
+## 2026-07-03 Clarified monster and token expansion direction docs
+
+- Updated `docs/01_系统设计文档.md` to make the current monster boundary,
+  token acquisition paths, and next-step content direction more explicit.
+- Updated `docs/04_键位扩展清单.md` so token expansion is now documented
+  together with the kind of enemy pressure each new token should justify.
+- Added a clearer “next-step plan summary” to those docs so actions, weapons,
+  and monsters are now grouped into concrete rollout batches instead of only
+  being listed as separate recommendations.
+- Updated `docs/03_测试与验证.md` to reflect the fixed tavern starter layout
+  and the current “first talk grants attack token into pool” onboarding flow.
+
 ## 2026-07-03 Tavern keeper starter attack token gift
 
 - Kept `rusty_sword.tres` available as data, but changed the actual starter
@@ -20,7 +64,8 @@
   - fixed the spawn tavern pattern orientation instead of letting that first
     safe-zone layout rotate or mirror
   - pinned the player spawn to a fixed local tavern floor cell
-  - pinned the tavern keeper to the tile directly north of that spawn point
+  - pinned the tavern keeper to a fixed adjacent starter cell next to the
+    player spawn
   - auto-faced the player toward the tavern keeper on world-slice start so the
     opening sword interaction is always immediately reachable
 

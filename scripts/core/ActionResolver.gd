@@ -167,6 +167,12 @@ func _get_action_dir(action) -> Vector2i:
 	if action.chosen_dir != Vector2i.ZERO:
 		return action.chosen_dir
 
+	if action.def.id == "step_left":
+		return Vector2i(action.actor.facing.y, -action.actor.facing.x)
+
+	if action.def.id == "step_right":
+		return Vector2i(-action.actor.facing.y, action.actor.facing.x)
+
 	if action.def.id == "move_back":
 		return -action.actor.facing
 

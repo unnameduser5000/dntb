@@ -11,9 +11,11 @@ const OnHitBonusDamageModifierScript := preload("res://scripts/tests/OnHitBonusD
 const OnMoveZapAheadModifierScript := preload("res://scripts/tests/OnMoveZapAheadModifierDef.gd")
 const WorldSliceControllerScript := preload("res://scripts/core/WorldSliceController.gd")
 const TALKATIVE_SLIME_DEF := preload("res://data/actors/talkative_slime.tres")
+const LINE_WARDEN_DEF := preload("res://data/actors/line_warden.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
 const GREATBLADE := preload("res://data/weapons/greatblade.tres")
+const TWIN_DAGGERS := preload("res://data/weapons/twin_daggers.tres")
 
 func _init() -> void:
 	var game = GameScene.instantiate()
@@ -79,7 +81,7 @@ func _init() -> void:
 	_require(_array_equals(relative_slots["A"], ["TL", "F"]), "relative starter preset puts TL/F in A")
 	_require(_array_equals(relative_slots["D"], ["TR", "F"]), "relative starter preset puts TR/F in D")
 	_require(_array_equals(relative_slots["F"], ["I"]), "starter preset now reserves physical F for the interact token")
-	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J"]), "token drop pool includes all current program tokens")
+	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "SL", "SR", "TL", "TR", "A", "I", "G", "W", "J"]), "token drop pool includes all current program tokens")
 	_require(starter_program.is_program_token("F"), "F is a legal program token")
 	_require(starter_program.is_program_token("I"), "I is a legal program token")
 	_require(starter_program.is_program_token("TL"), "TL is a legal program token")
@@ -201,6 +203,17 @@ func _init() -> void:
 	_require(not trace_semantic_game.get_player_action_trace_debug_string(1).contains("TR"), "absolute move trace is not disguised as TR")
 	_require(Vector2i(trace_semantic_game.state.action_trace.get_recent_entries_for_actor(int(trace_semantic_game.state.player.id), 1)[0].move_dir) == Vector2i.RIGHT, "runtime trace move_dir stays normalized to unit direction")
 
+	await _start_seeded_combat_run(game, "side-step-preview")
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.UP
+	var side_preview: Dictionary = game._build_key_slot_preview(["SL", "SR"])
+	_require(Array(side_preview.get("move_cells", [])).has(Vector2i(1, 2)), "SL preview projects one cell to the actor's left")
+	var side_left_plan: Array = game._build_key_slot_plan(["SL"])
+	game.turn_controller.submit_player_plan(side_left_plan)
+	await process_frame
+	_require(game.state.player.grid_pos == Vector2i(1, 2), "SL action moves the player left relative to facing")
+	_require(game.state.player.facing == Vector2i.UP, "SL action keeps facing unchanged")
+
 	var attack_dir_game = GameScene.instantiate()
 	root.add_child(attack_dir_game)
 	await process_frame
@@ -222,11 +235,21 @@ func _init() -> void:
 	_require(attack_dir_game.state.player.facing == Vector2i.RIGHT, "weapon attack updates facing to chosen_dir when present")
 	_require(right_enemy.hp < right_enemy_hp_before, "weapon-bound attack uses chosen_dir instead of current facing")
 
+	await _start_seeded_combat_run(game, "line-warden-ai")
+	_disable_enemies(game)
+	var line_enemy = game._add_actor(game.state, LINE_WARDEN_DEF, Vector2i(2, 4))
+	line_enemy.team = "enemy"
+	_move_player_to(game, Vector2i(2, 1))
+	game.state.player.active_weapon = TWIN_DAGGERS
+	var line_action = game.enemy_planner.decide_enemy_action(line_enemy, game.state)
+	_require(line_action != null and line_action.def != null and line_action.def.id == "move_forward", "line keeper advances along the player's line when out of range")
+	_require(line_action.chosen_dir == Vector2i.UP, "line keeper moves straight along the same column toward the player")
+
 	game.start_seeded_run("absolute")
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "mixed-drop test starts from camp")
 	_require(game._key_program_editable, "mixed-drop test keeps rest editing enabled")
-	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J"]), "game exposes the full token drop pool")
+	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "SL", "SR", "TL", "TR", "A", "I", "G", "W", "J"]), "game exposes the full token drop pool")
 	_require(not game.get_key_program_pool_tokens().has("lunge"), "lunge is not a key program pool token")
 	_require(not game.get_key_program_pool_tokens().has("sweep"), "sweep is not a key program pool token")
 	game.state.drop_key_at(Vector2i(2, 2), "F")
@@ -420,6 +443,25 @@ func _init() -> void:
 	_require(world_game.state.explored_cells.size() >= explored_before_move, "world slice explored cells never shrink after moving")
 	_require(world_game.state.world_enemy_stream_refresh_count > stream_refresh_before, "world slice refreshes enemy streaming after player movement")
 	_require(world_game.state.world_enemy_stream_spawn_total >= stream_spawn_total_before, "world slice tracks cumulative streamed enemy spawns")
+	_require(not String(world_game.state.tracked_boss_poi_relative_hint).is_empty(), "world slice computes a boss-ruin direction hint")
+	_require(not String(world_game.state.tracked_nearest_ruin_relative_hint).is_empty(), "world slice computes a nearest small-ruin direction hint")
+	var ruin_record: Dictionary = _find_world_slice_poi_record(world_game.state.map_data, "ruin")
+	_require(not ruin_record.is_empty(), "world slice exposes a ruin poi record")
+	var ruin_interaction_cell: Vector2i = Vector2i(ruin_record.get("interaction_cell", Vector2i(-1, -1)))
+	_require(ruin_interaction_cell != Vector2i(-1, -1), "ruin poi exposes an interaction cell")
+	_move_player_to(world_game, ruin_interaction_cell)
+	if world_game._world_slice_controller != null:
+		world_game._world_slice_controller.on_player_moved(world_game.state, outside_rest_cell, ruin_interaction_cell)
+	world_game._refresh_views()
+	await process_frame
+	var pool_count_before_ruin: int = world_game.get_key_program_pool_tokens().size()
+	_require(world_game._submit_world_interact_action(), "world slice can investigate a ruin via interact action")
+	_require(world_game.get_key_program_pool_tokens().has("SL") and world_game.get_key_program_pool_tokens().has("SR"), "ruin investigation adds side-step tokens to the spare pool")
+	_require(world_game.get_key_program_pool_tokens().size() >= pool_count_before_ruin + 2, "ruin investigation grows the spare token pool")
+	var ruin_message_after_claim: String = String(world_game.state.messages[0])
+	_require(ruin_message_after_claim.contains("小遗迹"), "ruin investigation reports a reward message")
+	_require(world_game._submit_world_interact_action(), "already-claimed ruin still resolves interact input")
+	_require(String(world_game.state.messages[0]).contains("已经调查过"), "revisiting a claimed ruin reports that it was already investigated")
 	var world_player_view = world_game._battle_presentation.actor_views.get(int(world_game.state.player.id))
 	_require(world_player_view != null, "world slice keeps a player actor view after movement")
 	var expected_world_pos: Vector2 = world_game.board_view.grid_to_world(world_game.state.player.grid_pos) + Vector2(world_game.board_view.cell_size * 0.5, world_game.board_view.cell_size * 0.5)

@@ -25,6 +25,8 @@ const KEY_DIRECTIONS := {
 const TOKEN_ACTION_IDS := {
 	"F": "move_forward",
 	"B": "move_back",
+	"SL": "step_left",
+	"SR": "step_right",
 	"TL": "turn_left",
 	"TR": "turn_right",
 	"A": "attack",
