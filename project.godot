@@ -48,3 +48,5 @@ enabled=PackedStringArray("res://addons/dialogue_manager/plugin.cfg")
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+anti_aliasing/quality/use_taa=true
+2d/snap/snap_2d_transforms_to_pixel=true
