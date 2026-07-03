@@ -70,14 +70,16 @@ func _register_defaults() -> void:
 		"preferred_terrain": ["plain", "hill"],
 		"forbidden_terrain": [MapCellScript.TerrainType.WATER, MapCellScript.TerrainType.RIVER, MapCellScript.TerrainType.MOUNTAIN, MapCellScript.TerrainType.PEAK],
 		"clearance_radius": 3,
-		"can_rotate": true,
-		"can_mirror": true,
+		"can_rotate": false,
+		"can_mirror": false,
 		"requires_reachable": true,
 		"major": true,
+		"fixed_player_spawn_local": Vector2i(6, 8),
 		"npc_spawn_slots": [
 			{
 				"slot_id": "spawn_host",
 				"npc_id": "tavern_keeper",
+				"fixed_cell_local": Vector2i(5, 8),
 				"preferred_tags": ["building_floor", "building_open_ground"],
 				"avoid_tags": ["building_door", "interactable"],
 				"near": "player_spawn",

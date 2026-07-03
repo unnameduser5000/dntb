@@ -1,19 +1,28 @@
 # Develop Log
 
-## 2026-07-03 Tavern keeper starter weapon gift
+## 2026-07-03 Tavern keeper starter attack token gift
 
-- Added `rusty_sword.tres` as a real sword weapon resource that still reuses the
-  generic forward `attack` action.
+- Kept `rusty_sword.tres` available as data, but changed the actual starter
+  reward flow to match the key-program system more closely.
 - Hooked the world-slice tavern interaction flow so the spawn tavern keeper now
-  grants that sword on the first successful conversation:
+  grants the generic attack token on the first successful conversation:
   - reward is driven inside `Game._try_interact_with_world_npc()`
-  - the gift immediately equips the run weapon and refreshes inventory UI
-  - a follow-up log line explains that the attack key now swings forward with
-    the sword
+  - the token is added to the spare/pool inventory instead of being forced into
+    a key slot
+  - follow-up dialogue/message now tells the player to open the bag and assign
+    that token to a physical key before leaving
 - Persisted `world_npc_interaction_counts` in run save data so reloads do not
   re-trigger the first-talk gift.
-- Extended smoke coverage to verify the first tavern-keeper dialogue equips
-  `rusty_sword` and records the one-time interaction count in save payloads.
+- Extended smoke coverage to verify the first tavern-keeper dialogue adds the
+  attack token to the spare pool and records the one-time interaction count in
+  save payloads.
+- Follow-up stability pass:
+  - fixed the spawn tavern pattern orientation instead of letting that first
+    safe-zone layout rotate or mirror
+  - pinned the player spawn to a fixed local tavern floor cell
+  - pinned the tavern keeper to the tile directly north of that spawn point
+  - auto-faced the player toward the tavern keeper on world-slice start so the
+    opening sword interaction is always immediately reachable
 
 Validation:
 

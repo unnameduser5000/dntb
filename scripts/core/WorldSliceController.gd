@@ -271,13 +271,13 @@ func _apply_generated_map_state(state, visibility_reason: String) -> void:
 
 	var reserved: Dictionary = {}
 	reserved[player_cell] = true
+	_spawn_safe_zone_npcs(state, reserved)
+	_orient_player_toward_tracked_world_npc(state)
 
 	var prop_cell: Vector2i = _pick_prop_cell(state.map_data, reserved)
 	if prop_cell != Vector2i(-1, -1):
 		_add_placeholder_prop(state, prop_cell)
 		reserved[prop_cell] = true
-
-	_spawn_safe_zone_npcs(state, reserved)
 
 	for enemy_cell in _pick_enemy_spawn_cells(state.map_data, player_cell, reserved, REQUIRED_ENEMY_COUNT):
 		var enemy_def = BRUTE_DEF if state.get_alive_enemies().size() >= REQUIRED_ENEMY_COUNT - 1 else SLIME_DEF
@@ -411,6 +411,12 @@ func _pick_safe_zone_npc_cell_for_slot(map_data, tavern_record: Dictionary, rese
 	var protected_cells: Dictionary = _build_tavern_npc_protected_cells(tavern_record)
 	var preferred_tags: Array = slot.get("preferred_tags", [])
 	var avoid_tags: Array = slot.get("avoid_tags", [])
+	var origin: Vector2i = Vector2i(tavern_record.get("origin", Vector2i(-1, -1)))
+	var fixed_cell_local: Vector2i = Vector2i(slot.get("fixed_cell_local", Vector2i(-1, -1)))
+	if origin != Vector2i(-1, -1) and fixed_cell_local != Vector2i(-1, -1):
+		var fixed_cell: Vector2i = origin + fixed_cell_local
+		if map_data.is_walkable(fixed_cell) and not reserved.has(fixed_cell) and not protected_cells.has(fixed_cell):
+			return fixed_cell
 	var anchor_cell: Vector2i = map_data.player_spawn if String(slot.get("near", "player_spawn")) == "player_spawn" else interaction_cell
 	for cell_value in tavern_record.get("occupied_cells", []):
 		var cell: Vector2i = Vector2i(cell_value)
@@ -454,6 +460,21 @@ func _pick_safe_zone_npc_cell_for_slot(map_data, tavern_record: Dictionary, rese
 		if cell != Vector2i(-1, -1):
 			return cell
 	return Vector2i(-1, -1)
+
+
+func _orient_player_toward_tracked_world_npc(state) -> void:
+	if state == null or state.player == null:
+		return
+	var tracked_npc_id: String = String(state.tracked_world_npc_id)
+	if tracked_npc_id.is_empty():
+		return
+	var npc_cell: Vector2i = Vector2i(state.world_npc_positions.get(tracked_npc_id, Vector2i(-1, -1)))
+	if npc_cell == Vector2i(-1, -1):
+		return
+	var delta: Vector2i = npc_cell - state.player.grid_pos
+	if absi(delta.x) + absi(delta.y) != 1:
+		return
+	state.player.facing = delta
 
 
 func _build_tavern_npc_protected_cells(tavern_record: Dictionary) -> Dictionary:
