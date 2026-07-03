@@ -7,11 +7,13 @@ signal pause_menu_requested
 const GameStateScript := preload("res://scripts/core/GameState.gd")
 const GridModelScript := preload("res://scripts/core/GridModel.gd")
 const ActorStateScript := preload("res://scripts/runtime/ActorState.gd")
+const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 const ActionProgramControllerScript := preload("res://scripts/core/ActionProgramController.gd")
 const ActionPreviewServiceScript := preload("res://scripts/core/ActionPreviewService.gd")
 const DirectionalTechniqueResolverScript := preload("res://scripts/core/DirectionalTechniqueResolver.gd")
 const BattlePresentationControllerScript := preload("res://scripts/core/BattlePresentationController.gd")
 const WorldSliceControllerScript := preload("res://scripts/core/WorldSliceController.gd")
+const ActorInteractionServiceScript := preload("res://scripts/core/ActorInteractionService.gd")
 
 const PLAYER_DEF := preload("res://data/actors/player.tres")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
@@ -26,6 +28,7 @@ const ACTION_JUMP := preload("res://data/actions/jump.tres")
 const ACTION_ATTACK := preload("res://data/actions/attack.tres")
 const ACTION_WAIT := preload("res://data/actions/wait.tres")
 const ACTION_GUARD := preload("res://data/actions/guard.tres")
+const ACTION_INTERACT := preload("res://data/actions/interact.tres")
 const ACTION_CHARGE_THRUST := preload("res://data/actions/charge_thrust.tres")
 const ACTION_GREAT_SWEEP := preload("res://data/actions/great_sweep.tres")
 const ACTION_MOVE_KEY := preload("res://data/actions/move_key.tres")
@@ -165,9 +168,13 @@ var _action_preview
 var _directional_techniques
 var _battle_presentation
 var _world_slice_controller
+var _actor_interaction_service
 var _current_rewards: Array = []
 var _key_program_editable := false
 var _world_slice_last_rest_area_state: bool = false
+var _world_npc_interaction_counts: Dictionary = {}
+var _world_npc_dialogue_active := false
+var _world_npc_dialogue_npc_id := ""
 var _bag_open := false
 var _shell_overlay_active := false
 
@@ -181,6 +188,7 @@ func _ready() -> void:
 		"attack": ACTION_ATTACK,
 		"wait": ACTION_WAIT,
 		"guard": ACTION_GUARD,
+		"interact": ACTION_INTERACT,
 		"charge_thrust": ACTION_CHARGE_THRUST,
 		"great_sweep": ACTION_GREAT_SWEEP,
 		"move_key": ACTION_MOVE_KEY,
@@ -204,6 +212,7 @@ func _ready() -> void:
 	_battle_presentation = BattlePresentationControllerScript.new()
 	_battle_presentation.setup(board_view, $ActorRoot, $EffectRoot)
 	_world_slice_controller = WorldSliceControllerScript.new()
+	_actor_interaction_service = ActorInteractionServiceScript.new()
 	_refresh_key_program_ui()
 
 	turn_controller.resolver = resolver
@@ -225,6 +234,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _shell_overlay_active:
 		return
 
+	if _world_npc_dialogue_active:
+		if event is InputEventKey and event.pressed and not event.echo:
+			_close_world_npc_dialogue()
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("ui_accept"):
+			_close_world_npc_dialogue()
+			get_viewport().set_input_as_handled()
+			return
+		return
+
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_TAB and state != null and not state.battle_finished:
 			_toggle_bag()
@@ -238,6 +258,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if state != null and bool(state.is_world_slice):
+		if event.is_action_pressed("ui_accept"):
+			if _submit_world_interact_action():
+				get_viewport().set_input_as_handled()
+				return
 		if event is InputEventKey and event.pressed and not event.echo:
 			if event.keycode == KEY_V:
 				if _world_slice_controller != null:
@@ -248,6 +272,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event.keycode == KEY_F5:
 				if _world_slice_controller != null:
 					_world_slice_controller.regenerate_same_seed(state)
+					_world_npc_interaction_counts.clear()
 					turn_controller.start_battle(state)
 					_refresh_views()
 					get_viewport().set_input_as_handled()
@@ -255,6 +280,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event.keycode == KEY_F6:
 				if _world_slice_controller != null:
 					_world_slice_controller.regenerate_new_seed(state)
+					_world_npc_interaction_counts.clear()
 					turn_controller.start_battle(state)
 					_refresh_views()
 					get_viewport().set_input_as_handled()
@@ -280,6 +306,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 	var key_id: String = input_service.get_key_id_for_action(action_name)
 	_submit_key_chain(key_id)
+
+
+func _is_world_interaction_event(event: InputEvent) -> bool:
+	if event == null:
+		return false
+	if event.is_action_pressed("ui_accept"):
+		return true
+	if event is InputEventKey and event.pressed and not event.echo:
+		return int(event.keycode) == KEY_F
+	return false
+
 
 func set_game_visible(is_visible: bool) -> void:
 	board_view.visible = is_visible
@@ -312,9 +349,11 @@ func _connect_signals() -> void:
 	resolver.rule_message.connect(func(_message: String) -> void: _refresh_views())
 	resolver.key_picked.connect(_on_key_picked)
 	resolver.actor_moved.connect(_on_actor_moved)
+	resolver.world_npc_interaction_requested.connect(_on_world_npc_interaction_requested)
 
 func start_run() -> void:
 	_close_bag_if_open()
+	_close_world_npc_dialogue(false)
 	start_world_slice_debug()
 
 
@@ -331,6 +370,8 @@ func start_seeded_run(seed_value) -> void:
 
 func start_world_slice_debug() -> void:
 	_ensure_action_helpers()
+	_world_npc_interaction_counts.clear()
+	_close_world_npc_dialogue(false)
 	if world_loading_overlay != null:
 		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
 		await get_tree().process_frame
@@ -373,6 +414,7 @@ func _on_world_generation_progress(progress_data: Dictionary) -> void:
 
 
 func _start_new_run(seed_value) -> void:
+	_close_world_npc_dialogue(false)
 	_current_room_index = 0
 	_current_map_node_index = 0
 	_run_player_max_hp = PLAYER_DEF.max_hp
@@ -410,6 +452,7 @@ func _start_map_node(node_index: int) -> void:
 func _start_room(room_index: int) -> void:
 	_next_actor_id = 0
 	_key_program_editable = false
+	_close_world_npc_dialogue(false)
 	state = _create_room_state(room_index)
 	_clear_key_slot_preview(false)
 	_apply_run_modifiers_to_player()
@@ -428,6 +471,7 @@ func _start_room(room_index: int) -> void:
 func _start_rest_node(node: Dictionary) -> void:
 	_next_actor_id = 0
 	_key_program_editable = true
+	_close_world_npc_dialogue(false)
 	state = _create_rest_state(node)
 	_clear_key_slot_preview(false)
 	_apply_run_modifiers_to_player()
@@ -444,6 +488,11 @@ func _start_rest_node(node: Dictionary) -> void:
 	_refresh_views()
 
 func _submit_key_chain(key_id: String) -> void:
+	if _world_npc_dialogue_active:
+		if state != null:
+			state.add_message("对话还没结束，先听对方把话说完。")
+			_refresh_views()
+		return
 	_clear_key_slot_preview(false)
 	var curse_service = get_node_or_null("/root/CurseService")
 	if curse_service != null and not _is_safe_training_state() and not _is_world_slice_state():
@@ -470,6 +519,7 @@ func _submit_key_chain(key_id: String) -> void:
 
 func _on_battle_finished(victory: bool) -> void:
 	_close_bag_if_open()
+	_close_world_npc_dialogue(false)
 	if state != null and state.player != null:
 		_run_player_hp = max(0, state.player.hp)
 		_run_player_san = max(0, state.player.san)
@@ -603,10 +653,94 @@ func _update_world_slice_editability(force_refresh: bool = false) -> void:
 		battle_ui.set_key_program_editable(editable_now)
 	if force_refresh or editable_now != _world_slice_last_rest_area_state:
 		if editable_now:
-			state.add_message("进入酒馆休息区：这里可以调整行动编排。")
+			state.add_message("进入酒馆休息区：这里可以调整行动编排，也可以按确认键和邻近幸存者交谈。")
 		else:
 			state.add_message("离开酒馆休息区：行动编排已锁定。")
 	_world_slice_last_rest_area_state = editable_now
+
+
+func _try_interact_with_world_npc() -> bool:
+	if state == null or not bool(state.is_world_slice) or _actor_interaction_service == null:
+		return false
+	var result: Dictionary = _actor_interaction_service.interact(state, _world_npc_interaction_counts)
+	if not bool(result.get("handled", false)):
+		if _world_npc_dialogue_active:
+			_close_world_npc_dialogue()
+			return true
+		if _is_player_in_world_slice_rest_area():
+			state.add_message("你环顾了一圈，但附近没有人接话。")
+			_refresh_views()
+			return true
+		return false
+	var speaker: String = String(result.get("title", result.get("npc_name", "陌生人")))
+	var line: String = String(result.get("line", ""))
+	if line.is_empty():
+		line = "只是安静地点了点头。"
+	var actor_id := String(result.get("actor_id", result.get("npc_id", "")))
+	var actor_name := String(result.get("actor_name", result.get("npc_name", speaker)))
+	state.tracked_world_actor_id = actor_id
+	state.show_tracked_world_actor_hint = true
+	state.world_actor_display_names[actor_id] = actor_name
+	state.tracked_world_npc_id = actor_id
+	state.show_tracked_world_npc_hint = true
+	_world_npc_dialogue_active = true
+	_world_npc_dialogue_npc_id = actor_id
+	if is_instance_valid(battle_ui):
+		battle_ui.show_world_npc_dialogue(speaker, line)
+	state.add_message("%s：%s" % [speaker, line])
+	var dialogue_resource_path := String(result.get("dialogue_resource_path", ""))
+	if not dialogue_resource_path.is_empty():
+		var dialogue_service = get_node_or_null("/root/DialogueService")
+		if dialogue_service != null and dialogue_service.has_method("start_dialogue"):
+			dialogue_service.call("start_dialogue", dialogue_resource_path, String(result.get("dialogue_cue", "")), [self, state])
+	_refresh_views()
+	return true
+
+
+func _submit_world_interact_action() -> bool:
+	if state == null or not bool(state.is_world_slice) or state.player == null:
+		return false
+	if _actor_interaction_service == null:
+		return false
+	var has_target: bool = _actor_interaction_service.find_interactable_actor(state) != null
+	if not has_target:
+		if _world_npc_dialogue_active:
+			return _try_interact_with_world_npc()
+		if _is_player_in_world_slice_rest_area():
+			state.add_message("你环顾了一圈，但附近没有人接话。")
+			_refresh_views()
+			return true
+		return false
+	if state.phase != "planning" or state.battle_finished:
+		return true
+	var interact_action = _build_world_interact_action()
+	if interact_action == null:
+		return false
+	turn_controller.submit_player_plan([interact_action])
+	return true
+
+
+func _build_world_interact_action():
+	if state == null or state.player == null:
+		return null
+	var action = ActionInstanceScript.new()
+	action.actor = state.player
+	action.def = ACTION_INTERACT
+	action.key_id = "INTERACT"
+	return action
+
+
+func _on_world_npc_interaction_requested(_actor) -> void:
+	_try_interact_with_world_npc()
+
+
+func _close_world_npc_dialogue(refresh: bool = true) -> void:
+	_world_npc_dialogue_active = false
+	_world_npc_dialogue_npc_id = ""
+	if is_instance_valid(battle_ui):
+		battle_ui.hide_world_npc_dialogue()
+	if refresh:
+		_refresh_views()
 
 
 func _is_player_in_world_slice_rest_area() -> bool:
@@ -1026,6 +1160,8 @@ func _refresh_key_program_ui() -> void:
 func _toggle_bag() -> void:
 	if _shell_overlay_active:
 		return
+	if _world_npc_dialogue_active:
+		return
 	if state == null or state.battle_finished:
 		return
 	if is_instance_valid(battle_ui):
@@ -1059,6 +1195,38 @@ func _refresh_permanent_buffs_ui() -> void:
 func get_key_program_slots() -> Dictionary:
 	_ensure_action_helpers()
 	return _action_program.get_key_slots()
+
+
+func get_world_slice_npcs() -> Array:
+	if state == null:
+		return []
+	var result: Array = []
+	for actor in state.actors:
+		if actor != null and actor.tags.has("npc") and not actor.is_dead():
+			result.append(actor)
+	return result
+
+
+func get_tracked_world_npc_summary() -> Dictionary:
+	return get_tracked_world_actor_summary()
+
+
+func get_tracked_world_actor_summary() -> Dictionary:
+	if state == null:
+		return {}
+	var actor_id := String(state.tracked_world_actor_id)
+	if actor_id.is_empty():
+		actor_id = String(state.tracked_world_npc_id)
+	if actor_id.is_empty():
+		return {}
+	return {
+		"actor_id": actor_id,
+		"npc_id": actor_id,
+		"display_name": String(state.world_actor_display_names.get(actor_id, state.world_npc_display_names.get(actor_id, actor_id))),
+		"cell": Vector2i(state.world_actor_positions.get(actor_id, state.world_npc_positions.get(actor_id, Vector2i(-1, -1)))),
+		"show_hint": bool(state.show_tracked_world_actor_hint) or bool(state.show_tracked_world_npc_hint),
+		"relative_hint": String(state.tracked_world_actor_relative_hint if not String(state.tracked_world_actor_relative_hint).is_empty() else state.tracked_world_npc_relative_hint),
+	}
 
 
 func get_key_program_pool_tokens() -> Array[String]:

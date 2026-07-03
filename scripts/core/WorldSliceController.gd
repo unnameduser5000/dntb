@@ -11,6 +11,7 @@ const VisibilityServiceScript := preload("res://scripts/core/VisibilityService.g
 const PLAYER_DEF := preload("res://data/actors/player.tres")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
 const BRUTE_DEF := preload("res://data/actors/brute.tres")
+const TAVERN_KEEPER_DEF := preload("res://data/actors/tavern_keeper.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 
 const WORLD_GRID_SIZE := Vector2i(256, 256)
@@ -20,6 +21,9 @@ const STREAM_DESIRED_ACTIVE_ENEMY_COUNT := 10
 const STREAM_SPAWN_RADIUS_MIN := 10
 const STREAM_SPAWN_RADIUS_MAX := 18
 const STREAM_DESPAWN_DISTANCE := 28
+const NPC_DEF_BY_ID := {
+	"tavern_keeper": TAVERN_KEEPER_DEF,
+}
 
 var _next_actor_id: int = 0
 var _next_item_id: int = 1000
@@ -129,6 +133,7 @@ func get_map_summary_lines(state) -> Array[String]:
 
 func on_player_moved(state, _from_cell: Vector2i = Vector2i.ZERO, _to_cell: Vector2i = Vector2i.ZERO) -> void:
 	recompute_visibility(state, "player_moved")
+	_refresh_world_npc_tracking(state)
 	refresh_streamed_enemies(state, "player_moved")
 
 
@@ -137,6 +142,7 @@ func on_actor_moved(state, actor, _from_cell: Vector2i = Vector2i.ZERO, _to_cell
 		return
 	if actor == state.player:
 		recompute_visibility(state, "player_moved")
+		_refresh_world_npc_tracking(state)
 		refresh_streamed_enemies(state, "player_moved")
 
 
@@ -159,6 +165,17 @@ func _prepare_state_shell(state) -> void:
 	state.explored_cell_set.clear()
 	state.actors.clear()
 	state.player = null
+	state.world_actor_positions.clear()
+	state.world_actor_display_names.clear()
+	state.tracked_world_actor_id = ""
+	state.show_tracked_world_actor_hint = false
+	state.tracked_world_actor_relative_hint = ""
+	state.world_npc_positions.clear()
+	state.world_npc_display_names.clear()
+	state.tracked_world_npc_id = ""
+	state.show_tracked_world_npc_hint = false
+	state.tracked_world_npc_relative_hint = ""
+	state.defer_enemy_phase_for_interaction = false
 
 
 func _rebuild_world_slice_state(state, seed_value: String, visibility_reason: String) -> void:
@@ -210,6 +227,17 @@ func _reset_runtime_state(state) -> void:
 	state.enemy_intents.clear()
 	state.messages.clear()
 	state.reveal_all_debug = false
+	state.world_actor_positions.clear()
+	state.world_actor_display_names.clear()
+	state.tracked_world_actor_id = ""
+	state.show_tracked_world_actor_hint = false
+	state.tracked_world_actor_relative_hint = ""
+	state.world_npc_positions.clear()
+	state.world_npc_display_names.clear()
+	state.tracked_world_npc_id = ""
+	state.show_tracked_world_npc_hint = false
+	state.tracked_world_npc_relative_hint = ""
+	state.defer_enemy_phase_for_interaction = false
 	state.last_visibility_recompute_reason = ""
 	state.visible_cells.clear()
 	state.explored_cells.clear()
@@ -249,6 +277,8 @@ func _apply_generated_map_state(state, visibility_reason: String) -> void:
 		_add_placeholder_prop(state, prop_cell)
 		reserved[prop_cell] = true
 
+	_spawn_safe_zone_npcs(state, reserved)
+
 	for enemy_cell in _pick_enemy_spawn_cells(state.map_data, player_cell, reserved, REQUIRED_ENEMY_COUNT):
 		var enemy_def = BRUTE_DEF if state.get_alive_enemies().size() >= REQUIRED_ENEMY_COUNT - 1 else SLIME_DEF
 		_add_enemy_actor(state, enemy_def, enemy_cell, _step_direction_toward(enemy_cell, player_cell))
@@ -256,6 +286,7 @@ func _apply_generated_map_state(state, visibility_reason: String) -> void:
 
 	state.add_message("World slice ready. Seed %s." % state.map_data.seed)
 	recompute_visibility(state, visibility_reason)
+	_refresh_world_npc_tracking(state)
 	refresh_streamed_enemies(state, "initial_stream")
 
 
@@ -311,6 +342,145 @@ func _pick_prop_cell(map_data, reserved: Dictionary) -> Vector2i:
 
 	var center: Vector2i = Vector2i(map_data.width / 2, map_data.height / 2)
 	return _pick_nearest_walkable(map_data.get_walkable_cells(), center, reserved)
+
+
+func _spawn_safe_zone_npcs(state, reserved: Dictionary) -> int:
+	if state == null or state.map_data == null:
+		return 0
+	var tavern_record: Dictionary = _find_player_tavern_record(state.map_data)
+	if tavern_record.is_empty():
+		return 0
+	var spawned: int = 0
+	for slot_value in tavern_record.get("npc_spawn_slots", []):
+		var slot: Dictionary = Dictionary(slot_value)
+		var npc_id := String(slot.get("npc_id", ""))
+		var npc_def = NPC_DEF_BY_ID.get(npc_id)
+		if npc_def == null:
+			continue
+		var spawn_cell: Vector2i = _pick_safe_zone_npc_cell_for_slot(state.map_data, tavern_record, reserved, slot)
+		if spawn_cell == Vector2i(-1, -1):
+			continue
+		var npc = _add_actor(state, npc_def, spawn_cell, _step_direction_toward(spawn_cell, state.player.grid_pos))
+		if npc == null:
+			continue
+		if not npc.tags.has("npc"):
+			npc.tags.append("npc")
+		if not npc.tags.has("safe_zone_npc"):
+			npc.tags.append("safe_zone_npc")
+		if not npc.tags.has("tracked_npc_candidate"):
+			npc.tags.append("tracked_npc_candidate")
+		reserved[spawn_cell] = true
+		state.world_actor_positions[npc_id] = spawn_cell
+		state.world_actor_display_names[npc_id] = String(npc.display_name)
+		state.world_npc_positions[npc_id] = spawn_cell
+		state.world_npc_display_names[npc_id] = String(npc.display_name)
+		if bool(slot.get("track_by_default", false)):
+			state.tracked_world_actor_id = npc_id
+			state.show_tracked_world_actor_hint = true
+			state.tracked_world_npc_id = npc_id
+			state.show_tracked_world_npc_hint = true
+		spawned += 1
+	return spawned
+
+
+func _find_player_tavern_record(map_data) -> Dictionary:
+	if map_data == null:
+		return {}
+	var best_record: Dictionary = {}
+	var best_distance: float = INF
+	for record in map_data.get_poi_records():
+		if String(record.get("type", "")) != "tavern":
+			continue
+		var occupied_cells: Array = record.get("occupied_cells", [])
+		for occupied_value in occupied_cells:
+			if Vector2i(occupied_value) == map_data.player_spawn:
+				return record
+		var interaction_cell: Vector2i = Vector2i(record.get("interaction_cell", Vector2i(-1, -1)))
+		if interaction_cell == Vector2i(-1, -1):
+			continue
+		var distance: float = interaction_cell.distance_to(map_data.player_spawn)
+		if distance < best_distance:
+			best_distance = distance
+			best_record = record
+	return best_record
+
+
+func _pick_safe_zone_npc_cell_for_slot(map_data, tavern_record: Dictionary, reserved: Dictionary, slot: Dictionary) -> Vector2i:
+	var candidates: Array[Dictionary] = []
+	var interaction_cell: Vector2i = Vector2i(tavern_record.get("interaction_cell", Vector2i(-1, -1)))
+	var protected_cells: Dictionary = _build_tavern_npc_protected_cells(tavern_record)
+	var preferred_tags: Array = slot.get("preferred_tags", [])
+	var avoid_tags: Array = slot.get("avoid_tags", [])
+	var anchor_cell: Vector2i = map_data.player_spawn if String(slot.get("near", "player_spawn")) == "player_spawn" else interaction_cell
+	for cell_value in tavern_record.get("occupied_cells", []):
+		var cell: Vector2i = Vector2i(cell_value)
+		if reserved.has(cell) or not map_data.is_walkable(cell):
+			continue
+		if protected_cells.has(cell):
+			continue
+		if cell == map_data.player_spawn or cell == interaction_cell:
+			continue
+		var map_cell = map_data.get_cell(cell)
+		if map_cell == null:
+			continue
+		var score: float = 0.0
+		for preferred_tag in preferred_tags:
+			if map_cell.tags.has(String(preferred_tag)):
+				score += 4.0
+		for avoid_tag in avoid_tags:
+			if map_cell.tags.has(String(avoid_tag)):
+				score -= 4.5
+		if map_cell.tags.has("building_floor"):
+			score += 3.0
+		elif map_cell.tags.has("building_open_ground"):
+			score += 1.0
+		elif map_cell.tags.has("building_door"):
+			score -= 2.0
+		score += float(_adjacent_blocked_count(map_data, cell)) * 2.2
+		score += float(_count_walkable_cardinal_neighbors(map_data, cell)) * 0.5
+		if _is_wall_hugging_tavern_cell(map_data, cell):
+			score += 4.0
+		if anchor_cell != Vector2i(-1, -1):
+			score -= absf(cell.distance_to(anchor_cell) - 2.0) * 0.8
+		candidates.append({
+			"cell": cell,
+			"score": score,
+		})
+	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.get("score", 0.0)) > float(b.get("score", 0.0))
+	)
+	for candidate in candidates:
+		var cell: Vector2i = Vector2i(candidate.get("cell", Vector2i(-1, -1)))
+		if cell != Vector2i(-1, -1):
+			return cell
+	return Vector2i(-1, -1)
+
+
+func _build_tavern_npc_protected_cells(tavern_record: Dictionary) -> Dictionary:
+	var protected_cells: Dictionary = {}
+	var interaction_cell: Vector2i = Vector2i(tavern_record.get("interaction_cell", Vector2i(-1, -1)))
+	if interaction_cell != Vector2i(-1, -1):
+		protected_cells[interaction_cell] = true
+	for entrance_value in tavern_record.get("entrance_cells", []):
+		var entrance_cell: Vector2i = Vector2i(entrance_value)
+		if entrance_cell == Vector2i(-1, -1):
+			continue
+		protected_cells[entrance_cell] = true
+		for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			protected_cells[entrance_cell + dir] = true
+	return protected_cells
+
+
+func _is_wall_hugging_tavern_cell(map_data, cell: Vector2i) -> bool:
+	if map_data == null:
+		return false
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var neighbor = map_data.get_cell(cell + dir)
+		if neighbor == null:
+			continue
+		if neighbor.tags.has("building_wall") or not bool(neighbor.walkable):
+			return true
+	return false
 
 
 func _pick_enemy_spawn_cells(map_data, player_cell: Vector2i, reserved: Dictionary, required_count: int) -> Array[Vector2i]:
@@ -374,6 +544,53 @@ func _adjacent_blocked_count(map_data, cell: Vector2i) -> int:
 		if not map_data.is_walkable(cell + dir):
 			count += 1
 	return count
+
+
+func _count_walkable_cardinal_neighbors(map_data, cell: Vector2i) -> int:
+	var count: int = 0
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		if map_data != null and map_data.is_walkable(cell + dir):
+			count += 1
+	return count
+
+
+func _refresh_world_npc_tracking(state) -> void:
+	if state == null:
+		return
+	var tracked_actor_id: String = String(state.tracked_world_actor_id)
+	if tracked_actor_id.is_empty():
+		tracked_actor_id = String(state.tracked_world_npc_id)
+	var show_hint: bool = bool(state.show_tracked_world_actor_hint) or bool(state.show_tracked_world_npc_hint)
+	if tracked_actor_id.is_empty() or not show_hint:
+		state.tracked_world_actor_relative_hint = ""
+		state.tracked_world_npc_relative_hint = ""
+		return
+	var tracked_cell: Vector2i = Vector2i(state.world_actor_positions.get(tracked_actor_id, state.world_npc_positions.get(tracked_actor_id, Vector2i(-1, -1))))
+	if tracked_cell == Vector2i(-1, -1) or state.player == null:
+		state.tracked_world_actor_relative_hint = ""
+		state.tracked_world_npc_relative_hint = ""
+		return
+	var relative_hint := _relative_direction_label(state.player.grid_pos, tracked_cell)
+	state.tracked_world_actor_relative_hint = relative_hint
+	state.tracked_world_npc_relative_hint = relative_hint
+
+
+func _relative_direction_label(from_cell: Vector2i, to_cell: Vector2i) -> String:
+	var delta: Vector2i = to_cell - from_cell
+	if delta == Vector2i.ZERO:
+		return "同一位置"
+	var vertical := ""
+	var horizontal := ""
+	if delta.y < 0:
+		vertical = "北"
+	elif delta.y > 0:
+		vertical = "南"
+	if delta.x < 0:
+		horizontal = "西"
+	elif delta.x > 0:
+		horizontal = "东"
+	var distance: int = absi(delta.x) + absi(delta.y)
+	return "%s%s（%d 格）" % [vertical, horizontal, distance]
 
 
 func _pick_nearest_walkable(candidates: Array[Vector2i], preferred: Vector2i, reserved: Dictionary) -> Vector2i:

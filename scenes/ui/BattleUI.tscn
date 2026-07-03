@@ -191,3 +191,49 @@ theme_override_constants/separation = 8
 
 [node name="BagUI" parent="." instance=ExtResource("8_bag_ui")]
 unique_name_in_owner = true
+
+[node name="NpcDialoguePanel" parent="." instance=ExtResource("3_panel")]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -260.0
+offset_top = -192.0
+offset_right = 260.0
+offset_bottom = -28.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="Margin" type="MarginContainer" parent="NpcDialoguePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="Content" type="VBoxContainer" parent="NpcDialoguePanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="NpcDialogueTitle" type="Label" parent="NpcDialoguePanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BattleSectionTitle"
+text = "交谈"
+
+[node name="NpcDialogueBody" type="Label" parent="NpcDialoguePanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenSubtitle"
+autowrap_mode = 3
+text = ""
+
+[node name="NpcDialogueHint" type="Label" parent="NpcDialoguePanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+modulate = Color(0.78, 0.8, 0.85, 0.9)
+text = "确认键 / F 继续，Esc 结束交谈"

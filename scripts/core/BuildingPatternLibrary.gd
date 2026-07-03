@@ -74,6 +74,17 @@ func _register_defaults() -> void:
 		"can_mirror": true,
 		"requires_reachable": true,
 		"major": true,
+		"npc_spawn_slots": [
+			{
+				"slot_id": "spawn_host",
+				"npc_id": "tavern_keeper",
+				"preferred_tags": ["building_floor", "building_open_ground"],
+				"avoid_tags": ["building_door", "interactable"],
+				"near": "player_spawn",
+				"track_by_default": true,
+				"spawn_count": 1,
+			},
+		],
 	})
 
 	_register_pattern({
