@@ -54,13 +54,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if key_event.keycode == KEY_ESCAPE:
 		_pending_rebind_action = ""
-		refresh_controls()
+		refresh_controls(false)
 		get_viewport().set_input_as_handled()
 		return
 
 	PlayerInputService.rebind_key(_pending_rebind_action, key_event.keycode)
 	_pending_rebind_action = ""
-	refresh_controls()
+	refresh_controls(false)
 	get_viewport().set_input_as_handled()
 
 
@@ -72,15 +72,16 @@ func _notification(what: int) -> void:
 	if not is_node_ready():
 		return
 	_pending_rebind_action = ""
-	refresh_controls()
+	refresh_controls(false)
 
 
-func refresh_controls() -> void:
+func refresh_controls(scroll_to_top: bool = true) -> void:
 	resolution_option.select(SettingsService.resolution_index)
 	fullscreen_toggle.set_pressed_no_signal(SettingsService.is_fullscreen)
 	zoom_option.select(SettingsService.world_slice_zoom_index)
 	_refresh_key_binding_rows()
-	scroll.scroll_vertical = 0
+	if scroll_to_top:
+		scroll.scroll_vertical = 0
 
 
 func set_continue_button_visible(visible: bool) -> void:
@@ -161,13 +162,13 @@ func _begin_rebind(action_name: String) -> void:
 		_pending_rebind_action = ""
 	else:
 		_pending_rebind_action = action_name
-	refresh_controls()
+	refresh_controls(false)
 
 
 func _reset_bindings() -> void:
 	_pending_rebind_action = ""
 	PlayerInputService.reset_bindings()
-	refresh_controls()
+	refresh_controls(false)
 
 
 func _update_layout() -> void:
