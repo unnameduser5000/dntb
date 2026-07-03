@@ -10,10 +10,14 @@ const AmplifyKnockbackModifierScript := preload("res://scripts/tests/AmplifyKnoc
 const OnHitBonusDamageModifierScript := preload("res://scripts/tests/OnHitBonusDamageModifierDef.gd")
 const OnMoveZapAheadModifierScript := preload("res://scripts/tests/OnMoveZapAheadModifierDef.gd")
 const WorldSliceControllerScript := preload("res://scripts/core/WorldSliceController.gd")
+const SLIME_DEF := preload("res://data/actors/monster.tres")
 const TALKATIVE_SLIME_DEF := preload("res://data/actors/talkative_slime.tres")
+const LINE_WARDEN_DEF := preload("res://data/actors/line_warden.tres")
+const WISP_DEF := preload("res://data/actors/wisp.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
 const GREATBLADE := preload("res://data/weapons/greatblade.tres")
+const TWIN_DAGGERS := preload("res://data/weapons/twin_daggers.tres")
 
 func _init() -> void:
 	var game = GameScene.instantiate()
@@ -25,6 +29,7 @@ func _init() -> void:
 	_require(game.state.room_index == 0, "run starts in room 1")
 	_require(game.state.player.hp == 8, "player starts with 8 hp")
 	_require(game.state.get_alive_enemies().size() == 2, "first room has two enemies")
+	_require(game.state.get_alive_enemies().any(func(actor): return actor != null and String(actor.def.id) == "wisp"), "first room now includes a non-attacking starter enemy")
 	_require(game.state.danger_cells.has(Vector2i(2, 1)), "enemy attack range is previewed")
 
 	var enemy = game.state.get_alive_enemies()[0]
@@ -33,7 +38,7 @@ func _init() -> void:
 	_submit_player_actions(game, ["wait"])
 	await process_frame
 
-	_require(game.state.player.hp == 7, "adjacent enemy attacks after player plan")
+	_require(game.state.player.hp >= 7, "opening enemies no longer guarantee full early attack pressure")
 
 	await _start_run_at_first_combat(game)
 	_submit_player_actions(game, ["move_forward", "attack", "wait"])
@@ -79,9 +84,10 @@ func _init() -> void:
 	_require(_array_equals(relative_slots["A"], ["TL", "F"]), "relative starter preset puts TL/F in A")
 	_require(_array_equals(relative_slots["D"], ["TR", "F"]), "relative starter preset puts TR/F in D")
 	_require(_array_equals(relative_slots["F"], ["I"]), "starter preset now reserves physical F for the interact token")
-	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J"]), "token drop pool includes all current program tokens")
+	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "SL", "SR", "CA", "TL", "TR", "A", "I", "G", "W", "J"]), "token drop pool includes all current program tokens")
 	_require(starter_program.is_program_token("F"), "F is a legal program token")
 	_require(starter_program.is_program_token("I"), "I is a legal program token")
+	_require(starter_program.is_program_token("CA"), "CA is a legal program token")
 	_require(starter_program.is_program_token("TL"), "TL is a legal program token")
 	_require(starter_program.is_program_token("TR"), "TR is a legal program token")
 	_require(_array_equals(game._build_key_slot_plan(relative_slots["A"]).map(func(action): return action.def.id), ["turn_left", "move_forward"]), "relative starter A slot builds turn_left + move_forward")
@@ -118,6 +124,10 @@ func _init() -> void:
 	_require(f_plan.size() == 1 and f_plan[0].def.id == "move_forward", "F token maps to move_forward action")
 	var interact_plan: Array = game._build_key_slot_plan(["I"])
 	_require(interact_plan.size() == 1 and interact_plan[0].def.id == "interact", "I token maps to interact action")
+	_require(starter_program.token_display_name("CA") == "十字刃", "CA token display name is unified as 十字刃")
+	var cross_plan: Array = game._build_key_slot_plan(["CA"])
+	_require(cross_plan.size() == 1 and cross_plan[0].def.id == "cross_attack", "CA token maps to cross_attack action")
+	_require(String(cross_plan[0].def.display_name) == "十字刃", "cross_attack display name is unified as 十字刃")
 	var tl_plan: Array = game._build_key_slot_plan(["TL"])
 	_require(tl_plan.size() == 1 and tl_plan[0].def.id == "turn_left", "TL token maps to turn_left action")
 	var tr_plan: Array = game._build_key_slot_plan(["TR"])
@@ -201,6 +211,17 @@ func _init() -> void:
 	_require(not trace_semantic_game.get_player_action_trace_debug_string(1).contains("TR"), "absolute move trace is not disguised as TR")
 	_require(Vector2i(trace_semantic_game.state.action_trace.get_recent_entries_for_actor(int(trace_semantic_game.state.player.id), 1)[0].move_dir) == Vector2i.RIGHT, "runtime trace move_dir stays normalized to unit direction")
 
+	await _start_seeded_combat_run(game, "side-step-preview")
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.UP
+	var side_preview: Dictionary = game._build_key_slot_preview(["SL", "SR"])
+	_require(Array(side_preview.get("move_cells", [])).has(Vector2i(1, 2)), "SL preview projects one cell to the actor's left")
+	var side_left_plan: Array = game._build_key_slot_plan(["SL"])
+	game.turn_controller.submit_player_plan(side_left_plan)
+	await process_frame
+	_require(game.state.player.grid_pos == Vector2i(1, 2), "SL action moves the player left relative to facing")
+	_require(game.state.player.facing == Vector2i.UP, "SL action keeps facing unchanged")
+
 	var attack_dir_game = GameScene.instantiate()
 	root.add_child(attack_dir_game)
 	await process_frame
@@ -222,11 +243,21 @@ func _init() -> void:
 	_require(attack_dir_game.state.player.facing == Vector2i.RIGHT, "weapon attack updates facing to chosen_dir when present")
 	_require(right_enemy.hp < right_enemy_hp_before, "weapon-bound attack uses chosen_dir instead of current facing")
 
+	await _start_seeded_combat_run(game, "line-warden-ai")
+	_disable_enemies(game)
+	var line_enemy = game._add_actor(game.state, LINE_WARDEN_DEF, Vector2i(2, 4))
+	line_enemy.team = "enemy"
+	_move_player_to(game, Vector2i(2, 1))
+	game.state.player.active_weapon = TWIN_DAGGERS
+	var line_action = game.enemy_planner.decide_enemy_action(line_enemy, game.state)
+	_require(line_action != null and line_action.def != null and line_action.def.id == "move_forward", "line keeper advances along the player's line when out of range")
+	_require(line_action.chosen_dir == Vector2i.UP, "line keeper moves straight along the same column toward the player")
+
 	game.start_seeded_run("absolute")
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "mixed-drop test starts from camp")
 	_require(game._key_program_editable, "mixed-drop test keeps rest editing enabled")
-	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J"]), "game exposes the full token drop pool")
+	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "SL", "SR", "CA", "TL", "TR", "A", "I", "G", "W", "J"]), "game exposes the full token drop pool")
 	_require(not game.get_key_program_pool_tokens().has("lunge"), "lunge is not a key program pool token")
 	_require(not game.get_key_program_pool_tokens().has("sweep"), "sweep is not a key program pool token")
 	game.state.drop_key_at(Vector2i(2, 2), "F")
@@ -276,6 +307,8 @@ func _init() -> void:
 	_require(world_game.state.world_enemy_stream_target >= 4, "world slice exposes a streamed enemy target count")
 	_require(world_game.state.player.grid_pos == world_game.state.map_data.player_spawn, "world slice uses the generated player spawn")
 	_require(world_game.state.grid.get_actor(world_game.state.player.grid_pos) == world_game.state.player, "world slice places the player at the generated spawn")
+	for safe_zone_enemy in world_game.state.get_alive_enemies():
+		_require(not _is_world_slice_rest_area_cell(world_game.state.map_data, safe_zone_enemy.grid_pos), "world slice initial enemies do not spawn inside the tavern safe area")
 	var world_spawn_cell = world_game.state.map_data.get_cell(world_game.state.map_data.player_spawn)
 	_require(world_spawn_cell != null, "world slice spawn cell exists in map data")
 	_require(
@@ -301,11 +334,13 @@ func _init() -> void:
 	_require(not tavern_record.is_empty(), "world slice exposes the tavern poi record")
 	_require(not Array(tavern_record.get("entrance_cells", [])).has(tavern_keeper.grid_pos), "world slice NPC does not spawn directly on a tavern entrance cell")
 	_require(not _is_adjacent_to_any_cell(tavern_keeper.grid_pos, Array(tavern_record.get("entrance_cells", []))), "world slice NPC does not block the immediate doorway corridor")
-	_require(_world_slice_cell_hugs_wall(world_game.state.map_data, tavern_keeper.grid_pos), "world slice tavern actor now prefers a wall-hugging spawn cell instead of standing in the middle of the path")
+	_require(absi(tavern_keeper.grid_pos.x - world_game.state.player.grid_pos.x) + absi(tavern_keeper.grid_pos.y - world_game.state.player.grid_pos.y) == 1, "world slice tavern actor now uses the fixed adjacent starter cell")
 	_require(Vector2i(world_game.state.world_actor_positions.get("tavern_keeper", Vector2i(-1, -1))) == tavern_keeper.grid_pos, "world slice also records tracked actor coordinates under actor naming")
 	_require(Vector2i(world_game.state.world_npc_positions.get("tavern_keeper", Vector2i(-1, -1))) == tavern_keeper.grid_pos, "world slice records tavern NPC coordinates in runtime state")
 	_require(String(world_game.state.tracked_world_actor_id) == "tavern_keeper", "world slice tracks the tavern keeper by default under actor naming")
 	_require(String(world_game.state.tracked_world_npc_id) == "tavern_keeper", "world slice tracks the tavern keeper by default")
+	_require(absi(tavern_keeper.grid_pos.x - world_game.state.player.grid_pos.x) + absi(tavern_keeper.grid_pos.y - world_game.state.player.grid_pos.y) == 1, "world slice fixes the tavern keeper adjacent to the player spawn")
+	_require(world_game.state.player.facing == tavern_keeper.grid_pos - world_game.state.player.grid_pos, "world slice starts the player facing the tavern keeper for immediate interaction")
 	_require(bool(world_game.state.show_tracked_world_actor_hint), "world slice enables tracked actor hint display by default")
 	_require(bool(world_game.state.show_tracked_world_npc_hint), "world slice enables tracked NPC hint display by default")
 	_require(not String(world_game.state.tracked_world_actor_relative_hint).is_empty(), "world slice computes a relative direction hint to the tracked actor")
@@ -334,7 +369,12 @@ func _init() -> void:
 	_require(world_game._world_npc_dialogue_active, "world slice NPC interaction opens a dedicated dialogue state")
 	_require(world_game.battle_ui.is_world_npc_dialogue_visible(), "world slice NPC interaction shows a bottom dialogue panel")
 	_require(world_game.battle_ui.get_node("NpcDialoguePanel/Margin/Content/NpcDialogueTitle").text == "酒馆掌柜", "world slice dialogue panel shows the NPC speaker name")
+	_require(world_game.battle_ui.get_node("NpcDialoguePanel/Margin/Content/NpcDialogueBody").text.contains("备用行动池"), "tavern keeper first dialogue now teaches that the attack token goes into the spare pool")
 	_require(String(world_game.state.messages[0]).contains("酒馆掌柜"), "world slice NPC interaction adds tavern dialogue to the message log")
+	_require(world_game.get_key_program_pool_tokens().has("A"), "tavern keeper first dialogue adds the attack token into the spare pool")
+	_require(int(world_game._world_npc_interaction_counts.get("tavern_keeper", 0)) == 1, "tavern keeper first dialogue is tracked for one-time rewards")
+	var world_save_data: Dictionary = world_game.get_save_data()
+	_require(int(Dictionary(world_save_data.get("world_npc_interaction_counts", {})).get("tavern_keeper", 0)) == 1, "world npc interaction counts are included in run save data")
 	var interaction_message_before_f: String = String(world_game.state.messages[0])
 	var npc_turn_count_before_block: int = int(world_game.state.turn_count)
 	var npc_pos_before_block: Vector2i = world_game.state.player.grid_pos
@@ -413,6 +453,28 @@ func _init() -> void:
 	_require(world_game.state.explored_cells.size() >= explored_before_move, "world slice explored cells never shrink after moving")
 	_require(world_game.state.world_enemy_stream_refresh_count > stream_refresh_before, "world slice refreshes enemy streaming after player movement")
 	_require(world_game.state.world_enemy_stream_spawn_total >= stream_spawn_total_before, "world slice tracks cumulative streamed enemy spawns")
+	for streamed_enemy in world_game.state.get_alive_enemies():
+		_require(not _is_world_slice_rest_area_cell(world_game.state.map_data, streamed_enemy.grid_pos), "world slice streamed enemies also stay out of the tavern safe area")
+	_require(not String(world_game.state.tracked_boss_poi_relative_hint).is_empty(), "world slice computes a boss-ruin direction hint")
+	_require(not String(world_game.state.tracked_nearest_ruin_relative_hint).is_empty(), "world slice computes a nearest small-ruin direction hint")
+	var ruin_record: Dictionary = _find_world_slice_poi_record(world_game.state.map_data, "ruin")
+	_require(not ruin_record.is_empty(), "world slice exposes a ruin poi record")
+	var ruin_interaction_cell: Vector2i = Vector2i(ruin_record.get("interaction_cell", Vector2i(-1, -1)))
+	_require(ruin_interaction_cell != Vector2i(-1, -1), "ruin poi exposes an interaction cell")
+	_move_player_to(world_game, ruin_interaction_cell)
+	if world_game._world_slice_controller != null:
+		world_game._world_slice_controller.on_player_moved(world_game.state, outside_rest_cell, ruin_interaction_cell)
+	world_game._refresh_views()
+	await process_frame
+	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/RuinPoiHint").text.contains("附近可调查"), "sidebar upgrades the ruin hint once the player gets close enough to investigate")
+	var pool_count_before_ruin: int = world_game.get_key_program_pool_tokens().size()
+	_require(world_game._submit_world_interact_action(), "world slice can investigate a ruin via interact action")
+	_require(world_game.get_key_program_pool_tokens().has("SL") and world_game.get_key_program_pool_tokens().has("SR"), "ruin investigation adds side-step tokens to the spare pool")
+	_require(world_game.get_key_program_pool_tokens().size() >= pool_count_before_ruin + 2, "ruin investigation grows the spare token pool")
+	var ruin_message_after_claim: String = String(world_game.state.messages[0])
+	_require(ruin_message_after_claim.contains("小遗迹"), "ruin investigation reports a reward message")
+	_require(world_game._submit_world_interact_action(), "already-claimed ruin still resolves interact input")
+	_require(String(world_game.state.messages[0]).contains("已经调查过"), "revisiting a claimed ruin reports that it was already investigated")
 	var world_player_view = world_game._battle_presentation.actor_views.get(int(world_game.state.player.id))
 	_require(world_player_view != null, "world slice keeps a player actor view after movement")
 	var expected_world_pos: Vector2 = world_game.board_view.grid_to_world(world_game.state.player.grid_pos) + Vector2(world_game.board_view.cell_size * 0.5, world_game.board_view.cell_size * 0.5)
@@ -618,6 +680,35 @@ func _init() -> void:
 	_require(on_move_zap.triggered_count == 1, "effect event modifier reacts to actor moved")
 	_require(game.state.player.grid_pos == Vector2i(3, 2), "on-move event keeps normal movement result")
 	_require(on_move_enemy.hp == 9, "on-move event can generate a follow-up damage packet")
+
+	await _start_seeded_combat_run(game, "xp-and-level-up")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	var xp_enemy_a = game._add_actor(game.state, SLIME_DEF, Vector2i(2, 1))
+	xp_enemy_a.team = "enemy"
+	xp_enemy_a.hp = 1
+	game.state.player.facing = Vector2i.UP
+	var xp_attack_a = _make_player_action(game, "attack")
+	game.resolver.resolve(xp_attack_a, game.state)
+	_require(game.state.player_xp == 1, "killing the first enemy grants 1 xp")
+	_require(game.get_key_program_pool_tokens().has("CA"), "first kill now grants the 十字刃 attack action into the pool")
+	var xp_enemy_b = game._add_actor(game.state, SLIME_DEF, Vector2i(3, 2))
+	xp_enemy_b.team = "enemy"
+	xp_enemy_b.hp = 1
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	var hp_before_level_up: int = game.state.player.hp
+	var max_hp_before_level_up: int = game.state.player.max_hp
+	var xp_attack_b = _make_player_action(game, "attack")
+	game.resolver.resolve(xp_attack_b, game.state)
+	_require(game.state.player_xp == 2, "second kill increases xp again")
+	_require(game.state.player_level == 2, "reaching the threshold levels the player up")
+	_require(game.state.player.max_hp == max_hp_before_level_up + 1, "leveling up increases max hp")
+	_require(game.state.player.hp >= hp_before_level_up, "leveling up restores hp immediately")
+	_require(game._current_rewards.size() == 3, "level up offers three permanent buff choices")
+	game._on_reward_chosen(0)
+	await process_frame
+	_require(game._run_modifier_ids.size() >= 1, "choosing a level-up reward grants a permanent modifier")
 
 	var achievement_service = root.get_node_or_null("/root/AchievementService")
 	_require(achievement_service != null, "achievement service autoload exists")

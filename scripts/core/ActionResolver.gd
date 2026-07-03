@@ -167,6 +167,12 @@ func _get_action_dir(action) -> Vector2i:
 	if action.chosen_dir != Vector2i.ZERO:
 		return action.chosen_dir
 
+	if action.def.id == "step_left":
+		return Vector2i(action.actor.facing.y, -action.actor.facing.x)
+
+	if action.def.id == "step_right":
+		return Vector2i(-action.actor.facing.y, action.actor.facing.x)
+
 	if action.def.id == "move_back":
 		return -action.actor.facing
 
@@ -182,6 +188,14 @@ func _get_attack_cells(action) -> Array[Vector2i]:
 			actor.grid_pos + left,
 			actor.grid_pos + dir,
 			actor.grid_pos + right,
+		]
+
+	if action.def.id == "cross_attack":
+		return [
+			actor.grid_pos + Vector2i.UP,
+			actor.grid_pos + Vector2i.DOWN,
+			actor.grid_pos + Vector2i.LEFT,
+			actor.grid_pos + Vector2i.RIGHT,
 		]
 
 	var cells: Array[Vector2i] = []
@@ -602,6 +616,5 @@ func _try_pickup_key(actor, state) -> void:
 	if key_id.is_empty():
 		return
 
-	#state.add_key(key_id, 1)
 	key_picked.emit(actor, key_id, actor.grid_pos)
 	_add_message(state, "拾取了%s按键。" % state.key_name(key_id))

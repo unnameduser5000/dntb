@@ -86,6 +86,20 @@ layout_mode = 2
 theme_type_variation = &"ScreenHint"
 text = "敌人: 0"
 
+[node name="XpBar" parent="Panel/Margin/Content" instance=ExtResource("4_vital_bar")]
+unique_name_in_owner = true
+layout_mode = 2
+label_text = "经验"
+current_value = 0
+maximum_value = 2
+bar_theme_variant = &"VitalSanBar"
+
+[node name="XpValue" type="Label" parent="Panel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenHint"
+text = "等级 Lv.1 · 经验 0/2"
+
 [node name="EnemyIntentList" type="VBoxContainer" parent="Panel/Margin/Content"]
 unique_name_in_owner = true
 layout_mode = 2

@@ -12,16 +12,19 @@ signal bag_toggle_requested
 signal pause_menu_requested
 
 const UiActionCardScene := preload("res://scenes/ui/components/UiActionCard.tscn")
+const UiRewardCardScene := preload("res://scenes/ui/components/UiRewardCard.tscn")
 const BagUIScript = preload("res://scripts/view/BagUI.gd")
 
 @onready var _panel: PanelContainer = %BattlePanel
 @onready var _overlay: Control = %Overlay
 @onready var _hud: Control = %BattleHud
+@onready var _feed_panel: PanelContainer = %FeedPanel
+@onready var _feed_text: Label = %FeedText
 @onready var _run_sidebar: Control = %RunSidebar
 @onready var _rest_continue_button: Button = %RestContinueButton
 @onready var _overlay_title: Label = %OverlayTitle
 @onready var _overlay_body: Label = %OverlayBody
-@onready var _overlay_buttons: VBoxContainer = %OverlayButtons
+@onready var _overlay_buttons: HBoxContainer = %OverlayButtons
 @onready var _bag_ui = %BagUI
 @onready var _npc_dialogue_panel: PanelContainer = %NpcDialoguePanel
 @onready var _npc_dialogue_title: Label = %NpcDialogueTitle
@@ -144,8 +147,43 @@ func update_state(state) -> void:
 		return
 
 	_hud.update_state(state)
+	_refresh_feed(state)
 	_run_sidebar.update_state(state)
 	_run_sidebar.set_debug_messages(state.messages)
+
+
+func _refresh_feed(state) -> void:
+	if not is_instance_valid(_feed_panel) or not is_instance_valid(_feed_text):
+		return
+	if state == null:
+		_feed_panel.visible = false
+		return
+	_feed_panel.visible = true
+	if state.feed_messages.is_empty():
+		_feed_text.text = "暂无新的获得内容。"
+		_feed_text.modulate = Color(1, 1, 1, 1)
+		return
+	var lines: Array[String] = []
+	var newest_type := "generic"
+	for entry in state.feed_messages:
+		if typeof(entry) == TYPE_DICTIONARY:
+			lines.append("- %s" % String(entry.get("text", "")))
+		else:
+			lines.append("- %s" % String(entry))
+	if not state.feed_messages.is_empty() and typeof(state.feed_messages[0]) == TYPE_DICTIONARY:
+		newest_type = String(state.feed_messages[0].get("type", "generic"))
+	_feed_text.text = "\n".join(lines)
+	_feed_text.modulate = _feed_color(newest_type)
+
+
+func _feed_color(message_type: String) -> Color:
+	match message_type:
+		"token":
+			return Color(0.72, 0.96, 1.0, 1.0)
+		"modifier":
+			return Color(1.0, 0.9, 0.62, 1.0)
+		_:
+			return Color(1, 1, 1, 1)
 
 
 func show_title() -> void:
@@ -176,16 +214,17 @@ func show_rest_site(title: String, body: String = "") -> void:
 		_run_sidebar.set_debug_messages([body])
 
 
-func show_reward(rewards: Array) -> void:
+func show_reward(rewards: Array, title_text: String = "选择奖励", body_text: String = "房间清空。选一个奖励继续前进。") -> void:
 	var buttons: Array = []
 	for index in range(rewards.size()):
 		var reward = rewards[index]
 		buttons.append({
-			"text": reward["name"],
+			"title": reward["name"],
+			"body": String(reward.get("description", "")),
 			"callback": _emit_reward_chosen.bind(index),
 		})
 
-	_show_overlay("选择奖励", "房间清空。选一个奖励继续前进。", buttons)
+	_show_overlay(title_text, body_text, buttons)
 
 
 func show_result(victory: bool) -> void:
@@ -205,12 +244,24 @@ func _show_overlay(title_text: String, body_text: String, buttons: Array) -> voi
 
 	for index in range(buttons.size()):
 		var button_data = buttons[index]
-		var button := UiActionCardScene.instantiate() as Button
-		button.text = String(button_data["text"])
-		if index == 0:
-			button.theme_type_variation = &"PrimaryButton"
+		var button := _make_overlay_button(button_data, index)
 		button.pressed.connect(button_data["callback"])
 		_overlay_buttons.add_child(button)
+
+
+func _make_overlay_button(button_data: Dictionary, index: int) -> Button:
+	if button_data.has("title") or button_data.has("body"):
+		var reward_button := UiRewardCardScene.instantiate() as Button
+		reward_button.get_node("Margin/Content/Title").text = String(button_data.get("title", button_data.get("text", "")))
+		reward_button.get_node("Margin/Content/Body").text = String(button_data.get("body", ""))
+		if index == 0:
+			reward_button.theme_type_variation = &"PrimaryButton"
+		return reward_button
+	var button := UiActionCardScene.instantiate() as Button
+	button.text = String(button_data.get("text", ""))
+	if index == 0:
+		button.theme_type_variation = &"PrimaryButton"
+	return button
 
 
 func _on_bag_key_token_move_requested(source_slot_id: String, source_index: int, target_slot_id: String) -> void:

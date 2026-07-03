@@ -220,6 +220,7 @@ func _build_poi_record(map_data, poi_type: String, pattern_def: Dictionary, stam
 		"origin": Vector2i(stamp_result.get("origin", Vector2i.ZERO)),
 		"size": Vector2i(pattern_def.get("size", Vector2i.ZERO)),
 		"interaction_cell": interaction_cell,
+		"fixed_player_spawn_local": Vector2i(pattern_def.get("fixed_player_spawn_local", Vector2i(-1, -1))),
 		"entrance_cells": Array(stamp_result.get("entrance_cells", [])),
 		"occupied_cells": Array(stamp_result.get("occupied_cells", [])),
 		"npc_spawn_slots": Array(pattern_def.get("npc_spawn_slots", [])),

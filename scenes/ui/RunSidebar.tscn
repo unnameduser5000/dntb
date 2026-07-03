@@ -141,6 +141,64 @@ grow_horizontal = 0
 grow_vertical = 0
 theme_override_constants/separation = 10
 
+[node name="PoiHintPanel" parent="." instance=ExtResource("3_panel")]
+unique_name_in_owner = true
+layout_mode = 0
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -308.0
+offset_top = -152.0
+offset_right = -20.0
+offset_bottom = -84.0
+grow_horizontal = 0
+grow_vertical = 0
+
+[node name="Margin" type="MarginContainer" parent="PoiHintPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="Content" type="VBoxContainer" parent="PoiHintPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PoiHintTitle" type="Label" parent="PoiHintPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BattleSectionTitle"
+text = "方向标识"
+
+[node name="SafeZonePoiHint" parent="PoiHintPanel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenHint"
+alignment = 0
+flat = true
+autowrap_mode = 3
+text = "最近安全区：-"
+
+[node name="BossPoiHint" parent="PoiHintPanel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenHint"
+alignment = 0
+flat = true
+autowrap_mode = 3
+text = "Boss遗迹：-"
+
+[node name="RuinPoiHint" parent="PoiHintPanel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ScreenHint"
+alignment = 0
+flat = true
+autowrap_mode = 3
+text = "最近小遗迹：-"
+
 [node name="InventoryButton" parent="BottomButtons" instance=ExtResource("4_button")]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(132, 52)

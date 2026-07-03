@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/WeaponDef.gd" id="1_weapon"]
+[ext_resource type="Resource" path="res://data/actions/attack.tres" id="2_action"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = "twin_daggers"
+display_name = "双匕首"
+description = "基础攻击动作仍是前方一格攻击，但更适合配合侧移与贴身站位。"
+attack_action = ExtResource("2_action")

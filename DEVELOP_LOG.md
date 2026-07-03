@@ -1,16 +1,10 @@
 # Develop Log
 
-## 2026-07-04 Settings key rebind toggle
+## 2026-07-04 Settings key rebind scroll preservation
 
-- Made key-binding buttons in `SettingsMenu` toggle rebind mode:
-  - First click enters "按新键..." wait state.
-  - Clicking the same button again cancels the wait and restores the original
-    binding label.
-  - Pressing `Esc` or clicking another key-binding button still cancels the
-    previous wait as before.
-- Reset pending rebind state when the settings menu is hidden, so reopening
-  the menu after leaving rebind mode never leaves a button stuck on
-  "按新键...".
+- Added optional `scroll_to_top` parameter to `SettingsMenu.refresh_controls()`.
+- Preserved scroll position while toggling rebind mode, rebinding, resetting
+  bindings, or hiding the menu; only reset scroll when the menu is first opened.
 
 Validation:
 
@@ -20,6 +14,126 @@ Validation:
 - Result: `ActorPresentationSandbox smoke passed`
 - `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
 - Result: `BattleEffectSandbox smoke passed`
+
+## 2026-07-04 Added complete system API documentation for PR handoff
+
+- Added `docs/06_系统API清单.md` as a dedicated API-facing handoff doc.
+- Documented the current branch's expanded systems by API boundary instead of
+  only by design intent, including:
+  - programmable token storage and resolution
+  - action execution
+  - enemy planning
+  - world-slice POI guidance and ruin interaction
+  - XP / level-up reward loop
+  - BattleUI / BattleHud / RunSidebar UI responsibilities
+- Updated `docs/README.md` to index that new API doc.
+
+## 2026-07-03 Added first-kill attack-token and level-up reward loop
+
+- Changed the first four-direction reward into a real programmable attack-token
+  flow instead of a weapon pickup flow:
+  - the first kill now grants the `十字刃` attack token
+  - that token is auto-collected into the spare/pool inventory
+  - the player still decides later which physical key slot should carry it
+- Removed the stale `cross_blade` reward-chain dependency so the live first-kill
+  flow now only depends on `CA -> cross_attack`.
+- Renamed the player-facing `cross_attack` display text to `十字刃` so token,
+  action UI, and design docs no longer split between `十字斩` and `十字刃`.
+- Added a minimal XP and level system:
+  - enemy kills grant `1 XP`
+  - current level threshold is `level * 2`
+  - BattleHud now shows both an XP bar and `等级 Lv.X · 经验 Y/Z`
+- Added level-up benefits and reward choice:
+  - level-up immediately increases max HP by `1`
+  - level-up restores `1` HP
+  - level-up opens an `升级选择` reward overlay with three permanent modifier
+    choices
+- Kept the implementation on top of the existing modifier reward path so level-up
+  rewards and room rewards still converge through the same permanent-buff system.
+
+## 2026-07-03 Prevented enemies from entering the tavern safe zone
+
+- Updated world-slice enemy spawn selection so both the initial enemy batch and
+  later streamed reinforcements now hard-exclude tavern safe-area walkable
+  cells.
+- Extended `SmokeTest.gd` to verify that no initial or streamed enemy spawns
+  inside the tavern footprint rest area.
+
+## 2026-07-03 First batch prototype: side-step token, light weapon, line enemy
+
+- Added `SL / SR` as real programmable tokens instead of keeping them only as
+  trace semantics.
+- Added `step_left.tres` and `step_right.tres`, and wired them through:
+  - `ActionProgramController.gd`
+  - `DirectionalTechniqueResolver.gd`
+  - `ActionResolver.gd`
+  - `ActionPreviewService.gd`
+  - `BagUI.gd`
+- Kept the first-pass side-step rule intentionally narrow:
+  - move one tile relative to current facing
+  - do not rotate the actor
+- Added `twin_daggers.tres` as the first light-weapon prototype for the
+  side-step batch.
+- Added `line_warden.tres` plus `line_keeper` enemy AI as the first straight-line
+  pressure enemy prototype.
+- Follow-up doc pass:
+  - clarified that future action/token content should primarily come from map
+    drops plus limited teaching rewards;
+  - clarified that future weapons should primarily come from relic/ruin/chest or
+    room-level reward choices instead of common map drops.
+- Extended `SmokeTest.gd` to cover:
+  - `SL / SR` token legality and plan mapping
+  - `SL` preview and actual execution
+  - `line_keeper` straight-line advance behavior
+- Added the first world-slice ruin interaction loop:
+  - sidebar/debug text now points to `Boss遗迹` and the nearest small ruin
+  - the normal right-bottom sidebar now also shows those two direction hints
+  - once the player gets close enough to a ruin, the small-ruin hint upgrades to
+    `附近可调查`
+  - clicking either hint now starts a minimal A*-based autopath toward that POI
+  - autopath now switches to a dedicated presentation timing profile and only
+    advances when the previous action's animation cycle has elapsed
+  - autopath pauses immediately when a visible enemy enters the player's sight
+  - standing on a ruin interaction cell and pressing confirm investigates it
+  - first-pass ruin rewards grant `SL / SR` into the spare token pool
+  - ruin claims are stored so the same ruin cannot be farmed repeatedly
+
+## 2026-07-03 Clarified monster and token expansion direction docs
+
+- Updated `docs/01_系统设计文档.md` to make the current monster boundary,
+  token acquisition paths, and next-step content direction more explicit.
+- Updated `docs/04_键位扩展清单.md` so token expansion is now documented
+  together with the kind of enemy pressure each new token should justify.
+- Added a clearer “next-step plan summary” to those docs so actions, weapons,
+  and monsters are now grouped into concrete rollout batches instead of only
+  being listed as separate recommendations.
+- Updated `docs/03_测试与验证.md` to reflect the fixed tavern starter layout
+  and the current “first talk grants attack token into pool” onboarding flow.
+
+## 2026-07-03 Tavern keeper starter attack token gift
+
+- Kept `rusty_sword.tres` available as data, but changed the actual starter
+  reward flow to match the key-program system more closely.
+- Hooked the world-slice tavern interaction flow so the spawn tavern keeper now
+  grants the generic attack token on the first successful conversation:
+  - reward is driven inside `Game._try_interact_with_world_npc()`
+  - the token is added to the spare/pool inventory instead of being forced into
+    a key slot
+  - follow-up dialogue/message now tells the player to open the bag and assign
+    that token to a physical key before leaving
+- Persisted `world_npc_interaction_counts` in run save data so reloads do not
+  re-trigger the first-talk gift.
+- Extended smoke coverage to verify the first tavern-keeper dialogue adds the
+  attack token to the spare pool and records the one-time interaction count in
+  save payloads.
+- Follow-up stability pass:
+  - fixed the spawn tavern pattern orientation instead of letting that first
+    safe-zone layout rotate or mirror
+  - pinned the player spawn to a fixed local tavern floor cell
+  - pinned the tavern keeper to a fixed adjacent starter cell next to the
+    player spawn
+  - auto-faced the player toward the tavern keeper on world-slice start so the
+    opening sword interaction is always immediately reachable
 
 ## 2026-07-04 Settings menu resume/back buttons
 
@@ -138,6 +252,7 @@ Validation:
 - Result: `SmokeTest passed`
 - `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
 - Result: `SmokeTest passed`
+>>>>>>> main
 
 ## 2026-07-02 Safe-zone NPC interaction pass
 
