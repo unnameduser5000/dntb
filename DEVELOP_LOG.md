@@ -1,5 +1,23 @@
 # Develop Log
 
+## 2026-07-04 Settings key rebind toggle
+
+- Made key-binding buttons in `SettingsMenu` toggle rebind mode:
+  - First click enters "按新键..." wait state.
+  - Clicking the same button again cancels the wait and restores the original
+    binding label.
+  - Pressing `Esc` or clicking another key-binding button still cancels the
+    previous wait as before.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
 ## 2026-07-04 Settings menu resume/back buttons
 
 - Renamed the settings-menu back button from `返回主菜单` to `返回`.
