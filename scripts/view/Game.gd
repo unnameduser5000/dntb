@@ -441,6 +441,7 @@ func start_world_slice_debug() -> void:
 	_update_world_slice_editability(true)
 	_refresh_world_visibility("init")
 	_refresh_views()
+	set_game_visible(true)
 	if world_loading_overlay != null:
 		world_loading_overlay.hide_loading()
 

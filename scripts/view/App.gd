@@ -51,7 +51,7 @@ func _start_new_game() -> void:
 	_game_is_active = true
 	_settings_return_to_pause = false
 	_hide_all_shell_panels()
-	game.set_game_visible(true)
+	game.set_game_visible(false)
 	game.set_shell_overlay_active(false)
 	game.start_run()
 
