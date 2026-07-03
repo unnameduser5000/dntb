@@ -140,7 +140,7 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 		}
 
 	if (is_visible or reveal_all) and state.items_at.has(cell):
-		var token_name := state.key_name(String(state.items_at[cell])) if state.has_method("key_name") else String(state.items_at[cell])
+		var token_name: String = state.key_name(String(state.items_at[cell])) if state.has_method("key_name") else String(state.items_at[cell])
 		return {
 			"char": token_name.substr(0, 1),
 			"style": _preview_cell_style(is_danger, is_preview_move, is_preview_attack, "BoardItemCell"),
@@ -151,6 +151,13 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 	if (is_visible or reveal_all) and not grid_items.is_empty():
 		var grid_item = grid_items[0]
 		if grid_item != null and grid_item != actor:
+			if grid_item.has_method("has_grid_tag") and grid_item.has_grid_tag("chest"):
+				var is_opened := bool(grid_item.get("is_opened")) if _has_property(grid_item, "is_opened") else false
+				return {
+					"char": "开" if is_opened else "宝",
+					"style": "BoardItemCell",
+					"tooltip": String(grid_item.get_grid_display_name()),
+				}
 			return {
 				"char": String(grid_item.get_grid_display_name()).substr(0, 1).to_upper(),
 				"style": "BoardItemCell",
@@ -270,6 +277,15 @@ func _actor_tooltip(actor, is_danger: bool, is_preview_move: bool, is_preview_at
 	if is_danger:
 		tooltip = "Danger / " + tooltip
 	return tooltip
+
+
+func _has_property(object, property_name: String) -> bool:
+	if object == null or not object.has_method("get_property_list"):
+		return false
+	for property in object.get_property_list():
+		if String(property.get("name", "")) == property_name:
+			return true
+	return false
 
 
 func _danger_prefix(is_danger: bool) -> String:

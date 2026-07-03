@@ -160,7 +160,7 @@ func _resolve_interact(action, state) -> void:
 	if state == null or action == null or action.actor == null:
 		return
 	state.defer_enemy_phase_for_interaction = true
-	_add_message(state, "%s 试着与附近的人交谈。" % action.actor.def.display_name)
+	_add_message(state, "%s 试着与面前的目标互动。" % action.actor.def.display_name)
 	world_npc_interaction_requested.emit(action.actor)
 
 func _get_action_dir(action) -> Vector2i:

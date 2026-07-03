@@ -664,7 +664,11 @@ func _update_world_slice_editability(force_refresh: bool = false) -> void:
 
 
 func _try_interact_with_world_npc() -> bool:
-	if state == null or not bool(state.is_world_slice) or _actor_interaction_service == null:
+	if state == null or not bool(state.is_world_slice):
+		return false
+	if _try_open_facing_chest():
+		return true
+	if _actor_interaction_service == null:
 		return false
 	var result: Dictionary = _actor_interaction_service.interact(state, _world_npc_interaction_counts)
 	if not bool(result.get("handled", false)):
@@ -704,9 +708,9 @@ func _try_interact_with_world_npc() -> bool:
 func _submit_world_interact_action() -> bool:
 	if state == null or not bool(state.is_world_slice) or state.player == null:
 		return false
-	if _actor_interaction_service == null:
-		return false
-	var has_target: bool = _actor_interaction_service.find_interactable_actor(state) != null
+	var has_target: bool = _find_facing_chest() != null
+	if _actor_interaction_service != null:
+		has_target = has_target or _actor_interaction_service.find_interactable_actor(state) != null
 	if not has_target:
 		if _world_npc_dialogue_active:
 			return _try_interact_with_world_npc()
@@ -736,6 +740,91 @@ func _build_world_interact_action():
 
 func _on_world_npc_interaction_requested(_actor) -> void:
 	_try_interact_with_world_npc()
+
+
+func _find_facing_chest():
+	if state == null or state.player == null or state.grid == null:
+		return null
+	var target_cell: Vector2i = state.player.grid_pos + state.player.facing
+	for item in state.grid.get_grid_items(target_cell):
+		if _is_chest_grid_item(item):
+			return item
+	return null
+
+
+func _is_chest_grid_item(item) -> bool:
+	return item != null and item.has_method("has_grid_tag") and item.has_grid_tag("chest")
+
+
+func _try_open_facing_chest() -> bool:
+	var chest = _find_facing_chest()
+	if chest == null:
+		return false
+	if bool(chest.is_opened):
+		state.add_message("宝箱已经打开了。")
+		_refresh_views()
+		return true
+	if not chest.open():
+		return false
+	var drop: Dictionary = _pick_chest_drop(chest.drop_pool)
+	var drop_cell: Vector2i = _find_chest_drop_cell(chest.grid_pos)
+	if drop.is_empty() or drop_cell == Vector2i(-1, -1):
+		state.add_message("打开宝箱，里面空空如也。")
+	else:
+		_apply_chest_drop(drop, drop_cell)
+	_refresh_world_visibility("chest_opened")
+	_refresh_views()
+	return true
+
+
+func _pick_chest_drop(drop_pool: Array) -> Dictionary:
+	if drop_pool.is_empty():
+		return {}
+	var random_service = get_node_or_null("/root/RandomService")
+	var index := 0
+	if random_service != null and random_service.has_method("randi_range_value"):
+		index = int(random_service.randi_range_value(0, drop_pool.size() - 1))
+	else:
+		index = randi_range(0, drop_pool.size() - 1)
+	return Dictionary(drop_pool[index]).duplicate(true)
+
+
+func _find_chest_drop_cell(chest_cell: Vector2i) -> Vector2i:
+	if state == null or state.grid == null:
+		return Vector2i(-1, -1)
+	if not state.items_at.has(chest_cell):
+		return chest_cell
+	for dir in [state.player.grid_pos - chest_cell, Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+		if dir == Vector2i.ZERO:
+			continue
+		var cell: Vector2i = chest_cell + dir
+		if not state.grid.is_inside(cell):
+			continue
+		if state.grid.is_blocked(cell) or state.items_at.has(cell):
+			continue
+		if state.grid.get_actor(cell) != null:
+			continue
+		if state.grid.get_blocking_item(cell) != null:
+			continue
+		return cell
+	return Vector2i(-1, -1)
+
+
+func _apply_chest_drop(drop: Dictionary, drop_cell: Vector2i) -> void:
+	var kind := String(drop.get("kind", "token"))
+	var item_id := String(drop.get("id", ""))
+	match kind:
+		"token", "weapon":
+			state.drop_key_at(drop_cell, item_id)
+			state.add_message("打开宝箱，发现了%s。" % state.key_name(item_id))
+		"modifier", "relic":
+			var modifier = _modifier_for_id(item_id)
+			if modifier != null and _add_run_modifier(modifier):
+				state.add_message("打开宝箱，获得遗物：%s。" % String(modifier.display_name))
+			else:
+				state.add_message("打开宝箱，但遗物还没有完成。")
+		_:
+			state.add_message("打开宝箱，里面空空如也。")
 
 
 func _close_world_npc_dialogue(refresh: bool = true) -> void:

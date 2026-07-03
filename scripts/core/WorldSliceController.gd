@@ -7,6 +7,7 @@ const MapGenConfigScript := preload("res://scripts/core/MapGenConfig.gd")
 const WorldGeneratorScript := preload("res://scripts/core/WorldGenerator.gd")
 const ActorStateScript := preload("res://scripts/runtime/ActorState.gd")
 const GridItemStateScript := preload("res://scripts/runtime/GridItemState.gd")
+const ChestStateScript := preload("res://scripts/runtime/ChestState.gd")
 const VisibilityServiceScript := preload("res://scripts/core/VisibilityService.gd")
 const PLAYER_DEF := preload("res://data/actors/player.tres")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
@@ -24,6 +25,25 @@ const STREAM_DESPAWN_DISTANCE := 28
 const NPC_DEF_BY_ID := {
 	"tavern_keeper": TAVERN_KEEPER_DEF,
 }
+const DEFAULT_CHEST_DROP_POOL: Array[Dictionary] = [
+	{"kind": "token", "id": "U"},
+	{"kind": "token", "id": "D"},
+	{"kind": "token", "id": "L"},
+	{"kind": "token", "id": "R"},
+	{"kind": "token", "id": "F"},
+	{"kind": "token", "id": "B"},
+	{"kind": "token", "id": "TL"},
+	{"kind": "token", "id": "TR"},
+	{"kind": "token", "id": "A"},
+	{"kind": "token", "id": "I"},
+	{"kind": "token", "id": "G"},
+	{"kind": "token", "id": "W"},
+	{"kind": "token", "id": "J"},
+	{"kind": "weapon", "id": "KNIFE"},
+]
+const STARTER_TAVERN_CHEST_DROP_POOL: Array[Dictionary] = [
+	{"kind": "weapon", "id": "KNIFE"},
+]
 
 var _next_actor_id: int = 0
 var _next_item_id: int = 1000
@@ -277,6 +297,7 @@ func _apply_generated_map_state(state, visibility_reason: String) -> void:
 		_add_placeholder_prop(state, prop_cell)
 		reserved[prop_cell] = true
 
+	_spawn_chests(state, reserved)
 	_spawn_safe_zone_npcs(state, reserved)
 
 	for enemy_cell in _pick_enemy_spawn_cells(state.map_data, player_cell, reserved, REQUIRED_ENEMY_COUNT):
@@ -337,6 +358,8 @@ func _pick_prop_cell(map_data, reserved: Dictionary) -> Vector2i:
 		preferred.append_array(map_data.shrine_cells)
 
 	for cell in preferred:
+		if map_data.chest_cells.has(cell):
+			continue
 		if map_data.is_walkable(cell) and not reserved.has(cell):
 			return cell
 
@@ -381,6 +404,83 @@ func _spawn_safe_zone_npcs(state, reserved: Dictionary) -> int:
 			state.show_tracked_world_npc_hint = true
 		spawned += 1
 	return spawned
+
+
+func _spawn_chests(state, reserved: Dictionary) -> int:
+	if state == null or state.map_data == null:
+		return 0
+	var spawned := 0
+	var tavern_record: Dictionary = _find_player_tavern_record(state.map_data)
+	var starter_cell: Vector2i = _pick_starter_tavern_chest_cell(state.map_data, tavern_record, reserved)
+	if starter_cell != Vector2i(-1, -1):
+		if _add_chest(state, starter_cell, STARTER_TAVERN_CHEST_DROP_POOL) != null:
+			reserved[starter_cell] = true
+			spawned += 1
+	for chest_cell in state.map_data.chest_cells:
+		if reserved.has(chest_cell):
+			continue
+		if _add_chest(state, chest_cell, DEFAULT_CHEST_DROP_POOL) != null:
+			reserved[chest_cell] = true
+			spawned += 1
+	return spawned
+
+
+func _pick_starter_tavern_chest_cell(map_data, tavern_record: Dictionary, reserved: Dictionary) -> Vector2i:
+	if map_data == null or tavern_record.is_empty():
+		return Vector2i(-1, -1)
+	var candidates: Array[Dictionary] = []
+	var protected_cells: Dictionary = _build_tavern_npc_protected_cells(tavern_record)
+	for cell_value in tavern_record.get("occupied_cells", []):
+		var cell: Vector2i = Vector2i(cell_value)
+		if reserved.has(cell) or protected_cells.has(cell):
+			continue
+		if not map_data.is_walkable(cell):
+			continue
+		var map_cell = map_data.get_cell(cell)
+		if map_cell == null:
+			continue
+		if map_cell.tags.has("building_door") or map_cell.tags.has("interactable"):
+			continue
+		if not _has_walkable_neighbor(map_data, cell):
+			continue
+		var tag_score := 0.0
+		if map_cell.tags.has("building_floor"):
+			tag_score += 5.0
+		if map_cell.tags.has("building_open_ground"):
+			tag_score += 2.0
+		if _is_wall_hugging_tavern_cell(map_data, cell):
+			tag_score += 4.0
+		var distance_score := -float(cell.distance_squared_to(map_data.player_spawn)) * 0.15
+		candidates.append({
+			"cell": cell,
+			"score": tag_score + distance_score,
+		})
+	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.get("score", 0.0)) > float(b.get("score", 0.0))
+	)
+	for candidate in candidates:
+		return Vector2i(candidate.get("cell", Vector2i(-1, -1)))
+	return Vector2i(-1, -1)
+
+
+func _has_walkable_neighbor(map_data, cell: Vector2i) -> bool:
+	if map_data == null:
+		return false
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		if map_data.is_walkable(cell + dir):
+			return true
+	return false
+
+
+func _add_chest(state, cell: Vector2i, drops: Array):
+	if state == null or state.grid == null:
+		return null
+	var chest = ChestStateScript.new()
+	chest.setup_chest(_next_item_id, cell, drops)
+	_next_item_id += 1
+	if not state.grid.place_item(chest, cell):
+		return null
+	return chest
 
 
 func _find_player_tavern_record(map_data) -> Dictionary:

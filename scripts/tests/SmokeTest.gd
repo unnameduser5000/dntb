@@ -408,6 +408,23 @@ func _init() -> void:
 	_require(_world_slice_has_poi_type(world_game.state.map_data, "chest"), "world slice generates a chest footprint")
 	_require(_world_slice_has_poi_type(world_game.state.map_data, "easter_egg"), "world slice generates an egg footprint")
 	_require(_world_slice_has_poi_type(world_game.state.map_data, "shrine"), "world slice generates a shrine footprint")
+	var tavern_chest = _find_world_slice_chest(world_game.state, true)
+	_require(tavern_chest != null, "world slice creates a starter tavern chest")
+	_require(tavern_chest.is_grid_blocking(), "closed chests block movement")
+	var chest_adjacent_cell: Vector2i = _find_walkable_adjacent_world_cell(world_game.state, tavern_chest.grid_pos)
+	_require(chest_adjacent_cell != Vector2i(-1, -1), "starter tavern chest has an adjacent interaction cell")
+	_move_player_to(world_game, chest_adjacent_cell)
+	world_game.state.player.facing = tavern_chest.grid_pos - chest_adjacent_cell
+	var pool_size_before_chest: int = world_game.get_key_program_pool_tokens().size()
+	_require(world_game._submit_world_interact_action(), "world interaction can submit a chest-open action")
+	await process_frame
+	_require(bool(tavern_chest.is_opened), "interacting with the facing chest opens it")
+	_require(not tavern_chest.is_grid_blocking(), "opened chests no longer block movement")
+	_require(String(world_game.state.items_at.get(tavern_chest.grid_pos, "")) == "KNIFE", "starter tavern chest drops the configured weapon token")
+	_move_player_to(world_game, tavern_chest.grid_pos)
+	world_game.resolver.on_actor_entered_cell(world_game.state.player, world_game.state)
+	_require(world_game.get_key_program_pool_tokens().size() == pool_size_before_chest + 1, "picked chest drop enters the token pool")
+	_require(world_game.get_key_program_pool_tokens().has("KNIFE"), "starter tavern chest currently grants the knife token")
 	_require(_world_slice_building_footprints_are_valid(world_game.state.map_data), "world slice building records keep valid footprint metadata")
 	_require(world_game.state.map_data.reachable_count > 0, "world slice tracks reachable walkable cells")
 	_require(world_game.state.map_data.unreachable_poi_count == 0, "world slice connectivity keeps POIs reachable")
@@ -1019,6 +1036,19 @@ func _find_world_slice_npc(game, npc_id: String):
 	for npc in game.get_world_slice_npcs():
 		if npc != null and npc.def != null and String(npc.def.id) == npc_id:
 			return npc
+	return null
+
+
+func _find_world_slice_chest(state, require_rest_area: bool = false):
+	if state == null or state.grid == null:
+		return null
+	for cell in state.grid.grid_items_at.keys():
+		for item in state.grid.get_grid_items(cell):
+			if item == null or not item.has_method("has_grid_tag") or not item.has_grid_tag("chest"):
+				continue
+			if require_rest_area and not _is_world_slice_rest_area_cell(state.map_data, item.grid_pos):
+				continue
+			return item
 	return null
 
 

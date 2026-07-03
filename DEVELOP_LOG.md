@@ -1,5 +1,33 @@
 # Develop Log
 
+## 2026-07-04 Chest interaction pass
+
+- Added `ChestState` as a blocking grid item with per-chest `drop_pool` data
+  and an `is_opened` runtime flag.
+- World-slice chest POIs now instantiate real chest items instead of only map
+  tags / footprint visuals.
+- The world interaction action now checks the cell in front of the player for
+  a chest before falling back to NPC interaction:
+  - closed chests block movement;
+  - opening a chest makes it non-blocking;
+  - a random entry is selected from that chest's own drop list;
+  - token / weapon drops use the existing ground-token pickup path.
+- Added a starter chest inside the player's spawn tavern. Its drop pool is a
+  single weapon token, `KNIFE`, until more weapons are implemented.
+- Added placeholder handling for future `modifier` / `relic` chest drops, but
+  default chest pools currently contain only base tokens and weapon tokens.
+
+Validation notes:
+
+- Added SmokeTest coverage for starter tavern chest spawning, blocking,
+  interaction opening, `KNIFE` drop creation, and pickup into the key-token
+  pool.
+- `git diff --check` passes.
+- Attempted the project smoke command with the local Godot console executable:
+  `Godot_v4.7-stable_win64_console.exe --headless --path . --script res://scripts/tests/SmokeTest.gd`.
+  It still crashes in the engine with signal 11 during project load, before
+  reaching SmokeTest assertions.
+
 ## 2026-07-04 Knife token and normal enemy drop pass
 
 - Added `小刀` as a weapon-style programmable token:
