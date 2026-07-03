@@ -1,5 +1,36 @@
 # Develop Log
 
+## 2026-07-04 Camera2D-centered world-slice map
+
+- Switched the world-slice view from a virtual pan/zoom camera to a real
+  `Camera2D` that follows the player:
+  - `Camera2D` is now a top-level node under `Game` and is treated as the
+    source of truth for which world-pixel coordinate belongs at the viewport
+    center.
+  - `BoardView` reads `Camera2D.position` and renders only the grid cells that
+    cover the current viewport plus a small margin, so the map tiles fill the
+    rectangular window and adapts to window size.
+  - The player is kept centered on screen by setting the camera position to
+    the player's world-pixel center every refresh.
+- Added `BoardView.world_slice_camera_follow` toggle and
+  `world_slice_render_margin_cells` for the viewport-filling render window.
+- Mouse drag/wheel input is disabled while camera-follow is active because the
+  camera now tracks the player automatically.
+- Preserved the previous pan/zoom behavior behind `world_slice_camera_follow =
+  false` and `enable_pan_zoom` so the old mode can still be enabled if needed.
+- `ActorRoot` / `EffectRoot` transform sync continues to work; with
+  camera-follow scale locked to 1, overlays are placed directly in screen space
+  via `grid_to_world()`.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
 ## 2026-07-03 Fullscreen draggable/zoomable world-slice map
 
 - Reworked world-slice map layout so it now fills the full viewport instead of
