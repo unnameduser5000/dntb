@@ -17,6 +17,7 @@ var phase: String = "planning"
 var items_at: Dictionary = {}
 var exit_cell: Vector2i = Vector2i.ZERO
 var messages: Array[String] = []
+var feed_messages: Array[Dictionary] = []
 var battle_finished: bool = false
 var victory: bool = false
 var room_index: int = 0
@@ -62,11 +63,19 @@ var world_actor_display_names: Dictionary = {}
 var tracked_world_actor_id: String = ""
 var show_tracked_world_actor_hint: bool = false
 var tracked_world_actor_relative_hint: String = ""
+var tracked_boss_poi_cell: Vector2i = Vector2i(-1, -1)
+var tracked_boss_poi_relative_hint: String = ""
+var tracked_nearest_ruin_cell: Vector2i = Vector2i(-1, -1)
+var tracked_nearest_ruin_relative_hint: String = ""
+var tracked_safe_zone_cell: Vector2i = Vector2i(-1, -1)
+var tracked_safe_zone_relative_hint: String = ""
 var defer_enemy_phase_for_interaction: bool = false
 var effect_modifiers: Array = []
 var is_safe_training: bool = false
 var is_world_slice: bool = false
 var action_trace = null
+var player_xp: int = 0
+var player_level: int = 1
 
 func add_actor(actor) -> void:
 	actors.append(actor)
@@ -107,6 +116,15 @@ func add_message(message: String) -> void:
 	messages.push_front(message)
 	if messages.size() > 9:
 		messages.resize(9)
+
+
+func add_feed_message(message: String, message_type: String = "generic") -> void:
+	feed_messages.push_front({
+		"text": message,
+		"type": message_type,
+	})
+	if feed_messages.size() > 6:
+		feed_messages.resize(6)
 
 func clear_temporary_flags() -> void:
 	for actor in actors:
