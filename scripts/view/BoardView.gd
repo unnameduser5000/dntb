@@ -175,13 +175,26 @@ func _clamp_camera_offset() -> void:
 
 
 func render(state) -> void:
+	var render_window: Rect2i
 	if state != null and bool(state.is_world_slice):
+		# Camera-follow mode chooses cell_size from the viewport first, then
+		# derives the render window, then aligns BoardView.position so the
+		# rendered window maps to the right screen pixels.
+		cell_size = compute_world_slice_cell_size()
+		render_window = _compute_render_window(state)
+		_render_window_origin = render_window.position
+		_render_window_size = render_window.size
+		_ensure_cell_pool(_render_window_size)
 		_apply_world_slice_layout()
+	else:
+		if state != null and state.grid != null:
+			render_window = Rect2i(Vector2i.ZERO, Vector2i(state.grid.width, state.grid.height))
+		else:
+			render_window = Rect2i(Vector2i.ZERO, Vector2i.ZERO)
+		_render_window_origin = render_window.position
+		_render_window_size = render_window.size
+		_ensure_cell_pool(_render_window_size)
 	var started_at: int = Time.get_ticks_msec()
-	var render_window: Rect2i = _compute_render_window(state)
-	_render_window_origin = render_window.position
-	_render_window_size = render_window.size
-	_ensure_cell_pool(_render_window_size)
 	_grid.columns = max(1, _render_window_size.x)
 	var active_tile_count: int = _render_window_size.x * _render_window_size.y
 
@@ -497,27 +510,22 @@ func _apply_world_slice_layout() -> void:
 		return
 
 	if world_slice_camera_follow:
-		# In camera-follow mode we treat Camera2D.position as the world-pixel
-		# coordinate that should appear at the center of the viewport. The grid
-		# is offset so that the render-window origin cell lands exactly where the
-		# camera says it should, giving the player a centered, viewport-filling view.
-		cell_size = compute_world_slice_cell_size()
-
+		# Camera-follow mode uses Camera2D.position as a data marker for the
+		# world-pixel coordinate that should appear at the viewport center. Because
+		# BoardView is a Control, the Camera2D itself does not scroll it; we compute
+		# BoardView.position so the already-clamped render-window origin cell lands
+		# at the correct screen pixel.
 		var cell_stride: float = float(cell_size + 1)
 		var viewport_center: Vector2 = viewport_rect.size * 0.5
 		var camera_pos: Vector2 = Vector2.ZERO
 		if _camera_node != null:
 			camera_pos = _camera_node.position
 
-		var origin_estimate := Vector2i(
-			floori((camera_pos.x - viewport_center.x) / cell_stride) - world_slice_render_margin_cells,
-			floori((camera_pos.y - viewport_center.y) / cell_stride) - world_slice_render_margin_cells
-		)
-		board_origin = viewport_center - camera_pos + Vector2(origin_estimate) * cell_stride
+		board_origin = viewport_center - camera_pos + Vector2(_render_window_origin) * cell_stride
 		_camera_offset = Vector2.ZERO
 		_camera_zoom = 1.0
 		if _camera_node != null:
-			_camera_node.enabled = true
+			_camera_node.enabled = false
 		_apply_camera_transform()
 		return
 
