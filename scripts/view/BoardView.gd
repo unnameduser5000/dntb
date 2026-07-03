@@ -21,6 +21,8 @@ const EXPLORED_FOG_DESATURATE := 0.18
 @export var min_zoom: float = 0.25
 @export var max_zoom: float = 5.0
 @export var zoom_step_factor: float = 1.15
+@export var world_slice_camera_follow: bool = true
+@export var world_slice_render_margin_cells: int = 2
 
 @onready var _grid: GridContainer = %AsciiGrid
 var _render_window_origin: Vector2i = Vector2i.ZERO
@@ -33,6 +35,7 @@ var _camera_zoom: float = 1.0
 var _is_dragging: bool = false
 var _drag_start_mouse: Vector2 = Vector2.ZERO
 var _drag_start_offset: Vector2 = Vector2.ZERO
+var _camera_node: Camera2D = null
 var _stylebox_cache: Dictionary = {}
 var _texture_stylebox_cache: Dictionary = {}
 var _loaded_tile_textures: Dictionary = {}
@@ -42,11 +45,12 @@ var _derived_tile_textures: Dictionary = {}
 func _ready() -> void:
 	position = board_origin
 	mouse_filter = Control.MOUSE_FILTER_PASS
+	_camera_node = get_parent().get_node_or_null("Camera2D")
 	_rebuild_cell_pool(_compute_pool_size())
 
 
 func _gui_input(event: InputEvent) -> void:
-	if not _is_world_slice_mode() or not enable_pan_zoom:
+	if not _is_world_slice_mode() or not enable_pan_zoom or world_slice_camera_follow:
 		return
 	if get_viewport().gui_is_dragging():
 		return
@@ -92,9 +96,21 @@ func is_cell_in_render_window(cell: Vector2i) -> bool:
 	return Rect2i(_render_window_origin, _render_window_size).has_point(cell)
 
 
+func compute_world_slice_cell_size() -> int:
+	var viewport_rect: Rect2 = get_viewport_rect()
+	if viewport_rect.size.x <= 0.0 or viewport_rect.size.y <= 0.0:
+		return cell_size
+	var fit_cell_width: int = int(floor((viewport_rect.size.x - float(world_slice_window_size.x - 1)) / float(world_slice_window_size.x)))
+	var fit_cell_height: int = int(floor((viewport_rect.size.y - float(world_slice_window_size.y - 1)) / float(world_slice_window_size.y)))
+	return clampi(mini(fit_cell_width, fit_cell_height), world_slice_min_cell_size, world_slice_max_cell_size)
+
+
 func reset_camera() -> void:
 	_camera_offset = Vector2.ZERO
 	_camera_zoom = 1.0
+	if _camera_node != null:
+		_camera_node.position = Vector2.ZERO
+		_camera_node.zoom = Vector2.ONE
 	_apply_camera_transform()
 
 
@@ -116,6 +132,14 @@ func get_camera_offset() -> Vector2:
 
 func get_camera_zoom() -> float:
 	return _camera_zoom
+
+
+func get_render_window_size() -> Vector2i:
+	return _render_window_size
+
+
+func get_render_window_origin() -> Vector2i:
+	return _render_window_origin
 
 
 func _is_world_slice_mode() -> bool:
@@ -189,23 +213,55 @@ func _compute_render_window(state) -> Rect2i:
 
 	var grid_width: int = int(state.grid.width)
 	var grid_height: int = int(state.grid.height)
-	var window_size: Vector2i = Vector2i(
-		min(world_slice_window_size.x, grid_width),
-		min(world_slice_window_size.y, grid_height)
-	)
-	if window_size.x <= 0 or window_size.y <= 0:
+
+	if not world_slice_camera_follow:
+		var window_size: Vector2i = Vector2i(
+			min(world_slice_window_size.x, grid_width),
+			min(world_slice_window_size.y, grid_height)
+		)
+		if window_size.x <= 0 or window_size.y <= 0:
+			return Rect2i(Vector2i.ZERO, Vector2i.ZERO)
+
+		var player_cell: Vector2i = Vector2i.ZERO
+		if state.player != null:
+			player_cell = Vector2i(state.player.grid_pos)
+
+		var half_window: Vector2i = Vector2i(int(window_size.x / 2), int(window_size.y / 2))
+		var origin: Vector2i = Vector2i(
+			clampi(player_cell.x - half_window.x, 0, max(0, grid_width - window_size.x)),
+			clampi(player_cell.y - half_window.y, 0, max(0, grid_height - window_size.y))
+		)
+		return Rect2i(origin, window_size)
+
+	# Camera-follow mode: render enough cells to cover the viewport plus margin.
+	var viewport_size: Vector2 = get_viewport_rect().size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
 		return Rect2i(Vector2i.ZERO, Vector2i.ZERO)
 
-	var player_cell: Vector2i = Vector2i.ZERO
-	if state.player != null:
-		player_cell = Vector2i(state.player.grid_pos)
+	var camera_pos: Vector2 = Vector2.ZERO
+	if _camera_node != null:
+		camera_pos = _camera_node.position
 
-	var half_window: Vector2i = Vector2i(int(window_size.x / 2), int(window_size.y / 2))
-	var origin: Vector2i = Vector2i(
-		clampi(player_cell.x - half_window.x, 0, max(0, grid_width - window_size.x)),
-		clampi(player_cell.y - half_window.y, 0, max(0, grid_height - window_size.y))
+	var cell_stride: float = float(cell_size + 1) * _camera_zoom
+	if cell_stride <= 0.0:
+		cell_stride = float(cell_size + 1)
+
+	var half_viewport: Vector2 = viewport_size * 0.5
+	var origin_cell := Vector2i(
+		floori((camera_pos.x - half_viewport.x) / cell_stride) - world_slice_render_margin_cells,
+		floori((camera_pos.y - half_viewport.y) / cell_stride) - world_slice_render_margin_cells
 	)
-	return Rect2i(origin, window_size)
+	var end_cell := Vector2i(
+		ceili((camera_pos.x + half_viewport.x) / cell_stride) + world_slice_render_margin_cells,
+		ceili((camera_pos.y + half_viewport.y) / cell_stride) + world_slice_render_margin_cells
+	)
+	var window_size: Vector2i = Vector2i(
+		clampi(end_cell.x - origin_cell.x, 1, grid_width),
+		clampi(end_cell.y - origin_cell.y, 1, grid_height)
+	)
+	origin_cell.x = clampi(origin_cell.x, 0, max(0, grid_width - window_size.x))
+	origin_cell.y = clampi(origin_cell.y, 0, max(0, grid_height - window_size.y))
+	return Rect2i(origin_cell, window_size)
 
 
 func _describe_cell(cell: Vector2i, state) -> Dictionary:
@@ -440,6 +496,31 @@ func _apply_world_slice_layout() -> void:
 	if viewport_rect.size.x <= 0.0 or viewport_rect.size.y <= 0.0:
 		return
 
+	if world_slice_camera_follow:
+		# In camera-follow mode we treat Camera2D.position as the world-pixel
+		# coordinate that should appear at the center of the viewport. The grid
+		# is offset so that the render-window origin cell lands exactly where the
+		# camera says it should, giving the player a centered, viewport-filling view.
+		cell_size = compute_world_slice_cell_size()
+
+		var cell_stride: float = float(cell_size + 1)
+		var viewport_center: Vector2 = viewport_rect.size * 0.5
+		var camera_pos: Vector2 = Vector2.ZERO
+		if _camera_node != null:
+			camera_pos = _camera_node.position
+
+		var origin_estimate := Vector2i(
+			floori((camera_pos.x - viewport_center.x) / cell_stride) - world_slice_render_margin_cells,
+			floori((camera_pos.y - viewport_center.y) / cell_stride) - world_slice_render_margin_cells
+		)
+		board_origin = viewport_center - camera_pos + Vector2(origin_estimate) * cell_stride
+		_camera_offset = Vector2.ZERO
+		_camera_zoom = 1.0
+		if _camera_node != null:
+			_camera_node.enabled = true
+		_apply_camera_transform()
+		return
+
 	var available_width: float = maxf(120.0, viewport_rect.size.x - float(world_slice_left_margin + world_slice_right_gap))
 	var available_height: float = maxf(120.0, viewport_rect.size.y - float(world_slice_top_margin + world_slice_bottom_margin))
 	var width_steps: int = max(1, world_slice_window_size.x)
@@ -454,6 +535,8 @@ func _apply_world_slice_layout() -> void:
 		pane_origin.x + floor(maxf(0.0, (available_width - board_pixels.x) * 0.5)),
 		pane_origin.y + floor(maxf(0.0, (available_height - board_pixels.y) * 0.5))
 	)
+	if _camera_node != null:
+		_camera_node.enabled = false
 	_apply_camera_transform()
 
 

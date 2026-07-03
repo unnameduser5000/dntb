@@ -142,6 +142,7 @@ const MAP_NODES := [
 ]
 
 @onready var board_view = $BoardView
+@onready var camera = $Camera2D
 @onready var battle_ui = $CanvasLayer/BattleUI
 @onready var world_loading_overlay = $CanvasLayer/WorldLoadingOverlay
 @onready var turn_controller = $TurnController
@@ -617,6 +618,7 @@ func _refresh_views() -> void:
 	if bool(state.is_world_slice):
 		_update_world_slice_editability()
 	_update_enemy_preview()
+	_update_world_slice_camera()
 	board_view.render(state)
 	if _battle_presentation != null:
 		var snap_actor_views: bool = not _battle_presentation.should_wait_for_presentation()
@@ -629,6 +631,17 @@ func _refresh_views() -> void:
 		_battle_presentation.sync_views(state, snap_actor_views)
 	battle_ui.update_state(state)
 	_sync_actor_roots_with_board_view()
+
+
+func _update_world_slice_camera() -> void:
+	if state == null or not bool(state.is_world_slice):
+		return
+	if camera == null or state.player == null:
+		return
+	if not board_view.world_slice_camera_follow:
+		return
+	var cell_size: int = board_view.compute_world_slice_cell_size()
+	camera.position = Vector2(state.player.grid_pos) * float(cell_size + 1) + Vector2(cell_size * 0.5, cell_size * 0.5)
 
 
 func _sync_actor_roots_with_board_view() -> void:
