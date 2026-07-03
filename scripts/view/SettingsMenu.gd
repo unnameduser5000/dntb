@@ -146,7 +146,10 @@ func _refresh_key_binding_rows() -> void:
 
 
 func _begin_rebind(action_name: String) -> void:
-	_pending_rebind_action = action_name
+	if _pending_rebind_action == action_name:
+		_pending_rebind_action = ""
+	else:
+		_pending_rebind_action = action_name
 	refresh_controls()
 
 
