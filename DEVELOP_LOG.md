@@ -1,5 +1,22 @@
 # Develop Log
 
+## 2026-07-04 Hide game view during start-game loading
+
+- Changed `App._start_new_game()` to keep the game scene hidden while the world
+  is being generated, so only `AppBackground` and the loading overlay are
+  visible during the prompt.
+- `Game.start_world_slice_debug()` now reveals the game view only after the
+  world state is ready and right before the loading overlay is hidden.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
 ## 2026-07-04 Settings key rebind scroll preservation
 
 - Added optional `scroll_to_top` parameter to `SettingsMenu.refresh_controls()`.
