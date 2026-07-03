@@ -69,6 +69,7 @@ func _show_settings() -> void:
 	_settings_return_to_pause = false
 	_hide_all_shell_panels()
 	game.set_shell_overlay_active(true)
+	settings_menu.set_continue_button_visible(false)
 	settings_menu.refresh_controls()
 	settings_menu.visible = true
 
@@ -91,6 +92,7 @@ func _show_settings_from_pause() -> void:
 	_hide_all_shell_panels()
 	game.set_game_visible(true)
 	game.set_shell_overlay_active(true)
+	settings_menu.set_continue_button_visible(true)
 	settings_menu.refresh_controls()
 	settings_menu.visible = true
 

@@ -72,6 +72,10 @@ func refresh_controls() -> void:
 	scroll.scroll_vertical = 0
 
 
+func set_continue_button_visible(visible: bool) -> void:
+	continue_button.visible = visible
+
+
 func _on_resolution_selected(index: int) -> void:
 	SettingsService.set_resolution(index)
 
