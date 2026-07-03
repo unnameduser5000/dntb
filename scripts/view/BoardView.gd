@@ -516,14 +516,22 @@ func _has_visibility_layer(state) -> bool:
 
 
 func _ensure_cell_pool(window_size: Vector2i) -> void:
-	if window_size == _pool_window_size and _pool_cell_size == cell_size and _cell_pool.size() == window_size.x * window_size.y:
+	if window_size.x <= 0 or window_size.y <= 0:
+		_rebuild_cell_pool(window_size)
+		return
+	# Keep the existing pool if it is already large enough for the new window.
+	# Rebuilding hundreds of Label nodes every frame causes noticeable stutter,
+	# especially when the render window changes by only a few cells.
+	if _cell_pool.size() >= window_size.x * window_size.y and _pool_cell_size == cell_size:
+		_pool_window_size = window_size
+		_grid.columns = max(1, window_size.x)
 		return
 	_rebuild_cell_pool(window_size)
 
 
 func _rebuild_cell_pool(window_size: Vector2i) -> void:
 	for child in _grid.get_children():
-		child.free()
+		child.queue_free()
 	_cell_pool.clear()
 	_pool_window_size = window_size
 	_pool_cell_size = cell_size
@@ -531,12 +539,13 @@ func _rebuild_cell_pool(window_size: Vector2i) -> void:
 		return
 	_grid.columns = max(1, window_size.x)
 	var total_cells: int = window_size.x * window_size.y
-	for _index in range(total_cells):
+	_cell_pool.resize(total_cells)
+	for index in range(total_cells):
 		var label: Label = BoardCellScene.instantiate() as Label
 		label.custom_minimum_size = Vector2(cell_size, cell_size)
 		label.visible = true
 		_grid.add_child(label)
-		_cell_pool.append(label)
+		_cell_pool[index] = label
 
 
 func _compute_pool_size() -> Vector2i:
