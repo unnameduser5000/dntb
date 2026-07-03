@@ -35,6 +35,7 @@ const ACTION_MOVE_KEY := preload("res://data/actions/move_key.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
 const GREATBLADE := preload("res://data/weapons/greatblade.tres")
+const RUSTY_SWORD := preload("res://data/weapons/rusty_sword.tres")
 
 const MOD_ECHO_STRIKE := preload("res://data/modifiers/echo_strike.tres")
 const MOD_ECHO_STEP := preload("res://data/modifiers/echo_step.tres")
@@ -202,6 +203,7 @@ func _ready() -> void:
 		"impact_shield": IMPACT_SHIELD,
 		"iron_spear": IRON_SPEAR,
 		"greatblade": GREATBLADE,
+		"rusty_sword": RUSTY_SWORD,
 	}
 	_action_program = ActionProgramControllerScript.new()
 	_action_program.setup()
@@ -685,6 +687,7 @@ func _try_interact_with_world_npc() -> bool:
 	state.show_tracked_world_npc_hint = true
 	_world_npc_dialogue_active = true
 	_world_npc_dialogue_npc_id = actor_id
+	_try_grant_world_actor_first_talk_reward(actor_id, speaker)
 	if is_instance_valid(battle_ui):
 		battle_ui.show_world_npc_dialogue(speaker, line)
 	state.add_message("%s：%s" % [speaker, line])
@@ -695,6 +698,17 @@ func _try_interact_with_world_npc() -> bool:
 			dialogue_service.call("start_dialogue", dialogue_resource_path, String(result.get("dialogue_cue", "")), [self, state])
 	_refresh_views()
 	return true
+
+
+func _try_grant_world_actor_first_talk_reward(actor_id: String, speaker: String) -> void:
+	if actor_id != "tavern_keeper":
+		return
+	if int(_world_npc_interaction_counts.get(actor_id, 0)) != 1:
+		return
+	if not _equip_run_weapon_by_id("rusty_sword"):
+		return
+	state.add_message("%s递来一把旧铁剑。你学会了用攻击键朝正前方出剑。" % speaker)
+	_refresh_inventory_ui()
 
 
 func _submit_world_interact_action() -> bool:
@@ -1269,6 +1283,7 @@ func get_save_data() -> Dictionary:
 		"run_seed": _run_seed,
 		"run_modifier_ids": _run_modifier_ids,
 		"run_weapon_id": _run_weapon_id,
+		"world_npc_interaction_counts": _world_npc_interaction_counts.duplicate(true),
 		"key_slots": key_program_save["key_slots"],
 		"pool_tokens": key_program_save["pool_tokens"],
 	}
@@ -1288,6 +1303,8 @@ func load_save_data(data: Dictionary) -> void:
 	_run_weapon_id = String(data.get("run_weapon_id", _default_run_weapon_id()))
 	if _weapon_for_id(_run_weapon_id) == null:
 		_run_weapon_id = _default_run_weapon_id()
+	var interaction_counts = data.get("world_npc_interaction_counts", {})
+	_world_npc_interaction_counts = interaction_counts.duplicate(true) if typeof(interaction_counts) == TYPE_DICTIONARY else {}
 
 	_run_modifier_ids.clear()
 	for modifier_id in data.get("run_modifier_ids", []):
