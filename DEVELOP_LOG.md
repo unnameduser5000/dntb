@@ -1,5 +1,32 @@
 # Develop Log
 
+## 2026-07-04 Independent arrow-key movement bindings
+
+- Added four new independent player input actions:
+  - `player_key_up`
+  - `player_key_down`
+  - `player_key_left`
+  - `player_key_right`
+- These actions default to the arrow keys (`↑ / ↓ / ← / →`) and are
+  programmatically mapped to the same physical key slots as WASD:
+  - Up → `W` slot
+  - Down → `S` slot
+  - Left → `A` slot
+  - Right → `D` slot
+- `PlayerInputService.PROGRAM_ACTIONS` now includes the new actions, so they
+  appear as separate rebindable rows in `SettingsMenu`.
+- `DIRECTIONS` now covers all movement actions, preserving existing direction
+  resolution behavior.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
 ## 2026-07-04 Hide game view during start-game loading
 
 - Changed `App._start_new_game()` to keep the game scene hidden while the world

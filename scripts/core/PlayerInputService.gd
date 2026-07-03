@@ -17,10 +17,10 @@ const ACTION_Z := "player_key_z"
 const ACTION_X := "player_key_x"
 const ACTION_C := "player_key_c"
 const ACTION_V := "player_key_v"
-const ACTION_UP := ACTION_W
-const ACTION_DOWN := ACTION_S
-const ACTION_LEFT := ACTION_A
-const ACTION_RIGHT := ACTION_D
+const ACTION_UP := "player_key_up"
+const ACTION_DOWN := "player_key_down"
+const ACTION_LEFT := "player_key_left"
+const ACTION_RIGHT := "player_key_right"
 const CONFIG_PATH := "user://input_bindings.cfg"
 
 const PROGRAM_ACTIONS := [
@@ -36,6 +36,10 @@ const PROGRAM_ACTIONS := [
 	ACTION_X,
 	ACTION_C,
 	ACTION_V,
+	ACTION_UP,
+	ACTION_DOWN,
+	ACTION_LEFT,
+	ACTION_RIGHT,
 ]
 
 const DEFAULT_KEYCODES := {
@@ -51,6 +55,10 @@ const DEFAULT_KEYCODES := {
 	ACTION_X: KEY_X,
 	ACTION_C: KEY_C,
 	ACTION_V: KEY_V,
+	ACTION_UP: KEY_UP,
+	ACTION_DOWN: KEY_DOWN,
+	ACTION_LEFT: KEY_LEFT,
+	ACTION_RIGHT: KEY_RIGHT,
 }
 
 const KEY_IDS := {
@@ -66,6 +74,10 @@ const KEY_IDS := {
 	ACTION_X: "X",
 	ACTION_C: "C",
 	ACTION_V: "V",
+	ACTION_UP: "W",
+	ACTION_DOWN: "S",
+	ACTION_LEFT: "A",
+	ACTION_RIGHT: "D",
 }
 
 const DIRECTIONS := {
@@ -73,6 +85,10 @@ const DIRECTIONS := {
 	ACTION_S: Vector2i.DOWN,
 	ACTION_A: Vector2i.LEFT,
 	ACTION_D: Vector2i.RIGHT,
+	ACTION_UP: Vector2i.UP,
+	ACTION_DOWN: Vector2i.DOWN,
+	ACTION_LEFT: Vector2i.LEFT,
+	ACTION_RIGHT: Vector2i.RIGHT,
 }
 
 var _keycodes: Dictionary = {}
