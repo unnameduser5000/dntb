@@ -1,5 +1,18 @@
 # Develop Log
 
+## 2026-07-04 Added complete system API documentation for PR handoff
+
+- Added `docs/06_系统API清单.md` as a dedicated API-facing handoff doc.
+- Documented the current branch's expanded systems by API boundary instead of
+  only by design intent, including:
+  - programmable token storage and resolution
+  - action execution
+  - enemy planning
+  - world-slice POI guidance and ruin interaction
+  - XP / level-up reward loop
+  - BattleUI / BattleHud / RunSidebar UI responsibilities
+- Updated `docs/README.md` to index that new API doc.
+
 ## 2026-07-03 Added first-kill attack-token and level-up reward loop
 
 - Changed the first four-direction reward into a real programmable attack-token
@@ -121,8 +134,6 @@ Validation:
 
 - `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
 - Result: `SmokeTest passed`
-<<<<<<< HEAD
-=======
 - `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
 - Result: `ActorPresentationSandbox smoke passed`
 - `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
