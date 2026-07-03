@@ -15,6 +15,7 @@ signal attack_missed(actor, target_cell: Vector2i)
 signal key_picked(actor, key_id: String, cell: Vector2i)
 signal rule_message(message: String)
 signal combat_event_emitted(event)
+signal world_npc_interaction_requested(actor)
 
 var effect_pipeline = EffectPipelineScript.new()
 var _presentation_frames: Array = []
@@ -45,6 +46,9 @@ func resolve(action, state) -> void:
 
 		ActionDefScript.ActionKind.GUARD:
 			_resolve_guard(action, state)
+
+		ActionDefScript.ActionKind.INTERACT:
+			_resolve_interact(action, state)
 
 func _resolve_move(action, state) -> void:
 	var actor = action.actor
@@ -146,6 +150,14 @@ func _resolve_turn(action, state) -> void:
 func _resolve_guard(action, state) -> void:
 	action.actor.guarded = true
 	_add_message(state, "%s 防御，下一次受伤 -1。" % action.actor.def.display_name)
+
+
+func _resolve_interact(action, state) -> void:
+	if state == null or action == null or action.actor == null:
+		return
+	state.defer_enemy_phase_for_interaction = true
+	_add_message(state, "%s 试着与附近的人交谈。" % action.actor.def.display_name)
+	world_npc_interaction_requested.emit(action.actor)
 
 func _get_action_dir(action) -> Vector2i:
 	# Direction priority:

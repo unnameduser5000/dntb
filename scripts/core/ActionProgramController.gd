@@ -29,6 +29,7 @@ const TOKEN_NAMES := {
 	"TL": "左转",
 	"TR": "右转",
 	"A": "攻击",
+	"I": "交互",
 	"G": "防御",
 	"W": "等待",
 	"J": "跳跃",
@@ -39,11 +40,11 @@ const KEY_DIRECTIONS := {
 	"L": Vector2i.LEFT,
 	"R": Vector2i.RIGHT,
 }
-const ACTION_TOKENS: Array[String] = ["F", "B", "TL", "TR", "A", "G", "W", "J"]
+const ACTION_TOKENS: Array[String] = ["F", "B", "TL", "TR", "A", "I", "G", "W", "J"]
 ## Shared token-drop pool for future room / reward sources.
 ## This keeps mixed drops aligned with the same legal token set as the
 ## program editor and save/load layer.
-const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "G", "W", "J"]
+const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J"]
 const KeyProgramScript := preload("res://scripts/runtime/KeyProgram.gd")
 
 var key_program = null
@@ -145,11 +146,13 @@ func _apply_starter_preset(preset_id: String) -> void:
 			key_program.slots["S"] = ["TR", "TR", "F"]
 			key_program.slots["A"] = ["TL", "F"]
 			key_program.slots["D"] = ["TR", "F"]
+			key_program.slots["F"] = ["I"]
 		_:
 			key_program.slots["W"] = ["U"]
 			key_program.slots["S"] = ["D"]
 			key_program.slots["A"] = ["L"]
 			key_program.slots["D"] = ["R"]
+			key_program.slots["F"] = ["I"]
 
 
 func _ensure_key_program() -> void:

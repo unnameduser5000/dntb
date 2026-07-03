@@ -55,6 +55,8 @@ func build_preview_from_actions(actions: Array, state) -> Dictionary:
 				_add_unique_cells(attack_cells, _preview_attack_cells(state, preview_pos, action_dir, action_def))
 			ActionDefScript.ActionKind.TURN:
 				preview_facing = _preview_turn(preview_facing, action_id)
+			ActionDefScript.ActionKind.INTERACT:
+				pass
 			_:
 				pass
 
