@@ -17,6 +17,10 @@ signal rule_message(message: String)
 signal combat_event_emitted(event)
 signal world_npc_interaction_requested(actor)
 
+@export_range(0.0, 1.0, 0.01) var normal_enemy_drop_chance := 0.30
+@export var normal_enemy_drop_actor_ids: Array[String] = ["slime"]
+@export var normal_enemy_drop_pool: Array[String] = ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J", "KNIFE", "IMPACT_SHIELD", "IRON_SPEAR", "GREATBLADE"]
+
 var effect_pipeline = EffectPipelineScript.new()
 var _presentation_frames: Array = []
 
@@ -114,7 +118,7 @@ func _resolve_attack(action, state):
 		if target == null or target.team == actor.team:
 			continue
 
-		var damage: int = int(actor.atk) * int(action.def.power)
+		var damage: int = _get_attack_damage(actor, action)
 		var damage_packets: Array = []
 		damage_packets = apply_effect_damage(actor, target, damage, state, action, [&"attack"])
 		result.record_hit(target, target_cell, damage_packets, false, damage)
@@ -490,12 +494,14 @@ func emit_combat_event(event) -> void:
 	combat_event_emitted.emit(event)
 
 func _kill_actor(actor, state) -> void:
+	var death_cell: Vector2i = actor.grid_pos if actor != null else Vector2i.ZERO
 	state.grid.remove_actor(actor)
 	actor_died.emit(actor)
 	_append_presentation_frame("actor_died", {
 		"actor": actor,
 	})
 	_add_message(state, "%s 倒下。" % actor.def.display_name)
+	_try_drop_normal_enemy_reward(actor, state, death_cell)
 	_check_battle_end(state)
 
 func _check_battle_end(state) -> void:
@@ -604,4 +610,45 @@ func _try_pickup_key(actor, state) -> void:
 
 	#state.add_key(key_id, 1)
 	key_picked.emit(actor, key_id, actor.grid_pos)
-	_add_message(state, "拾取了%s按键。" % state.key_name(key_id))
+	_add_message(state, "拾取了%s。" % state.key_name(key_id))
+
+
+func _get_attack_damage(actor, action) -> int:
+	if action != null and action.def != null and String(action.def.id) == "knife_attack":
+		return 1
+	return int(actor.atk) * int(action.def.power)
+
+
+func _try_drop_normal_enemy_reward(actor, state, death_cell: Vector2i) -> void:
+	if actor == null or state == null:
+		return
+	if actor.def == null or not normal_enemy_drop_actor_ids.has(String(actor.def.id)):
+		return
+	if normal_enemy_drop_pool.is_empty():
+		return
+	if state.items_at.has(death_cell):
+		return
+	if _drop_random_float() >= normal_enemy_drop_chance:
+		return
+	var drop_token: String = String(_pick_drop_token())
+	if drop_token.is_empty():
+		return
+	state.drop_key_at(death_cell, drop_token)
+	_add_message(state, "%s 掉落了%s。" % [actor.def.display_name, state.key_name(drop_token)])
+
+
+func _drop_random_float() -> float:
+	var random_service = get_node_or_null("/root/RandomService")
+	if random_service != null and random_service.has_method("randf_value"):
+		return float(random_service.randf_value())
+	return randf()
+
+
+func _pick_drop_token() -> String:
+	var random_service = get_node_or_null("/root/RandomService")
+	var index := 0
+	if random_service != null and random_service.has_method("randi_range_value"):
+		index = int(random_service.randi_range_value(0, normal_enemy_drop_pool.size() - 1))
+	else:
+		index = randi_range(0, normal_enemy_drop_pool.size() - 1)
+	return String(normal_enemy_drop_pool[index])

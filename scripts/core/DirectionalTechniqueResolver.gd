@@ -8,11 +8,12 @@ extends RefCounted
 ## - convert absolute direction tokens into move_key actions
 ## - convert base-action tokens such as move / turn / attack / guard / wait /
 ##   jump into their base ActionDef
+## - convert direct weapon tokens into their fixed attack ActionDef
 ##
 ## Important boundary:
-## - it does not recognize weapon-specific combos
-## - weapon identity only changes which concrete attack action is bound to the
-##   generic attack token
+## - the generic A token still resolves through the actor's equipped weapon
+## - weapon tokens such as KNIFE resolve directly and do not depend on active
+##   weapon state
 
 const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 
@@ -28,6 +29,10 @@ const TOKEN_ACTION_IDS := {
 	"TL": "turn_left",
 	"TR": "turn_right",
 	"A": "attack",
+	"KNIFE": "knife_attack",
+	"IMPACT_SHIELD": "attack",
+	"IRON_SPEAR": "charge_thrust",
+	"GREATBLADE": "great_sweep",
 	"I": "interact",
 	"G": "guard",
 	"W": "wait",
@@ -67,6 +72,7 @@ func is_action_token(token_id: String) -> bool:
 ## Input tokens remain user-facing here.
 ## - U / D / L / R are absolute map directions
 ## - F / B / TL / TR / A / G / W / J are explicit base-action inputs
+## - KNIFE / IMPACT_SHIELD / IRON_SPEAR / GREATBLADE are direct weapon inputs
 ## Relative trace semantics are introduced later by ActionTrace, which records
 ## the executed result as F / B / SL / SR / TL / TR / J / A / G / W.
 func _build_spec(token_id: String) -> Dictionary:
@@ -96,7 +102,7 @@ func _build_action_from_spec(spec: Dictionary, actor):
 
 	var action_def = spec.get("action_def")
 	if action_def == null:
-		action_def = _resolve_action_def(action_id, actor)
+		action_def = _resolve_action_def(action_id, actor, String(spec.get("token_id", "")))
 	if action_def == null:
 		return null
 
@@ -111,9 +117,11 @@ func _build_action_from_spec(spec: Dictionary, actor):
 	return action
 
 
-func _resolve_action_def(action_id: String, actor):
+func _resolve_action_def(action_id: String, actor, token_id: String = ""):
 	if action_id == "move_key":
 		return move_key_action
+	if token_id == "IMPACT_SHIELD":
+		return action_by_id.get("attack")
 	if action_id == "attack" and actor != null:
 		var active_weapon = actor.get("active_weapon")
 		if active_weapon != null:

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="WeaponDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/WeaponDef.gd" id="1_weapon"]
+[ext_resource type="Resource" path="res://data/actions/knife_attack.tres" id="2_action"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = "knife"
+display_name = "小刀"
+description = "可以作为 token 放入键位槽，触发时对面对方向一格内的目标造成1点伤害。"
+attack_action = ExtResource("2_action")

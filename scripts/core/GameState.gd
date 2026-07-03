@@ -6,6 +6,17 @@ const KEY_NAMES := {
 	"D": "下",
 	"L": "左",
 	"R": "右",
+	"F": "前进",
+	"B": "后退",
+	"A": "攻击",
+	"I": "交互",
+	"G": "防御",
+	"W": "等待",
+	"J": "跳跃",
+	"KNIFE": "小刀",
+	"IMPACT_SHIELD": "冲击盾",
+	"IRON_SPEAR": "铁枪",
+	"GREATBLADE": "巨剑",
 }
 
 var grid
@@ -86,8 +97,6 @@ func key_name(key_id: String) -> String:
 			return "左转"
 		"TR":
 			return "右转"
-		"J":
-			return "跳跃"
 	return String(KEY_NAMES.get(key_id, key_id))
 
 func drop_key_at(cell: Vector2i, key_id: String) -> void:

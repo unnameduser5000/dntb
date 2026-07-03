@@ -140,10 +140,11 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 		}
 
 	if (is_visible or reveal_all) and state.items_at.has(cell):
+		var token_name := state.key_name(String(state.items_at[cell])) if state.has_method("key_name") else String(state.items_at[cell])
 		return {
-			"char": String(state.items_at[cell]),
+			"char": token_name.substr(0, 1),
 			"style": _preview_cell_style(is_danger, is_preview_move, is_preview_attack, "BoardItemCell"),
-			"tooltip": _preview_prefix(is_preview_move, is_preview_attack) + _danger_prefix(is_danger) + "Key token: %s" % String(state.items_at[cell]),
+			"tooltip": _preview_prefix(is_preview_move, is_preview_attack) + _danger_prefix(is_danger) + "Token: %s" % token_name,
 		}
 
 	var grid_items: Array = state.grid.get_grid_items(cell)

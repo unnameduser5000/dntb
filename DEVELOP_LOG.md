@@ -1,5 +1,35 @@
 # Develop Log
 
+## 2026-07-04 Knife token and normal enemy drop pass
+
+- Added `小刀` as a weapon-style programmable token:
+  - `KNIFE` can enter the same key-slot / spare-token pool as existing action
+    tokens.
+  - Triggering it resolves to `knife_attack`, a facing-range one-cell attack
+    that deals exactly 1 damage.
+- Extended the token drop pool with the currently defined weapon tokens:
+  `KNIFE`, `IMPACT_SHIELD`, `IRON_SPEAR`, and `GREATBLADE`.
+- Changed normal `slime` enemies to 1 HP so any successful 1-damage hit kills
+  them.
+- Added configurable normal-enemy death drops on `ActionResolver`:
+  - `normal_enemy_drop_chance`, defaulting to `0.30`;
+  - `normal_enemy_drop_actor_ids`, defaulting to `["slime"]`;
+  - `normal_enemy_drop_pool`, defaulting to the current action + weapon token
+    pool.
+- Updated pickup/display wording so ground items are treated as generic tokens,
+  not only key tokens.
+
+Validation notes:
+
+- Added SmokeTest coverage for weapon token plan mapping, knife damage, forced
+  normal-enemy token drops, and dropped weapon-token pickup.
+- `git diff --check` passes.
+- Attempted the project smoke command with the local Godot console executable:
+  `Godot_v4.7-stable_win64_console.exe --headless --path . --script res://scripts/tests/SmokeTest.gd`.
+  It crashed in the engine with signal 11 before reaching a SmokeTest failure
+  label. A lighter `--headless --path . --quit` project-load check crashes the
+  same way, so this pass could not complete a Godot runtime smoke locally.
+
 ## 2026-07-02 Safe-zone NPC interaction pass
 
 - Added a lightweight world-slice NPC interaction layer anchored to tavern

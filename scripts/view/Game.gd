@@ -29,9 +29,11 @@ const ACTION_ATTACK := preload("res://data/actions/attack.tres")
 const ACTION_WAIT := preload("res://data/actions/wait.tres")
 const ACTION_GUARD := preload("res://data/actions/guard.tres")
 const ACTION_INTERACT := preload("res://data/actions/interact.tres")
+const ACTION_KNIFE_ATTACK := preload("res://data/actions/knife_attack.tres")
 const ACTION_CHARGE_THRUST := preload("res://data/actions/charge_thrust.tres")
 const ACTION_GREAT_SWEEP := preload("res://data/actions/great_sweep.tres")
 const ACTION_MOVE_KEY := preload("res://data/actions/move_key.tres")
+const KNIFE := preload("res://data/weapons/knife.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
 const GREATBLADE := preload("res://data/weapons/greatblade.tres")
@@ -189,6 +191,7 @@ func _ready() -> void:
 		"wait": ACTION_WAIT,
 		"guard": ACTION_GUARD,
 		"interact": ACTION_INTERACT,
+		"knife_attack": ACTION_KNIFE_ATTACK,
 		"charge_thrust": ACTION_CHARGE_THRUST,
 		"great_sweep": ACTION_GREAT_SWEEP,
 		"move_key": ACTION_MOVE_KEY,
@@ -199,6 +202,7 @@ func _ready() -> void:
 		"force_prism": MOD_FORCE_PRISM,
 	}
 	_weapon_by_id = {
+		"knife": KNIFE,
 		"impact_shield": IMPACT_SHIELD,
 		"iron_spear": IRON_SPEAR,
 		"greatblade": GREATBLADE,
@@ -999,15 +1003,15 @@ func _refresh_inventory_ui() -> void:
 # 按键编程模型：
 # - 十二个物理键槽保存的是“基础行动 token”，不是只存方向。
 # - 基础行动既包括绝对方向移动（U/D/L/R），也包括前进、后退、转向、
-#   攻击、防御、等待、跳跃这类显式动作。
+#   攻击、防御、等待、跳跃这类显式动作，并可混入直接武器 token。
 # - 玩家按下某个实体按键时，会先取出该槽中的 token 链，再解析为实际行动。
 # - 武器不再通过独立武器技系统派生招式；每把武器直接声明一个攻击动作。
-# - 因此按键编程层管理“基础输入与基础动作”；攻击 token 会在计划构建时
-#   解析成当前武器声明的具体攻击动作。
+# - 通用攻击 token 会在计划构建时解析成当前武器声明的具体攻击动作；
+#   直接武器 token 则解析成该 token 自己声明的动作。
 # - 只有在休息点可以调整 token 与键槽，战斗中行动编码锁定。
 # Key-program layer notes:
-# - slots store editable base-action tokens
-# - slot execution expands those tokens into runtime base actions
+# - slots store editable movement, base-action, and direct weapon tokens
+# - slot execution expands those tokens into runtime actions
 # - equipped weapon chooses the concrete attack action used by the generic
 #   attack token
 func _ensure_action_helpers() -> void:

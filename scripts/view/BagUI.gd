@@ -18,6 +18,10 @@ const TOKEN_DESCRIPTIONS := {
 	"TL": "原地向左转，改变后续动作朝向。",
 	"TR": "原地向右转，改变后续动作朝向。",
 	"A": "触发当前武器的基础攻击动作。",
+	"KNIFE": "小刀：对面对方向一格内的目标造成1点伤害。",
+	"IMPACT_SHIELD": "冲击盾：触发一次基础盾击。",
+	"IRON_SPEAR": "铁枪：向面对方向贯刺，攻击两格内目标。",
+	"GREATBLADE": "巨剑：重横扫面对方向及左右相邻格。",
 	"I": "尝试与相邻目标交互；若附近无人响应，则不会触发对话。",
 	"G": "进入防御，减少下一次受到的伤害。",
 	"W": "等待一拍，不移动也不攻击。",
@@ -429,6 +433,14 @@ func _token_label(token_id: String) -> String:
 			return "右转"
 		"A":
 			return "攻击"
+		"KNIFE":
+			return "小刀"
+		"IMPACT_SHIELD":
+			return "冲击盾"
+		"IRON_SPEAR":
+			return "铁枪"
+		"GREATBLADE":
+			return "巨剑"
 		"G":
 			return "防御"
 		"W":

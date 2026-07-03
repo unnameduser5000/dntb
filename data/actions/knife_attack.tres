@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ActionDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActionDef.gd" id="1_action"]
+
+[resource]
+script = ExtResource("1_action")
+id = "knife_attack"
+display_name = "小刀"
+short_name = "小刀"
+kind = 1
+range = 1
+power = 1
+direction_mode = "facing"
+combo_symbol = &"KNIFE"

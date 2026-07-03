@@ -14,6 +14,7 @@ const TALKATIVE_SLIME_DEF := preload("res://data/actors/talkative_slime.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
 const GREATBLADE := preload("res://data/weapons/greatblade.tres")
+const EXPECTED_TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J", "KNIFE", "IMPACT_SHIELD", "IRON_SPEAR", "GREATBLADE"]
 
 func _init() -> void:
 	var game = GameScene.instantiate()
@@ -79,11 +80,13 @@ func _init() -> void:
 	_require(_array_equals(relative_slots["A"], ["TL", "F"]), "relative starter preset puts TL/F in A")
 	_require(_array_equals(relative_slots["D"], ["TR", "F"]), "relative starter preset puts TR/F in D")
 	_require(_array_equals(relative_slots["F"], ["I"]), "starter preset now reserves physical F for the interact token")
-	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J"]), "token drop pool includes all current program tokens")
+	_require(_array_equals(starter_program.get_token_drop_pool(), EXPECTED_TOKEN_DROP_POOL), "token drop pool includes all current program tokens")
 	_require(starter_program.is_program_token("F"), "F is a legal program token")
 	_require(starter_program.is_program_token("I"), "I is a legal program token")
 	_require(starter_program.is_program_token("TL"), "TL is a legal program token")
 	_require(starter_program.is_program_token("TR"), "TR is a legal program token")
+	_require(starter_program.is_program_token("KNIFE"), "KNIFE is a legal weapon program token")
+	_require(starter_program.is_program_token("IRON_SPEAR"), "IRON_SPEAR is a legal weapon program token")
 	_require(_array_equals(game._build_key_slot_plan(relative_slots["A"]).map(func(action): return action.def.id), ["turn_left", "move_forward"]), "relative starter A slot builds turn_left + move_forward")
 	_require(_array_equals(game._build_key_slot_plan(relative_slots["D"]).map(func(action): return action.def.id), ["turn_right", "move_forward"]), "relative starter D slot builds turn_right + move_forward")
 	_require(_array_equals(game._build_key_slot_plan(relative_slots["S"]).map(func(action): return action.def.id), ["turn_right", "turn_right", "move_forward"]), "relative starter S slot builds turn_right + turn_right + move_forward")
@@ -122,6 +125,14 @@ func _init() -> void:
 	_require(tl_plan.size() == 1 and tl_plan[0].def.id == "turn_left", "TL token maps to turn_left action")
 	var tr_plan: Array = game._build_key_slot_plan(["TR"])
 	_require(tr_plan.size() == 1 and tr_plan[0].def.id == "turn_right", "TR token maps to turn_right action")
+	var knife_plan: Array = game._build_key_slot_plan(["KNIFE"])
+	_require(knife_plan.size() == 1 and knife_plan[0].def.id == "knife_attack", "KNIFE token maps to knife attack")
+	var shield_plan: Array = game._build_key_slot_plan(["IMPACT_SHIELD"])
+	_require(shield_plan.size() == 1 and shield_plan[0].def.id == "attack", "IMPACT_SHIELD token maps to shield attack")
+	var spear_plan: Array = game._build_key_slot_plan(["IRON_SPEAR"])
+	_require(spear_plan.size() == 1 and spear_plan[0].def.id == "charge_thrust", "IRON_SPEAR token maps to charge thrust")
+	var greatblade_plan: Array = game._build_key_slot_plan(["GREATBLADE"])
+	_require(greatblade_plan.size() == 1 and greatblade_plan[0].def.id == "great_sweep", "GREATBLADE token maps to great sweep")
 
 	game._on_key_token_move_requested("D", 0, "W")
 	await process_frame
@@ -222,11 +233,41 @@ func _init() -> void:
 	_require(attack_dir_game.state.player.facing == Vector2i.RIGHT, "weapon attack updates facing to chosen_dir when present")
 	_require(right_enemy.hp < right_enemy_hp_before, "weapon-bound attack uses chosen_dir instead of current facing")
 
+	await _start_seeded_combat_run(game, "knife-token")
+	game.resolver.normal_enemy_drop_chance = 0.0
+	game.enemy_planner.enemies_are_static = true
+	game.state.grid.blocked_cells.clear()
+	var knife_enemy = _prepare_single_enemy_room(game, Vector2i(3, 2), 2, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	var knife_action = game._build_key_slot_plan(["KNIFE"])[0]
+	game.resolver.resolve(knife_action, game.state)
+	_require(knife_enemy.hp == 1, "knife token deals exactly one damage")
+	game.resolver.resolve(knife_action, game.state)
+	_require(knife_enemy.is_dead(), "knife token kills a one-hp normal enemy")
+
+	await _start_seeded_combat_run(game, "normal-enemy-token-drop")
+	game.enemy_planner.enemies_are_static = true
+	game.state.grid.blocked_cells.clear()
+	game.resolver.normal_enemy_drop_chance = 1.0
+	game.resolver.normal_enemy_drop_pool = ["KNIFE"]
+	var drop_enemy_cell := Vector2i(3, 2)
+	var drop_enemy = _prepare_single_enemy_room(game, drop_enemy_cell, 1, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	var drop_attack = game._build_key_slot_plan(["KNIFE"])[0]
+	game.resolver.resolve(drop_attack, game.state)
+	_require(drop_enemy.is_dead(), "one-damage knife kills the normal enemy")
+	_require(String(game.state.items_at.get(drop_enemy_cell, "")) == "KNIFE", "normal enemy drops a configured weapon token")
+	_move_player_to(game, drop_enemy_cell)
+	game.resolver.on_actor_entered_cell(game.state.player, game.state)
+	_require(game.get_key_program_pool_tokens().has("KNIFE"), "dropped weapon token enters the spare-token pool")
+	game.resolver.normal_enemy_drop_chance = 0.30
+	game.resolver.normal_enemy_drop_pool = EXPECTED_TOKEN_DROP_POOL.duplicate()
+
 	game.start_seeded_run("absolute")
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "mixed-drop test starts from camp")
 	_require(game._key_program_editable, "mixed-drop test keeps rest editing enabled")
-	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J"]), "game exposes the full token drop pool")
+	_require(_array_equals(game.get_token_drop_pool(), EXPECTED_TOKEN_DROP_POOL), "game exposes the full token drop pool")
 	_require(not game.get_key_program_pool_tokens().has("lunge"), "lunge is not a key program pool token")
 	_require(not game.get_key_program_pool_tokens().has("sweep"), "sweep is not a key program pool token")
 	game.state.drop_key_at(Vector2i(2, 2), "F")
@@ -250,6 +291,12 @@ func _init() -> void:
 	_require(_array_equals(game.get_key_program_slots()["W"], ["F", "TL", "TR"]), "pooled F/TL/TR tokens can be dragged into one physical slot")
 	var mixed_plan: Array = game._build_key_slot_plan(game.get_key_program_slots()["W"])
 	_require(mixed_plan.size() == 3 and mixed_plan[0].def.id == "move_forward" and mixed_plan[1].def.id == "turn_left" and mixed_plan[2].def.id == "turn_right", "mixed F/TL/TR slot builds the expected action plan")
+	game.state.drop_key_at(Vector2i(3, 2), "KNIFE")
+	var dropped_knife: String = game.state.pickup_key_at(Vector2i(3, 2))
+	_require(dropped_knife == "KNIFE", "weapon tokens can be picked up from dropped items")
+	game._on_key_picked(game.state.player, dropped_knife, Vector2i(3, 2))
+	_move_pool_token_to_slot(game, "KNIFE", "W")
+	_require(game.get_key_program_slots()["W"].has("KNIFE"), "pooled weapon token can be dragged into a physical slot")
 
 	var world_game = GameScene.instantiate()
 	root.add_child(world_game)

@@ -9,9 +9,8 @@ extends RefCounted
 ##
 ## Current design:
 ## - there are twelve physical keyboard slots: QWER / ASDF / ZXCV
-## - slots can hold both movement tokens and base-action tokens
-## - weapon techniques are not direct slot tokens; they are follow-up results
-##   recognized later from ActionTrace
+## - slots can hold movement tokens, base-action tokens, and direct weapon
+##   tokens such as KNIFE
 ## - reset_default_slots() builds the absolute starter preset
 ## - reset_starter_slots(preset_id) applies a specific starter preset
 
@@ -29,6 +28,10 @@ const TOKEN_NAMES := {
 	"TL": "左转",
 	"TR": "右转",
 	"A": "攻击",
+	"KNIFE": "小刀",
+	"IMPACT_SHIELD": "冲击盾",
+	"IRON_SPEAR": "铁枪",
+	"GREATBLADE": "巨剑",
 	"I": "交互",
 	"G": "防御",
 	"W": "等待",
@@ -44,7 +47,8 @@ const ACTION_TOKENS: Array[String] = ["F", "B", "TL", "TR", "A", "I", "G", "W", 
 ## Shared token-drop pool for future room / reward sources.
 ## This keeps mixed drops aligned with the same legal token set as the
 ## program editor and save/load layer.
-const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J"]
+const WEAPON_TOKENS: Array[String] = ["KNIFE", "IMPACT_SHIELD", "IRON_SPEAR", "GREATBLADE"]
+const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "B", "TL", "TR", "A", "I", "G", "W", "J", "KNIFE", "IMPACT_SHIELD", "IRON_SPEAR", "GREATBLADE"]
 const KeyProgramScript := preload("res://scripts/runtime/KeyProgram.gd")
 
 var key_program = null
@@ -116,7 +120,7 @@ func is_direction_token(token_id: String) -> bool:
 
 
 func is_program_token(token_id: String) -> bool:
-	return is_direction_token(token_id) or ACTION_TOKENS.has(token_id)
+	return is_direction_token(token_id) or ACTION_TOKENS.has(token_id) or WEAPON_TOKENS.has(token_id)
 
 
 func all_program_tokens() -> Array[String]:
