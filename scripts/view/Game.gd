@@ -680,6 +680,7 @@ func _try_interact_with_world_npc() -> bool:
 		line = "只是安静地点了点头。"
 	var actor_id := String(result.get("actor_id", result.get("npc_id", "")))
 	var actor_name := String(result.get("actor_name", result.get("npc_name", speaker)))
+	line = _resolve_world_actor_dialogue_line(actor_id, line)
 	state.tracked_world_actor_id = actor_id
 	state.show_tracked_world_actor_hint = true
 	state.world_actor_display_names[actor_id] = actor_name
@@ -700,15 +701,22 @@ func _try_interact_with_world_npc() -> bool:
 	return true
 
 
+func _resolve_world_actor_dialogue_line(actor_id: String, fallback_line: String) -> String:
+	if actor_id == "tavern_keeper" and int(_world_npc_interaction_counts.get(actor_id, 0)) == 1:
+		return "“别急着出门。我先把攻击 token 放进你的备用行动池；记得去分配键位，出手才会朝你面前劈出去。”"
+	return fallback_line
+
+
 func _try_grant_world_actor_first_talk_reward(actor_id: String, speaker: String) -> void:
 	if actor_id != "tavern_keeper":
 		return
 	if int(_world_npc_interaction_counts.get(actor_id, 0)) != 1:
 		return
-	if not _equip_run_weapon_by_id("rusty_sword"):
+	_ensure_action_helpers()
+	if not _action_program.add_token_to_pool("A", false):
 		return
-	state.add_message("%s递来一把旧铁剑。你学会了用攻击键朝正前方出剑。" % speaker)
-	_refresh_inventory_ui()
+	state.add_message("%s把攻击 token 放进了你的备用行动池。去背包里把它分配到一个键位上，再出门。" % speaker)
+	_refresh_key_program_ui()
 
 
 func _submit_world_interact_action() -> bool:
