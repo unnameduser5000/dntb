@@ -64,6 +64,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED and not visible:
+		_pending_rebind_action = ""
+		refresh_controls()
+
+
 func refresh_controls() -> void:
 	resolution_option.select(SettingsService.resolution_index)
 	fullscreen_toggle.set_pressed_no_signal(SettingsService.is_fullscreen)

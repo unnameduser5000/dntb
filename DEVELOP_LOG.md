@@ -8,6 +8,9 @@
     binding label.
   - Pressing `Esc` or clicking another key-binding button still cancels the
     previous wait as before.
+- Reset pending rebind state when the settings menu is hidden, so reopening
+  the menu after leaving rebind mode never leaves a button stuck on
+  "按新键...".
 
 Validation:
 
