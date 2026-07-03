@@ -12,6 +12,8 @@ const EXPLORED_FOG_DESATURATE := 0.18
 @export var world_slice_window_size: Vector2i = Vector2i(29, 29)
 @export var world_slice_min_cell_size: int = 14
 @export var world_slice_max_cell_size: int = 20
+@export var world_slice_min_zoom_cell_size: int = 7
+@export var world_slice_max_zoom_cell_size: int = 120
 @export var world_slice_left_margin: int = 24
 @export var world_slice_top_margin: int = 84
 @export var world_slice_bottom_margin: int = 24
@@ -40,6 +42,7 @@ var _stylebox_cache: Dictionary = {}
 var _texture_stylebox_cache: Dictionary = {}
 var _loaded_tile_textures: Dictionary = {}
 var _derived_tile_textures: Dictionary = {}
+var _last_state = null
 
 
 func _ready() -> void:
@@ -47,6 +50,14 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	_camera_node = get_parent().get_node_or_null("Camera2D")
 	_rebuild_cell_pool(_compute_pool_size())
+	var settings_service = get_node_or_null("/root/SettingsService")
+	if settings_service != null:
+		settings_service.world_slice_zoom_changed.connect(_on_world_slice_zoom_changed)
+
+
+func _on_world_slice_zoom_changed(_index: int) -> void:
+	if _last_state != null and bool(_last_state.is_world_slice):
+		render(_last_state)
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -103,6 +114,16 @@ func compute_world_slice_cell_size() -> int:
 	var fit_cell_width: int = int(floor((viewport_rect.size.x - float(world_slice_window_size.x - 1)) / float(world_slice_window_size.x)))
 	var fit_cell_height: int = int(floor((viewport_rect.size.y - float(world_slice_window_size.y - 1)) / float(world_slice_window_size.y)))
 	return clampi(mini(fit_cell_width, fit_cell_height), world_slice_min_cell_size, world_slice_max_cell_size)
+
+
+func _get_world_slice_zoom_factor() -> float:
+	var settings_service = get_node_or_null("/root/SettingsService")
+	if settings_service == null:
+		return 1.0
+	var index: int = settings_service.world_slice_zoom_index
+	if index < 0 or index >= settings_service.WORLD_SLICE_ZOOM_OPTIONS.size():
+		return 1.0
+	return float(settings_service.WORLD_SLICE_ZOOM_OPTIONS[index])
 
 
 func reset_camera() -> void:
@@ -175,12 +196,16 @@ func _clamp_camera_offset() -> void:
 
 
 func render(state) -> void:
+	_last_state = state
 	var render_window: Rect2i
 	if state != null and bool(state.is_world_slice):
 		# Camera-follow mode chooses cell_size from the viewport first, then
 		# derives the render window, then aligns BoardView.position so the
 		# rendered window maps to the right screen pixels.
 		cell_size = compute_world_slice_cell_size()
+		var zoom_factor: float = _get_world_slice_zoom_factor()
+		cell_size = int(round(float(cell_size) * zoom_factor))
+		cell_size = clampi(cell_size, world_slice_min_zoom_cell_size, world_slice_max_zoom_cell_size)
 		render_window = _compute_render_window(state)
 		_render_window_origin = render_window.position
 		_render_window_size = render_window.size
