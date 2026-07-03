@@ -594,6 +594,40 @@ func _refresh_world_npc_tracking(state) -> void:
 	var relative_hint := _relative_direction_label(state.player.grid_pos, tracked_cell)
 	state.tracked_world_actor_relative_hint = relative_hint
 	state.tracked_world_npc_relative_hint = relative_hint
+	_refresh_world_poi_tracking(state)
+
+
+func _refresh_world_poi_tracking(state) -> void:
+	if state == null or state.player == null or state.map_data == null:
+		return
+	var boss_cell: Vector2i = _first_valid_poi_cell(state.map_data.challenge_cells)
+	state.tracked_boss_poi_cell = boss_cell
+	state.tracked_boss_poi_relative_hint = "" if boss_cell == Vector2i(-1, -1) else _relative_direction_label(state.player.grid_pos, boss_cell)
+	var ruin_cell: Vector2i = _nearest_poi_cell(state.player.grid_pos, state.map_data.ruin_cells)
+	state.tracked_nearest_ruin_cell = ruin_cell
+	state.tracked_nearest_ruin_relative_hint = "" if ruin_cell == Vector2i(-1, -1) else _relative_direction_label(state.player.grid_pos, ruin_cell)
+
+
+func _first_valid_poi_cell(cells: Array) -> Vector2i:
+	for raw_cell in cells:
+		var cell: Vector2i = Vector2i(raw_cell)
+		if cell != Vector2i(-1, -1):
+			return cell
+	return Vector2i(-1, -1)
+
+
+func _nearest_poi_cell(origin: Vector2i, cells: Array) -> Vector2i:
+	var best: Vector2i = Vector2i(-1, -1)
+	var best_distance: float = INF
+	for raw_cell in cells:
+		var cell: Vector2i = Vector2i(raw_cell)
+		if cell == Vector2i(-1, -1):
+			continue
+		var distance: float = origin.distance_squared_to(cell)
+		if distance < best_distance:
+			best = cell
+			best_distance = distance
+	return best
 
 
 func _relative_direction_label(from_cell: Vector2i, to_cell: Vector2i) -> String:

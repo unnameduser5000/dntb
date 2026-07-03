@@ -157,6 +157,8 @@ func _build_world_slice_debug_text(state) -> String:
 	var attack_action_name := "-"
 	var tracked_name := "-"
 	var tracked_hint := "off"
+	var boss_ruin_hint := "off"
+	var nearest_ruin_hint := "off"
 	if state.player.active_weapon != null:
 		weapon_name = str(state.player.active_weapon.display_name)
 		var attack_action = state.player.active_weapon.get("attack_action")
@@ -169,9 +171,11 @@ func _build_world_slice_debug_text(state) -> String:
 		tracked_name = String(state.world_actor_display_names.get(tracked_actor_id, state.world_npc_display_names.get(tracked_actor_id, tracked_actor_id)))
 		var actor_hint := String(state.tracked_world_actor_relative_hint) if state.get("tracked_world_actor_relative_hint") != null else ""
 		tracked_hint = actor_hint if (not actor_hint.is_empty() and bool(state.show_tracked_world_actor_hint)) else (String(state.tracked_world_npc_relative_hint) if bool(state.show_tracked_world_npc_hint) else "off")
+	boss_ruin_hint = String(state.tracked_boss_poi_relative_hint) if state.get("tracked_boss_poi_relative_hint") != null and not String(state.tracked_boss_poi_relative_hint).is_empty() else "off"
+	nearest_ruin_hint = String(state.tracked_nearest_ruin_relative_hint) if state.get("tracked_nearest_ruin_relative_hint") != null and not String(state.tracked_nearest_ruin_relative_hint).is_empty() else "off"
 
 	var render_rect: Rect2i = state.render_window_rect
-	return "Mode: %s\nSeed: %s\nMap Size: %dx%d\nPlayer: %s\nFacing: %s\nCurrent Tile: %s\nProgram Edit: %s\nTracked NPC: %s\nTracked Hint: %s\nWindow: %s size=%s tiles=%d\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV Reason: %s\nBoard Refreshes: %d (%.2f ms)\nFOV Recomputes: %d (%.2f ms)\nHUD Refreshes: %d\nEntity Visuals: %d\nGeneration: %.2f ms\nGeneration Breakdown: %s\nEnemy Stream: active %d / target %d | refresh %d | +%d/-%d | total +%d/-%d | reason %s\nWeapon: %s\nAttack Action: %s\nTrace: %s\nMoveDir: %s\nTavern: %s\nChallenge: %d\nChest: %d\nRuin: %d\nEgg: %d\nTerrain: plain %d | forest %d | tree %d | hill %d | mountain %d | peak %d | water %d | river %d | bridge %d | swamp %d | desert %d\nReachable: %d\nUnreachable POI: %d\nCarved Passes: %d\nHotkeys: F5 same seed | F6 new seed | V reveal | M summary" % [
+	return "Mode: %s\nSeed: %s\nMap Size: %dx%d\nPlayer: %s\nFacing: %s\nCurrent Tile: %s\nProgram Edit: %s\nTracked NPC: %s\nTracked Hint: %s\nBoss遗迹: %s\n最近小遗迹: %s\nWindow: %s size=%s tiles=%d\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV Reason: %s\nBoard Refreshes: %d (%.2f ms)\nFOV Recomputes: %d (%.2f ms)\nHUD Refreshes: %d\nEntity Visuals: %d\nGeneration: %.2f ms\nGeneration Breakdown: %s\nEnemy Stream: active %d / target %d | refresh %d | +%d/-%d | total +%d/-%d | reason %s\nWeapon: %s\nAttack Action: %s\nTrace: %s\nMoveDir: %s\nTavern: %s\nChallenge: %d\nChest: %d\nRuin: %d\nEgg: %d\nTerrain: plain %d | forest %d | tree %d | hill %d | mountain %d | peak %d | water %d | river %d | bridge %d | swamp %d | desert %d\nReachable: %d\nUnreachable POI: %d\nCarved Passes: %d\nHotkeys: F5 same seed | F6 new seed | V reveal | M summary" % [
 		str(state.map_node_kind),
 		str(state.map_data.seed),
 		int(state.map_data.width),
@@ -182,6 +186,8 @@ func _build_world_slice_debug_text(state) -> String:
 		"enabled (inside tavern)" if _key_program_editable_for_world_slice(state) else "locked (return to tavern)",
 		tracked_name,
 		tracked_hint,
+		boss_ruin_hint,
+		nearest_ruin_hint,
 		str(render_rect.position),
 		str(render_rect.size),
 		int(state.active_window_tile_count),

@@ -95,6 +95,10 @@ func _resolve_action_direction(action, preview_facing: Vector2i) -> Vector2i:
 		return preview_facing
 	if action.chosen_dir != Vector2i.ZERO:
 		return action.chosen_dir
+	if String(action.def.id) == "step_left":
+		return Vector2i(preview_facing.y, -preview_facing.x)
+	if String(action.def.id) == "step_right":
+		return Vector2i(-preview_facing.y, preview_facing.x)
 	if String(action.def.id) == "move_back":
 		return -preview_facing
 	return preview_facing

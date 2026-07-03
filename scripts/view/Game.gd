@@ -19,9 +19,12 @@ const PLAYER_DEF := preload("res://data/actors/player.tres")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
 const BRUTE_DEF := preload("res://data/actors/brute.tres")
 const BOSS_DEF := preload("res://data/actors/boss.tres")
+const LINE_WARDEN_DEF := preload("res://data/actors/line_warden.tres")
 
 const ACTION_MOVE_FORWARD := preload("res://data/actions/move_forward.tres")
 const ACTION_MOVE_BACK := preload("res://data/actions/move_back.tres")
+const ACTION_STEP_LEFT := preload("res://data/actions/step_left.tres")
+const ACTION_STEP_RIGHT := preload("res://data/actions/step_right.tres")
 const ACTION_TURN_LEFT := preload("res://data/actions/turn_left.tres")
 const ACTION_TURN_RIGHT := preload("res://data/actions/turn_right.tres")
 const ACTION_JUMP := preload("res://data/actions/jump.tres")
@@ -36,6 +39,7 @@ const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
 const GREATBLADE := preload("res://data/weapons/greatblade.tres")
 const RUSTY_SWORD := preload("res://data/weapons/rusty_sword.tres")
+const TWIN_DAGGERS := preload("res://data/weapons/twin_daggers.tres")
 
 const MOD_ECHO_STRIKE := preload("res://data/modifiers/echo_strike.tres")
 const MOD_ECHO_STEP := preload("res://data/modifiers/echo_step.tres")
@@ -176,6 +180,7 @@ var _world_slice_last_rest_area_state: bool = false
 var _world_npc_interaction_counts: Dictionary = {}
 var _world_npc_dialogue_active := false
 var _world_npc_dialogue_npc_id := ""
+var _world_ruin_claims: Dictionary = {}
 var _bag_open := false
 var _shell_overlay_active := false
 
@@ -183,6 +188,8 @@ func _ready() -> void:
 	_action_by_id = {
 		"move_forward": ACTION_MOVE_FORWARD,
 		"move_back": ACTION_MOVE_BACK,
+		"step_left": ACTION_STEP_LEFT,
+		"step_right": ACTION_STEP_RIGHT,
 		"turn_left": ACTION_TURN_LEFT,
 		"turn_right": ACTION_TURN_RIGHT,
 		"jump": ACTION_JUMP,
@@ -204,6 +211,7 @@ func _ready() -> void:
 		"iron_spear": IRON_SPEAR,
 		"greatblade": GREATBLADE,
 		"rusty_sword": RUSTY_SWORD,
+		"twin_daggers": TWIN_DAGGERS,
 	}
 	_action_program = ActionProgramControllerScript.new()
 	_action_program.setup()
@@ -225,7 +233,7 @@ func _ready() -> void:
 	enemy_planner.attack_action = ACTION_ATTACK
 	var enemy_spawn_service = get_node_or_null("/root/EnemySpawnService")
 	if enemy_spawn_service != null:
-		enemy_spawn_service.register_enemy_defs([SLIME_DEF, BRUTE_DEF, BOSS_DEF])
+		enemy_spawn_service.register_enemy_defs([SLIME_DEF, BRUTE_DEF, BOSS_DEF, LINE_WARDEN_DEF])
 
 	_connect_signals()
 	_register_save_provider()
@@ -373,6 +381,7 @@ func start_seeded_run(seed_value) -> void:
 func start_world_slice_debug() -> void:
 	_ensure_action_helpers()
 	_world_npc_interaction_counts.clear()
+	_world_ruin_claims.clear()
 	_close_world_npc_dialogue(false)
 	if world_loading_overlay != null:
 		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
@@ -431,6 +440,7 @@ func _start_new_run(seed_value) -> void:
 	var curse_service = get_node_or_null("/root/CurseService")
 	if curse_service != null:
 		curse_service.reset_run()
+	_world_ruin_claims.clear()
 	_run_modifier_ids.clear()
 	_run_weapon_id = _default_run_weapon_id()
 	_setup_default_key_slots()
@@ -726,6 +736,8 @@ func _submit_world_interact_action() -> bool:
 		return false
 	var has_target: bool = _actor_interaction_service.find_interactable_actor(state) != null
 	if not has_target:
+		if _try_interact_with_world_ruin():
+			return true
 		if _world_npc_dialogue_active:
 			return _try_interact_with_world_npc()
 		if _is_player_in_world_slice_rest_area():
@@ -740,6 +752,46 @@ func _submit_world_interact_action() -> bool:
 		return false
 	turn_controller.submit_player_plan([interact_action])
 	return true
+
+
+func _try_interact_with_world_ruin() -> bool:
+	if state == null or not bool(state.is_world_slice) or state.player == null or state.map_data == null:
+		return false
+	var ruin_record: Dictionary = _find_ruin_record_at_player()
+	if ruin_record.is_empty():
+		return false
+	var ruin_id: String = String(ruin_record.get("id", ""))
+	if ruin_id.is_empty():
+		return false
+	if _world_ruin_claims.has(ruin_id):
+		state.add_message("这处小遗迹已经调查过了。")
+		_refresh_views()
+		return true
+	_world_ruin_claims[ruin_id] = true
+	_ensure_action_helpers()
+	var granted: Array[String] = []
+	if _action_program.add_token_to_pool("SL", false):
+		granted.append("SL")
+	if _action_program.add_token_to_pool("SR", false):
+		granted.append("SR")
+	if granted.is_empty():
+		state.add_message("你翻找了这处小遗迹，但这里只剩下已经学会的旧套路。")
+	else:
+		state.add_message("你调查了这处小遗迹，获得了 %s，并已放入备用行动池。" % "/".join(granted))
+	_refresh_key_program_ui()
+	_refresh_views()
+	return true
+
+
+func _find_ruin_record_at_player() -> Dictionary:
+	if state == null or state.player == null or state.map_data == null:
+		return {}
+	for record in state.map_data.get_poi_records():
+		if String(record.get("type", "")) != "ruin":
+			continue
+		if Vector2i(record.get("interaction_cell", Vector2i(-1, -1))) == state.player.grid_pos:
+			return record
+	return {}
 
 
 func _build_world_interact_action():
@@ -900,6 +952,8 @@ func _enemy_def(id: String):
 			return BRUTE_DEF
 		"boss":
 			return BOSS_DEF
+		"line_warden":
+			return LINE_WARDEN_DEF
 		_:
 			return SLIME_DEF
 
@@ -1292,6 +1346,7 @@ func get_save_data() -> Dictionary:
 		"run_modifier_ids": _run_modifier_ids,
 		"run_weapon_id": _run_weapon_id,
 		"world_npc_interaction_counts": _world_npc_interaction_counts.duplicate(true),
+		"world_ruin_claims": _world_ruin_claims.duplicate(true),
 		"key_slots": key_program_save["key_slots"],
 		"pool_tokens": key_program_save["pool_tokens"],
 	}
@@ -1312,7 +1367,9 @@ func load_save_data(data: Dictionary) -> void:
 	if _weapon_for_id(_run_weapon_id) == null:
 		_run_weapon_id = _default_run_weapon_id()
 	var interaction_counts = data.get("world_npc_interaction_counts", {})
+	var ruin_claims = data.get("world_ruin_claims", {})
 	_world_npc_interaction_counts = interaction_counts.duplicate(true) if typeof(interaction_counts) == TYPE_DICTIONARY else {}
+	_world_ruin_claims = ruin_claims.duplicate(true) if typeof(ruin_claims) == TYPE_DICTIONARY else {}
 
 	_run_modifier_ids.clear()
 	for modifier_id in data.get("run_modifier_ids", []):

@@ -52,6 +52,8 @@ func decide_enemy_action(enemy, state):
 	match String(enemy.def.ai_type):
 		"static":
 			return _decide_static_attack(enemy, state)
+		"line_keeper":
+			return _decide_line_keeper(enemy, state)
 		"melee_chaser":
 			return _decide_melee_chaser(enemy, state)
 		_:
@@ -76,6 +78,35 @@ func _decide_melee_chaser(enemy, state):
 
 	var move_dir := _get_path_step_towards(enemy.grid_pos, state.player.grid_pos, state.grid)
 	if move_dir == Vector2i.ZERO:
+		return null
+
+	var move = ActionInstanceScript.new()
+	move.actor = enemy
+	move.def = move_action
+	move.chosen_dir = move_dir
+	return move
+
+
+func _decide_line_keeper(enemy, state):
+	var player = state.player
+	if player == null:
+		return null
+
+	var attack_dir := _get_attack_dir_to_player(enemy, state)
+	if attack_dir != Vector2i.ZERO:
+		return _make_attack(enemy, attack_dir)
+
+	var same_row: bool = enemy.grid_pos.y == player.grid_pos.y
+	var same_col: bool = enemy.grid_pos.x == player.grid_pos.x
+	if not same_row and not same_col:
+		return null
+	if move_action == null:
+		return null
+
+	var move_dir := _line_step_toward(enemy.grid_pos, player.grid_pos)
+	if move_dir == Vector2i.ZERO:
+		return null
+	if not state.grid.can_enter(enemy.grid_pos + move_dir):
 		return null
 
 	var move = ActionInstanceScript.new()
@@ -238,6 +269,17 @@ func _get_greedy_step_towards(from_cell: Vector2i, to_cell: Vector2i, grid) -> V
 		if grid.can_enter(from_cell + direction):
 			return direction
 
+	return Vector2i.ZERO
+
+
+func _line_step_toward(from_cell: Vector2i, to_cell: Vector2i) -> Vector2i:
+	var delta: Vector2i = to_cell - from_cell
+	if delta == Vector2i.ZERO:
+		return Vector2i.ZERO
+	if delta.x != 0 and delta.y == 0:
+		return Vector2i.RIGHT if delta.x > 0 else Vector2i.LEFT
+	if delta.y != 0 and delta.x == 0:
+		return Vector2i.DOWN if delta.y > 0 else Vector2i.UP
 	return Vector2i.ZERO
 
 func _manhattan(a: Vector2i, b: Vector2i) -> int:
