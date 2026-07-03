@@ -1,8 +1,9 @@
 extends Node
 
 ## Application-wide preferences that must survive restarts.
-## Keep gameplay preferences out of this service so the project can grow without
-## turning this into a grab bag of unrelated state.
+## Display settings live here; selected gameplay preferences that affect the
+## overall experience (such as world-slice map zoom) also live here when they
+## need to persist across sessions.
 
 const SETTINGS_PATH := "user://settings.cfg"
 
@@ -15,6 +16,12 @@ const RESOLUTION_OPTIONS := [
 var resolution_index := 0
 var is_fullscreen := false
 
+const WORLD_SLICE_ZOOM_OPTIONS := [0.5, 1.0, 1.5, 2.0, 4.0]
+
+signal world_slice_zoom_changed(index: int)
+
+var world_slice_zoom_index := 1
+
 
 func _ready() -> void:
 	load_settings()
@@ -26,9 +33,15 @@ func load_settings() -> void:
 	if error == OK:
 		resolution_index = clampi(int(config.get_value("display", "resolution_index", 0)), 0, RESOLUTION_OPTIONS.size() - 1)
 		is_fullscreen = bool(config.get_value("display", "fullscreen", false))
+		world_slice_zoom_index = clampi(
+			int(config.get_value("gameplay", "world_slice_zoom_index", 1)),
+			0,
+			WORLD_SLICE_ZOOM_OPTIONS.size() - 1
+		)
 	else:
 		resolution_index = _closest_resolution_index(DisplayServer.window_get_size())
 		is_fullscreen = false
+		world_slice_zoom_index = 1
 
 	apply_display_settings()
 
@@ -71,6 +84,7 @@ func save_settings() -> void:
 	var config := ConfigFile.new()
 	config.set_value("display", "resolution_index", resolution_index)
 	config.set_value("display", "fullscreen", is_fullscreen)
+	config.set_value("gameplay", "world_slice_zoom_index", world_slice_zoom_index)
 	var error := config.save(SETTINGS_PATH)
 	if error != OK:
 		push_warning("Unable to save settings: %s" % error_string(error))
@@ -98,3 +112,15 @@ func _closest_resolution_index(window_size: Vector2i) -> int:
 			best_distance = distance
 			best_index = index
 	return best_index
+
+
+func set_world_slice_zoom_index(index: int) -> void:
+	world_slice_zoom_index = clampi(index, 0, WORLD_SLICE_ZOOM_OPTIONS.size() - 1)
+	save_settings()
+	world_slice_zoom_changed.emit(world_slice_zoom_index)
+
+
+func get_world_slice_zoom_label(index: int) -> String:
+	if index < 0 or index >= WORLD_SLICE_ZOOM_OPTIONS.size():
+		return ""
+	return "%gx" % WORLD_SLICE_ZOOM_OPTIONS[index]
