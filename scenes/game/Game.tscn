@@ -12,6 +12,10 @@
 [node name="Game" type="Node" unique_id=1812376780]
 script = ExtResource("1_game")
 
+[node name="Camera2D" type="Camera2D" parent="."]
+anchor_mode = 0
+enabled = false
+
 [node name="BoardView" parent="." unique_id=1210252255 instance=ExtResource("2_board")]
 anchors_preset = 0
 
