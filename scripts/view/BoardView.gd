@@ -17,6 +17,10 @@ const EXPLORED_FOG_DESATURATE := 0.18
 @export var world_slice_bottom_margin: int = 24
 @export var world_slice_reserved_right_width: int = 404
 @export var world_slice_right_gap: int = 24
+@export var enable_pan_zoom: bool = true
+@export var min_zoom: float = 0.25
+@export var max_zoom: float = 5.0
+@export var zoom_step_factor: float = 1.15
 
 @onready var _grid: GridContainer = %AsciiGrid
 var _render_window_origin: Vector2i = Vector2i.ZERO
@@ -24,6 +28,11 @@ var _render_window_size: Vector2i = Vector2i.ZERO
 var _cell_pool: Array[Label] = []
 var _pool_window_size: Vector2i = Vector2i.ZERO
 var _pool_cell_size: int = -1
+var _camera_offset: Vector2 = Vector2.ZERO
+var _camera_zoom: float = 1.0
+var _is_dragging: bool = false
+var _drag_start_mouse: Vector2 = Vector2.ZERO
+var _drag_start_offset: Vector2 = Vector2.ZERO
 var _stylebox_cache: Dictionary = {}
 var _texture_stylebox_cache: Dictionary = {}
 var _loaded_tile_textures: Dictionary = {}
@@ -32,7 +41,36 @@ var _derived_tile_textures: Dictionary = {}
 
 func _ready() -> void:
 	position = board_origin
+	mouse_filter = Control.MOUSE_FILTER_PASS
 	_rebuild_cell_pool(_compute_pool_size())
+
+
+func _gui_input(event: InputEvent) -> void:
+	if not _is_world_slice_mode() or not enable_pan_zoom:
+		return
+	if get_viewport().gui_is_dragging():
+		return
+
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
+			_zoom_at(get_global_mouse_position(), zoom_step_factor)
+			accept_event()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
+			_zoom_at(get_global_mouse_position(), 1.0 / zoom_step_factor)
+			accept_event()
+		elif event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				_is_dragging = true
+				_drag_start_mouse = event.position
+				_drag_start_offset = _camera_offset
+			else:
+				_is_dragging = false
+			accept_event()
+	elif event is InputEventMouseMotion and _is_dragging:
+		_camera_offset = _drag_start_offset + (event.position - _drag_start_mouse)
+		_clamp_camera_offset()
+		_apply_camera_transform()
+		accept_event()
 
 
 func grid_to_world(cell: Vector2i) -> Vector2:
@@ -52,6 +90,64 @@ func world_to_grid(pos: Vector2) -> Vector2i:
 
 func is_cell_in_render_window(cell: Vector2i) -> bool:
 	return Rect2i(_render_window_origin, _render_window_size).has_point(cell)
+
+
+func reset_camera() -> void:
+	_camera_offset = Vector2.ZERO
+	_camera_zoom = 1.0
+	_apply_camera_transform()
+
+
+func set_camera_offset(offset: Vector2) -> void:
+	_camera_offset = offset
+	_clamp_camera_offset()
+	_apply_camera_transform()
+
+
+func set_camera_zoom(zoom: float) -> void:
+	_camera_zoom = clampf(zoom, min_zoom, max_zoom)
+	_clamp_camera_offset()
+	_apply_camera_transform()
+
+
+func get_camera_offset() -> Vector2:
+	return _camera_offset
+
+
+func get_camera_zoom() -> float:
+	return _camera_zoom
+
+
+func _is_world_slice_mode() -> bool:
+	# This is updated by render(); default false until first render.
+	return _render_window_size != Vector2i.ZERO and _render_window_size.x > 0 and _render_window_size.y > 0
+
+
+func _apply_camera_transform() -> void:
+	position = board_origin + _camera_offset
+	scale = Vector2(_camera_zoom, _camera_zoom)
+
+
+func _zoom_at(screen_point: Vector2, factor: float) -> void:
+	var new_zoom: float = clampf(_camera_zoom * factor, min_zoom, max_zoom)
+	if is_equal_approx(new_zoom, _camera_zoom):
+		return
+
+	var local_before: Vector2 = (screen_point - position) / _camera_zoom
+	_camera_zoom = new_zoom
+	var local_after: Vector2 = (screen_point - position) / _camera_zoom
+	_camera_offset += (local_after - local_before) * _camera_zoom
+	_clamp_camera_offset()
+	_apply_camera_transform()
+
+
+func _clamp_camera_offset() -> void:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var board_pixels: Vector2 = _window_pixel_size(_render_window_size) * _camera_zoom
+	var min_offset := viewport_size - board_pixels
+	var max_offset := Vector2.ZERO
+	_camera_offset.x = clampf(_camera_offset.x, min(min_offset.x, 0.0), max_offset.x)
+	_camera_offset.y = clampf(_camera_offset.y, min(min_offset.y, 0.0), max_offset.y)
 
 
 func render(state) -> void:
@@ -344,7 +440,7 @@ func _apply_world_slice_layout() -> void:
 	if viewport_rect.size.x <= 0.0 or viewport_rect.size.y <= 0.0:
 		return
 
-	var available_width: float = maxf(120.0, viewport_rect.size.x - float(world_slice_left_margin + world_slice_reserved_right_width + world_slice_right_gap))
+	var available_width: float = maxf(120.0, viewport_rect.size.x - float(world_slice_left_margin + world_slice_right_gap))
 	var available_height: float = maxf(120.0, viewport_rect.size.y - float(world_slice_top_margin + world_slice_bottom_margin))
 	var width_steps: int = max(1, world_slice_window_size.x)
 	var height_steps: int = max(1, world_slice_window_size.y)
@@ -358,7 +454,7 @@ func _apply_world_slice_layout() -> void:
 		pane_origin.x + floor(maxf(0.0, (available_width - board_pixels.x) * 0.5)),
 		pane_origin.y + floor(maxf(0.0, (available_height - board_pixels.y) * 0.5))
 	)
-	position = board_origin
+	_apply_camera_transform()
 
 
 func _window_pixel_size(window_size: Vector2i) -> Vector2:

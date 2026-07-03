@@ -1,5 +1,35 @@
 # Develop Log
 
+## 2026-07-03 Fullscreen draggable/zoomable world-slice map
+
+- Reworked world-slice map layout so it now fills the full viewport instead of
+  reserving a fixed right-side panel area for `BattlePanel`.
+- Implemented a virtual camera inside `BoardView`:
+  - panning by holding the left mouse button and dragging;
+  - zooming with the mouse wheel, zooming toward the cursor position;
+  - clamped offset and zoom range so the board cannot be dragged completely
+    off-screen or zoomed to an unusable level.
+- Kept `BattleUI` in its existing `CanvasLayer`, so buttons, sidebars, and the
+  backpack stay above the map and consume input first.
+- Synchronized `ActorRoot` and `EffectRoot` transforms with `BoardView` in
+  `Game._refresh_views()` so actor sprites and battle effects move/scale with
+  the map without changing their coordinate semantics.
+- Added a `Home` key shortcut to reset the camera to the default centered,
+  zoom-1 view while in world-slice mode.
+- Scope is intentionally limited to world-slice mode; traditional 8x8 rooms
+  keep their fixed origin and scale and do not respond to drag or wheel input.
+- Added `BoardView.reset_camera()` / `set_camera_offset()` / `set_camera_zoom()`
+  so other systems can programmatically reset or animate the view.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `SmokeTest passed`
+
 ## 2026-07-02 Safe-zone NPC interaction pass
 
 - Added a lightweight world-slice NPC interaction layer anchored to tavern
