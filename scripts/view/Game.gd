@@ -142,6 +142,7 @@ const MAP_NODES := [
 ]
 
 @onready var board_view = $BoardView
+@onready var camera = $Camera2D
 @onready var battle_ui = $CanvasLayer/BattleUI
 @onready var world_loading_overlay = $CanvasLayer/WorldLoadingOverlay
 @onready var turn_controller = $TurnController
@@ -291,6 +292,12 @@ func _unhandled_input(event: InputEvent) -> void:
 					_refresh_views()
 					get_viewport().set_input_as_handled()
 					return
+			if event.keycode == KEY_HOME:
+				if board_view != null:
+					board_view.reset_camera()
+					_refresh_views()
+				get_viewport().set_input_as_handled()
+				return
 
 	if state == null or state.phase != "planning" or state.battle_finished:
 		return
@@ -395,8 +402,7 @@ func start_world_slice_debug() -> void:
 	turn_controller.start_battle(state)
 	if board_view != null:
 		board_view.world_slice_window_size = Vector2i(29, 29)
-		board_view.board_origin = Vector2(24, 84)
-		board_view.position = board_view.board_origin
+		board_view.reset_camera()
 	battle_ui.show_battle()
 	_update_world_slice_editability(true)
 	_refresh_world_visibility("init")
@@ -612,6 +618,7 @@ func _refresh_views() -> void:
 	if bool(state.is_world_slice):
 		_update_world_slice_editability()
 	_update_enemy_preview()
+	_update_world_slice_camera()
 	board_view.render(state)
 	if _battle_presentation != null:
 		var snap_actor_views: bool = not _battle_presentation.should_wait_for_presentation()
@@ -623,6 +630,33 @@ func _refresh_views() -> void:
 			snap_actor_views = true
 		_battle_presentation.sync_views(state, snap_actor_views)
 	battle_ui.update_state(state)
+	_sync_actor_roots_with_board_view()
+
+
+func _update_world_slice_camera() -> void:
+	if state == null or not bool(state.is_world_slice):
+		return
+	if camera == null or state.player == null:
+		return
+	if not board_view.world_slice_camera_follow:
+		return
+	board_view.center_world_slice_camera_on_player(state)
+
+
+func _sync_actor_roots_with_board_view() -> void:
+	if board_view == null:
+		return
+	# Actor and effect views are positioned with board_view.grid_to_world(), which
+	# returns the unscaled global top-left of a cell. To make them follow the
+	# panned/zoomed board, apply the same scale around the same origin instead of
+	# simply copying BoardView's position (that would double-transform the offset).
+	var board_position: Vector2 = board_view.position
+	var board_scale: Vector2 = board_view.scale
+	var counter_origin: Vector2 = board_position * (Vector2.ONE - board_scale)
+	$ActorRoot.position = counter_origin
+	$ActorRoot.scale = board_scale
+	$EffectRoot.position = counter_origin
+	$EffectRoot.scale = board_scale
 
 
 func _on_actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i) -> void:
