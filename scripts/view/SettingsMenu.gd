@@ -118,6 +118,10 @@ func _build_key_binding_rows() -> void:
 		PlayerInputService.ACTION_X: "X 键 / Key X",
 		PlayerInputService.ACTION_C: "C 键 / Key C",
 		PlayerInputService.ACTION_V: "V 键 / Key V",
+		PlayerInputService.ACTION_UP: "上方向键 / Arrow Up",
+		PlayerInputService.ACTION_DOWN: "下方向键 / Arrow Down",
+		PlayerInputService.ACTION_LEFT: "左方向键 / Arrow Left",
+		PlayerInputService.ACTION_RIGHT: "右方向键 / Arrow Right",
 	}
 
 	for action_name in PlayerInputService.get_program_actions():
