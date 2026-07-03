@@ -67,7 +67,7 @@ func _gui_input(event: InputEvent) -> void:
 				_is_dragging = false
 			accept_event()
 	elif event is InputEventMouseMotion and _is_dragging:
-		_camera_offset = _drag_start_offset + (event.position - _drag_start_mouse)
+		_camera_offset = _drag_start_offset + (event.position - _drag_start_mouse) * _camera_zoom
 		_clamp_camera_offset()
 		_apply_camera_transform()
 		accept_event()

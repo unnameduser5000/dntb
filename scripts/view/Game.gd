@@ -634,10 +634,17 @@ func _refresh_views() -> void:
 func _sync_actor_roots_with_board_view() -> void:
 	if board_view == null:
 		return
-	$ActorRoot.position = board_view.position
-	$ActorRoot.scale = board_view.scale
-	$EffectRoot.position = board_view.position
-	$EffectRoot.scale = board_view.scale
+	# Actor and effect views are positioned with board_view.grid_to_world(), which
+	# returns the unscaled global top-left of a cell. To make them follow the
+	# panned/zoomed board, apply the same scale around the same origin instead of
+	# simply copying BoardView's position (that would double-transform the offset).
+	var board_position: Vector2 = board_view.position
+	var board_scale: Vector2 = board_view.scale
+	var counter_origin: Vector2 = board_position * (Vector2.ONE - board_scale)
+	$ActorRoot.position = counter_origin
+	$ActorRoot.scale = board_scale
+	$EffectRoot.position = counter_origin
+	$EffectRoot.scale = board_scale
 
 
 func _on_actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i) -> void:
