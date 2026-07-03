@@ -7,8 +7,11 @@
 - `SettingsMenu` now emits `continue_requested` when the continue button is pressed.
 - `App.gd` wires `continue_requested` to resume the active game if a run is in
   progress, or fall back to the main menu otherwise.
-- Behavior is the same from both the main-menu settings path and the pause-menu
-  settings path: continue resumes the game, back returns to the caller.
+- The continue button is now hidden when the settings menu is opened from the
+  main menu, and only shown when it is opened from the pause menu during an
+  active game.
+- Back-button behavior remains unchanged: it returns to the pause menu when
+  settings was opened from pause, otherwise to the main menu.
 
 Validation:
 
