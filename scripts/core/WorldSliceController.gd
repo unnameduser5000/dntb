@@ -10,6 +10,7 @@ const GridItemStateScript := preload("res://scripts/runtime/GridItemState.gd")
 const VisibilityServiceScript := preload("res://scripts/core/VisibilityService.gd")
 const PLAYER_DEF := preload("res://data/actors/player.tres")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
+const WISP_DEF := preload("res://data/actors/wisp.tres")
 const BRUTE_DEF := preload("res://data/actors/brute.tres")
 const TAVERN_KEEPER_DEF := preload("res://data/actors/tavern_keeper.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
@@ -280,7 +281,7 @@ func _apply_generated_map_state(state, visibility_reason: String) -> void:
 		reserved[prop_cell] = true
 
 	for enemy_cell in _pick_enemy_spawn_cells(state.map_data, player_cell, reserved, REQUIRED_ENEMY_COUNT):
-		var enemy_def = BRUTE_DEF if state.get_alive_enemies().size() >= REQUIRED_ENEMY_COUNT - 1 else SLIME_DEF
+		var enemy_def = _pick_world_slice_enemy_def_for_index(state.get_alive_enemies().size(), REQUIRED_ENEMY_COUNT)
 		_add_enemy_actor(state, enemy_def, enemy_cell, _step_direction_toward(enemy_cell, player_cell))
 		reserved[enemy_cell] = true
 
@@ -524,6 +525,8 @@ func _pick_best_enemy_cell(map_data, player_cell: Vector2i, reserved: Dictionary
 	for cell in map_data.get_walkable_cells():
 		if reserved.has(cell):
 			continue
+		if _is_safe_zone_enemy_blocked_cell(map_data, cell):
+			continue
 		var distance_from_player: float = cell.distance_to(player_cell)
 		if distance_from_player < float(min_distance):
 			continue
@@ -603,6 +606,9 @@ func _refresh_world_poi_tracking(state) -> void:
 	var boss_cell: Vector2i = _first_valid_poi_cell(state.map_data.challenge_cells)
 	state.tracked_boss_poi_cell = boss_cell
 	state.tracked_boss_poi_relative_hint = "" if boss_cell == Vector2i(-1, -1) else _relative_direction_label(state.player.grid_pos, boss_cell)
+	var safe_zone_cell: Vector2i = state.map_data.tavern_cell
+	state.tracked_safe_zone_cell = safe_zone_cell
+	state.tracked_safe_zone_relative_hint = "" if safe_zone_cell == Vector2i(-1, -1) else _relative_direction_label(state.player.grid_pos, safe_zone_cell)
 	var ruin_cell: Vector2i = _nearest_poi_cell(state.player.grid_pos, state.map_data.ruin_cells)
 	state.tracked_nearest_ruin_cell = ruin_cell
 	state.tracked_nearest_ruin_relative_hint = "" if ruin_cell == Vector2i(-1, -1) else _relative_direction_label(state.player.grid_pos, ruin_cell)
@@ -738,11 +744,27 @@ func _spawn_streamed_enemies_near_player(state) -> int:
 		reserved[cell] = true
 	var candidates: Array[Vector2i] = _pick_stream_spawn_cells(state.map_data, state.player.grid_pos, reserved, needed)
 	for cell in candidates:
-		var enemy_def = BRUTE_DEF if ((state.get_alive_enemies().size() + spawned) % 5 == 4) else SLIME_DEF
+		var enemy_def = _pick_world_slice_stream_enemy_def(state.get_alive_enemies().size() + spawned)
 		if _add_enemy_actor(state, enemy_def, cell, _step_direction_toward(cell, state.player.grid_pos)) != null:
 			reserved[cell] = true
 			spawned += 1
 	return spawned
+
+
+func _pick_world_slice_enemy_def_for_index(index: int, total_required: int):
+	if index == 0:
+		return WISP_DEF
+	if index >= total_required - 1:
+		return BRUTE_DEF
+	return SLIME_DEF
+
+
+func _pick_world_slice_stream_enemy_def(index: int):
+	if index % 5 == 0:
+		return WISP_DEF
+	if index % 5 == 4:
+		return BRUTE_DEF
+	return SLIME_DEF
 
 
 func _pick_stream_spawn_cells(map_data, player_cell: Vector2i, reserved: Dictionary, required_count: int) -> Array[Vector2i]:
@@ -754,6 +776,8 @@ func _pick_stream_spawn_cells(map_data, player_cell: Vector2i, reserved: Diction
 	var candidates: Array[Dictionary] = []
 	for cell in map_data.get_walkable_cells():
 		if reserved.has(cell):
+			continue
+		if _is_safe_zone_enemy_blocked_cell(map_data, cell):
 			continue
 		var distance_sq: int = cell.distance_squared_to(player_cell)
 		if distance_sq < min_sq or distance_sq > max_sq:
@@ -789,6 +813,23 @@ func _pick_stream_spawn_cells(map_data, player_cell: Vector2i, reserved: Diction
 		if result.size() >= required_count:
 			break
 	return result
+
+
+func _is_safe_zone_enemy_blocked_cell(map_data, cell: Vector2i) -> bool:
+	if map_data == null or cell == Vector2i(-1, -1):
+		return false
+	var map_cell = map_data.get_cell(cell)
+	if map_cell == null or not bool(map_cell.walkable):
+		return false
+	for tag in map_cell.tags:
+		var text := String(tag)
+		if text == "poi:tavern":
+			return true
+		if text.begins_with("structure:tavern"):
+			return true
+		if text.begins_with("building:tavern_"):
+			return true
+	return false
 
 
 func _update_actor_visibility(state) -> void:

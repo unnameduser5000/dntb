@@ -3,6 +3,9 @@ extends Control
 
 signal bag_requested
 signal menu_requested
+signal safe_zone_poi_requested
+signal boss_poi_requested
+signal ruin_poi_requested
 
 @onready var _inventory_panel: PanelContainer = %InventoryPanel
 @onready var _debug_panel: PanelContainer = %DebugPanel
@@ -12,6 +15,11 @@ signal menu_requested
 @onready var _debug_close_button: Button = %DebugCloseButton
 @onready var _inventory_list: VBoxContainer = %InventoryList
 @onready var _debug_text: Label = %DebugText
+@onready var _poi_hint_panel: PanelContainer = %PoiHintPanel
+@onready var _poi_hint_title: Label = %PoiHintTitle
+@onready var _safe_zone_poi_hint: Button = %SafeZonePoiHint
+@onready var _boss_poi_hint: Button = %BossPoiHint
+@onready var _ruin_poi_hint: Button = %RuinPoiHint
 
 var _inventory_items: Array = []
 var _debug_messages: Array[String] = []
@@ -21,10 +29,14 @@ var _debug_state_text := ""
 func _ready() -> void:
 	_inventory_button.pressed.connect(_on_inventory_button_pressed)
 	_menu_button.pressed.connect(_on_menu_button_pressed)
+	_safe_zone_poi_hint.pressed.connect(func() -> void: safe_zone_poi_requested.emit())
+	_boss_poi_hint.pressed.connect(func() -> void: boss_poi_requested.emit())
+	_ruin_poi_hint.pressed.connect(func() -> void: ruin_poi_requested.emit())
 	_inventory_close_button.pressed.connect(func() -> void: _inventory_panel.visible = false)
 	_debug_close_button.pressed.connect(func() -> void: _debug_panel.visible = false)
 	_refresh_inventory()
 	_refresh_debug()
+	_refresh_poi_hints(null)
 	_inventory_panel.visible = false
 	_debug_panel.visible = false
 
@@ -65,10 +77,12 @@ func set_debug_messages(messages: Array) -> void:
 
 func update_state(state) -> void:
 	if state == null or state.player == null:
+		_refresh_poi_hints(null)
 		return
 	state.hud_refresh_count += 1
 	_debug_state_text = _build_debug_state_text(state)
 	_refresh_debug()
+	_refresh_poi_hints(state)
 
 
 func _refresh_inventory() -> void:
@@ -110,6 +124,30 @@ func _refresh_debug() -> void:
 		parts.append(_debug_state_text)
 
 	_debug_text.text = "\n".join(parts) if not parts.is_empty() else "调试信息会在游戏开始后显示。"
+
+
+func _refresh_poi_hints(state) -> void:
+	if not is_instance_valid(_poi_hint_panel):
+		return
+	if state == null or not bool(state.is_world_slice) or state.map_data == null:
+		_poi_hint_panel.visible = false
+		return
+	_poi_hint_panel.visible = true
+	if is_instance_valid(_poi_hint_title):
+		_poi_hint_title.text = "方向标识"
+	var boss_hint := String(state.tracked_boss_poi_relative_hint) if state.get("tracked_boss_poi_relative_hint") != null else ""
+	var safe_hint := String(state.tracked_safe_zone_relative_hint) if state.get("tracked_safe_zone_relative_hint") != null else ""
+	var ruin_hint := String(state.tracked_nearest_ruin_relative_hint) if state.get("tracked_nearest_ruin_relative_hint") != null else ""
+	var ruin_cell: Vector2i = Vector2i(state.tracked_nearest_ruin_cell) if state.get("tracked_nearest_ruin_cell") != null else Vector2i(-1, -1)
+	var ruin_nearby := false
+	if ruin_cell != Vector2i(-1, -1) and state.player != null:
+		ruin_nearby = absi(ruin_cell.x - state.player.grid_pos.x) + absi(ruin_cell.y - state.player.grid_pos.y) <= 2
+	if is_instance_valid(_safe_zone_poi_hint):
+		_safe_zone_poi_hint.text = "最近安全区：%s" % (safe_hint if not safe_hint.is_empty() else "未定位")
+	if is_instance_valid(_boss_poi_hint):
+		_boss_poi_hint.text = "Boss遗迹：%s" % (boss_hint if not boss_hint.is_empty() else "未定位")
+	if is_instance_valid(_ruin_poi_hint):
+		_ruin_poi_hint.text = "最近小遗迹：附近可调查" if ruin_nearby else "最近小遗迹：%s" % (ruin_hint if not ruin_hint.is_empty() else "未定位")
 
 
 func _build_debug_state_text(state) -> String:
@@ -158,6 +196,7 @@ func _build_world_slice_debug_text(state) -> String:
 	var tracked_name := "-"
 	var tracked_hint := "off"
 	var boss_ruin_hint := "off"
+	var safe_zone_hint := "off"
 	var nearest_ruin_hint := "off"
 	if state.player.active_weapon != null:
 		weapon_name = str(state.player.active_weapon.display_name)
@@ -171,11 +210,12 @@ func _build_world_slice_debug_text(state) -> String:
 		tracked_name = String(state.world_actor_display_names.get(tracked_actor_id, state.world_npc_display_names.get(tracked_actor_id, tracked_actor_id)))
 		var actor_hint := String(state.tracked_world_actor_relative_hint) if state.get("tracked_world_actor_relative_hint") != null else ""
 		tracked_hint = actor_hint if (not actor_hint.is_empty() and bool(state.show_tracked_world_actor_hint)) else (String(state.tracked_world_npc_relative_hint) if bool(state.show_tracked_world_npc_hint) else "off")
+	safe_zone_hint = String(state.tracked_safe_zone_relative_hint) if state.get("tracked_safe_zone_relative_hint") != null and not String(state.tracked_safe_zone_relative_hint).is_empty() else "off"
 	boss_ruin_hint = String(state.tracked_boss_poi_relative_hint) if state.get("tracked_boss_poi_relative_hint") != null and not String(state.tracked_boss_poi_relative_hint).is_empty() else "off"
 	nearest_ruin_hint = String(state.tracked_nearest_ruin_relative_hint) if state.get("tracked_nearest_ruin_relative_hint") != null and not String(state.tracked_nearest_ruin_relative_hint).is_empty() else "off"
 
 	var render_rect: Rect2i = state.render_window_rect
-	return "Mode: %s\nSeed: %s\nMap Size: %dx%d\nPlayer: %s\nFacing: %s\nCurrent Tile: %s\nProgram Edit: %s\nTracked NPC: %s\nTracked Hint: %s\nBoss遗迹: %s\n最近小遗迹: %s\nWindow: %s size=%s tiles=%d\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV Reason: %s\nBoard Refreshes: %d (%.2f ms)\nFOV Recomputes: %d (%.2f ms)\nHUD Refreshes: %d\nEntity Visuals: %d\nGeneration: %.2f ms\nGeneration Breakdown: %s\nEnemy Stream: active %d / target %d | refresh %d | +%d/-%d | total +%d/-%d | reason %s\nWeapon: %s\nAttack Action: %s\nTrace: %s\nMoveDir: %s\nTavern: %s\nChallenge: %d\nChest: %d\nRuin: %d\nEgg: %d\nTerrain: plain %d | forest %d | tree %d | hill %d | mountain %d | peak %d | water %d | river %d | bridge %d | swamp %d | desert %d\nReachable: %d\nUnreachable POI: %d\nCarved Passes: %d\nHotkeys: F5 same seed | F6 new seed | V reveal | M summary" % [
+	return "Mode: %s\nSeed: %s\nMap Size: %dx%d\nPlayer: %s\nFacing: %s\nCurrent Tile: %s\nProgram Edit: %s\nTracked NPC: %s\nTracked Hint: %s\n最近安全区: %s\nBoss遗迹: %s\n最近小遗迹: %s\nWindow: %s size=%s tiles=%d\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV Reason: %s\nBoard Refreshes: %d (%.2f ms)\nFOV Recomputes: %d (%.2f ms)\nHUD Refreshes: %d\nEntity Visuals: %d\nGeneration: %.2f ms\nGeneration Breakdown: %s\nEnemy Stream: active %d / target %d | refresh %d | +%d/-%d | total +%d/-%d | reason %s\nWeapon: %s\nAttack Action: %s\nTrace: %s\nMoveDir: %s\nXP: %d\nTavern: %s\nChallenge: %d\nChest: %d\nRuin: %d\nEgg: %d\nTerrain: plain %d | forest %d | tree %d | hill %d | mountain %d | peak %d | water %d | river %d | bridge %d | swamp %d | desert %d\nReachable: %d\nUnreachable POI: %d\nCarved Passes: %d\nHotkeys: F5 same seed | F6 new seed | V reveal | M summary" % [
 		str(state.map_node_kind),
 		str(state.map_data.seed),
 		int(state.map_data.width),
@@ -186,6 +226,7 @@ func _build_world_slice_debug_text(state) -> String:
 		"enabled (inside tavern)" if _key_program_editable_for_world_slice(state) else "locked (return to tavern)",
 		tracked_name,
 		tracked_hint,
+		safe_zone_hint,
 		boss_ruin_hint,
 		nearest_ruin_hint,
 		str(render_rect.position),
@@ -216,6 +257,7 @@ func _build_world_slice_debug_text(state) -> String:
 		attack_action_name,
 		state.action_trace.debug_string_for_actor(int(state.player.id), 6) if state.action_trace != null else "-",
 		_recent_move_dirs_text(state),
+		int(state.player_xp),
 		str(state.map_data.tavern_cell),
 		state.map_data.challenge_cells.size(),
 		state.map_data.chest_cells.size(),

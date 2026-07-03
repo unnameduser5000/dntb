@@ -21,7 +21,7 @@ const BagUIScript = preload("res://scripts/view/BagUI.gd")
 @onready var _rest_continue_button: Button = %RestContinueButton
 @onready var _overlay_title: Label = %OverlayTitle
 @onready var _overlay_body: Label = %OverlayBody
-@onready var _overlay_buttons: VBoxContainer = %OverlayButtons
+@onready var _overlay_buttons: HBoxContainer = %OverlayButtons
 @onready var _bag_ui = %BagUI
 @onready var _npc_dialogue_panel: PanelContainer = %NpcDialoguePanel
 @onready var _npc_dialogue_title: Label = %NpcDialogueTitle
@@ -176,16 +176,17 @@ func show_rest_site(title: String, body: String = "") -> void:
 		_run_sidebar.set_debug_messages([body])
 
 
-func show_reward(rewards: Array) -> void:
+func show_reward(rewards: Array, title_text: String = "选择奖励", body_text: String = "房间清空。选一个奖励继续前进。") -> void:
 	var buttons: Array = []
 	for index in range(rewards.size()):
 		var reward = rewards[index]
 		buttons.append({
-			"text": reward["name"],
+			"title": reward["name"],
+			"body": String(reward.get("description", "")),
 			"callback": _emit_reward_chosen.bind(index),
 		})
 
-	_show_overlay("选择奖励", "房间清空。选一个奖励继续前进。", buttons)
+	_show_overlay(title_text, body_text, buttons)
 
 
 func show_result(victory: bool) -> void:
@@ -206,11 +207,19 @@ func _show_overlay(title_text: String, body_text: String, buttons: Array) -> voi
 	for index in range(buttons.size()):
 		var button_data = buttons[index]
 		var button := UiActionCardScene.instantiate() as Button
-		button.text = String(button_data["text"])
+		button.text = _reward_card_text(button_data)
 		if index == 0:
 			button.theme_type_variation = &"PrimaryButton"
 		button.pressed.connect(button_data["callback"])
 		_overlay_buttons.add_child(button)
+
+
+func _reward_card_text(button_data: Dictionary) -> String:
+	var title := String(button_data.get("title", button_data.get("text", "")))
+	var body := String(button_data.get("body", ""))
+	if body.is_empty():
+		return title
+	return "%s\n%s" % [title, body]
 
 
 func _on_bag_key_token_move_requested(source_slot_id: String, source_index: int, target_slot_id: String) -> void:
