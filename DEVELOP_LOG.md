@@ -107,10 +107,123 @@
   - auto-faced the player toward the tavern keeper on world-slice start so the
     opening sword interaction is always immediately reachable
 
+## 2026-07-04 Settings menu resume/back buttons
+
+- Renamed the settings-menu back button from `返回主菜单` to `返回`.
+- Added a `继续游戏` button above the back button in `SettingsMenu`.
+- `SettingsMenu` now emits `continue_requested` when the continue button is pressed.
+- `App.gd` wires `continue_requested` to resume the active game if a run is in
+  progress, or fall back to the main menu otherwise.
+- Behavior is the same from both the main-menu settings path and the pause-menu
+  settings path: continue resumes the game, back returns to the caller.
+
 Validation:
 
 - `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
 - Result: `SmokeTest passed`
+<<<<<<< HEAD
+=======
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
+## 2026-07-04 World-slice map zoom setting
+
+- Added a "地图缩放" option to the settings menu with four fixed levels:
+  `1.0x / 1.5x / 2.0x / 4.0x`.
+- `SettingsService` now persists `gameplay.world_slice_zoom_index` and emits
+  `world_slice_zoom_changed` when the value changes.
+- `SettingsMenu` populates the dropdown from `WORLD_SLICE_ZOOM_OPTIONS` and
+  forwards selection to `SettingsService`.
+- `BoardView` applies the zoom multiplier to the world-slice base `cell_size`
+  and re-renders immediately when the setting changes.
+- Added `BoardView.center_world_slice_camera_on_player()` so `Game.gd` and the
+  zoom-change handler both use the same camera-position logic; zoom changes now
+  recenter the camera immediately before re-rendering.
+- Zoomed cell size is clamped to a separate range
+  (`world_slice_min_zoom_cell_size` / `world_slice_max_zoom_cell_size`) so the
+  higher magnification levels are not capped by the default 1× layout bounds.
+- Scope is limited to world-slice camera-follow mode; traditional 8×8 rooms
+  and the legacy manual pan/zoom mode are unaffected.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
+## 2026-07-04 Camera2D-centered world-slice map
+
+- Switched the world-slice view from a virtual pan/zoom camera to a real
+  `Camera2D` that follows the player:
+  - `Camera2D` is now a top-level node under `Game` and is treated as the
+    source of truth for which world-pixel coordinate belongs at the viewport
+    center.
+  - `BoardView` reads `Camera2D.position` and renders only the grid cells that
+    cover the current viewport plus a small margin, so the map tiles fill the
+    rectangular window and adapts to window size.
+  - The player is kept centered on screen by setting the camera position to
+    the player's world-pixel center every refresh.
+- Added `BoardView.world_slice_camera_follow` toggle and
+  `world_slice_render_margin_cells` for the viewport-filling render window.
+- Mouse drag/wheel input is disabled while camera-follow is active because the
+  camera now tracks the player automatically.
+- Preserved the previous pan/zoom behavior behind `world_slice_camera_follow =
+  false` and `enable_pan_zoom` so the old mode can still be enabled if needed.
+- `ActorRoot` / `EffectRoot` transform sync continues to work; with
+  camera-follow scale locked to 1, overlays are placed directly in screen space
+  via `grid_to_world()`.
+- Fix for gray screen / missing map:
+  - Keep the `Camera2D` node disabled for rendering; because `BoardView` is a
+    `Control`, an enabled `Camera2D` scrolls the canvas and moves the board
+    off-screen. We only use `Camera2D.position` as a data marker.
+  - Compute the render window before computing `BoardView.position`, and use
+    the clamped render-window origin so the grid aligns exactly with the
+    camera center even at world edges.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
+## 2026-07-03 Fullscreen draggable/zoomable world-slice map
+
+- Reworked world-slice map layout so it now fills the full viewport instead of
+  reserving a fixed right-side panel area for `BattlePanel`.
+- Implemented a virtual camera inside `BoardView`:
+  - panning by holding the left mouse button and dragging;
+  - zooming with the mouse wheel, zooming toward the cursor position;
+  - clamped offset and zoom range so the board cannot be dragged completely
+    off-screen or zoomed to an unusable level.
+- Kept `BattleUI` in its existing `CanvasLayer`, so buttons, sidebars, and the
+  backpack stay above the map and consume input first.
+- Synchronized `ActorRoot` and `EffectRoot` transforms with `BoardView` in
+  `Game._refresh_views()` so actor sprites and battle effects move/scale with
+  the map without changing their coordinate semantics.
+- Added a `Home` key shortcut to reset the camera to the default centered,
+  zoom-1 view while in world-slice mode.
+- Scope is intentionally limited to world-slice mode; traditional 8x8 rooms
+  keep their fixed origin and scale and do not respond to drag or wheel input.
+- Added `BoardView.reset_camera()` / `set_camera_offset()` / `set_camera_zoom()`
+  so other systems can programmatically reset or animate the view.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `SmokeTest passed`
+>>>>>>> main
 
 ## 2026-07-02 Safe-zone NPC interaction pass
 

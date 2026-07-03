@@ -2,6 +2,7 @@ class_name SettingsMenu
 extends Control
 
 signal back_requested
+signal continue_requested
 
 const UiButtonScene := preload("res://scenes/ui/components/UiButton.tscn")
 
@@ -9,9 +10,11 @@ const UiButtonScene := preload("res://scenes/ui/components/UiButton.tscn")
 @onready var scroll: ScrollContainer = %Scroll
 @onready var resolution_option: OptionButton = %ResolutionRow.get_node("Option")
 @onready var fullscreen_toggle: CheckButton = %FullscreenRow.get_node("Toggle")
+@onready var zoom_option: OptionButton = %ZoomRow.get_node("Option")
 @onready var controls_hint: Label = %ControlsHint
 @onready var key_bindings_container: VBoxContainer = %KeyBindingsContainer
 @onready var reset_bindings_button: Button = %ResetBindingsButton
+@onready var continue_button: Button = %ContinueButton
 @onready var back_button: Button = %BackButton
 
 var _binding_buttons: Dictionary = {}
@@ -23,8 +26,14 @@ func _ready() -> void:
 		resolution_option.add_item(SettingsService.get_resolution_label(index), index)
 
 	resolution_option.item_selected.connect(_on_resolution_selected)
+
+	for index in range(SettingsService.WORLD_SLICE_ZOOM_OPTIONS.size()):
+		zoom_option.add_item(SettingsService.get_world_slice_zoom_label(index), index)
+
+	zoom_option.item_selected.connect(_on_zoom_selected)
 	fullscreen_toggle.toggled.connect(_on_fullscreen_toggled)
 	reset_bindings_button.pressed.connect(_reset_bindings)
+	continue_button.pressed.connect(continue_requested.emit)
 	back_button.pressed.connect(back_requested.emit)
 	get_viewport().size_changed.connect(_update_layout)
 	_build_key_binding_rows()
@@ -58,6 +67,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func refresh_controls() -> void:
 	resolution_option.select(SettingsService.resolution_index)
 	fullscreen_toggle.set_pressed_no_signal(SettingsService.is_fullscreen)
+	zoom_option.select(SettingsService.world_slice_zoom_index)
 	_refresh_key_binding_rows()
 	scroll.scroll_vertical = 0
 
@@ -68,6 +78,10 @@ func _on_resolution_selected(index: int) -> void:
 
 func _on_fullscreen_toggled(enabled: bool) -> void:
 	SettingsService.set_fullscreen(enabled)
+
+
+func _on_zoom_selected(index: int) -> void:
+	SettingsService.set_world_slice_zoom_index(index)
 
 
 func _build_key_binding_rows() -> void:

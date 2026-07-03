@@ -79,6 +79,11 @@ unique_name_in_owner = true
 layout_mode = 2
 label_text = "显示模式"
 
+[node name="ZoomRow" parent="Panel/Margin/Content/Scroll/ScrollContent" instance=ExtResource("5_option_row")]
+unique_name_in_owner = true
+layout_mode = 2
+label_text = "地图缩放"
+
 [node name="ControlsTitle" type="Label" parent="Panel/Margin/Content/Scroll/ScrollContent"]
 layout_mode = 2
 theme_type_variation = &"FieldLabel"
@@ -105,7 +110,12 @@ text = "重置键位布局"
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
 
+[node name="ContinueButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "继续游戏"
+
 [node name="BackButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
 unique_name_in_owner = true
 layout_mode = 2
-text = "返回主菜单"
+text = "返回"
