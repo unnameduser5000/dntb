@@ -110,7 +110,12 @@ text = "重置键位布局"
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
 
+[node name="ContinueButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "继续游戏"
+
 [node name="BackButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
 unique_name_in_owner = true
 layout_mode = 2
-text = "返回主菜单"
+text = "返回"

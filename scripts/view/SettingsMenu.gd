@@ -2,6 +2,7 @@ class_name SettingsMenu
 extends Control
 
 signal back_requested
+signal continue_requested
 
 const UiButtonScene := preload("res://scenes/ui/components/UiButton.tscn")
 
@@ -13,6 +14,7 @@ const UiButtonScene := preload("res://scenes/ui/components/UiButton.tscn")
 @onready var controls_hint: Label = %ControlsHint
 @onready var key_bindings_container: VBoxContainer = %KeyBindingsContainer
 @onready var reset_bindings_button: Button = %ResetBindingsButton
+@onready var continue_button: Button = %ContinueButton
 @onready var back_button: Button = %BackButton
 
 var _binding_buttons: Dictionary = {}
@@ -31,6 +33,7 @@ func _ready() -> void:
 	zoom_option.item_selected.connect(_on_zoom_selected)
 	fullscreen_toggle.toggled.connect(_on_fullscreen_toggled)
 	reset_bindings_button.pressed.connect(_reset_bindings)
+	continue_button.pressed.connect(continue_requested.emit)
 	back_button.pressed.connect(back_requested.emit)
 	get_viewport().size_changed.connect(_update_layout)
 	_build_key_binding_rows()

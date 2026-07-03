@@ -1,5 +1,24 @@
 # Develop Log
 
+## 2026-07-04 Settings menu resume/back buttons
+
+- Renamed the settings-menu back button from `返回主菜单` to `返回`.
+- Added a `继续游戏` button above the back button in `SettingsMenu`.
+- `SettingsMenu` now emits `continue_requested` when the continue button is pressed.
+- `App.gd` wires `continue_requested` to resume the active game if a run is in
+  progress, or fall back to the main menu otherwise.
+- Behavior is the same from both the main-menu settings path and the pause-menu
+  settings path: continue resumes the game, back returns to the caller.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
 ## 2026-07-04 World-slice map zoom setting
 
 - Added a "地图缩放" option to the settings menu with four fixed levels:
