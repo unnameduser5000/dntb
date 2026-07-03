@@ -21,6 +21,13 @@
 - `ActorRoot` / `EffectRoot` transform sync continues to work; with
   camera-follow scale locked to 1, overlays are placed directly in screen space
   via `grid_to_world()`.
+- Fix for gray screen / missing map:
+  - Keep the `Camera2D` node disabled for rendering; because `BoardView` is a
+    `Control`, an enabled `Camera2D` scrolls the canvas and moves the board
+    off-screen. We only use `Camera2D.position` as a data marker.
+  - Compute the render window before computing `BoardView.position`, and use
+    the clamped render-window origin so the grid aligns exactly with the
+    camera center even at world edges.
 
 Validation:
 
