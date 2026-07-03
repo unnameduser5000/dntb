@@ -291,6 +291,12 @@ func _unhandled_input(event: InputEvent) -> void:
 					_refresh_views()
 					get_viewport().set_input_as_handled()
 					return
+			if event.keycode == KEY_HOME:
+				if board_view != null:
+					board_view.reset_camera()
+					_refresh_views()
+				get_viewport().set_input_as_handled()
+				return
 
 	if state == null or state.phase != "planning" or state.battle_finished:
 		return
@@ -395,8 +401,7 @@ func start_world_slice_debug() -> void:
 	turn_controller.start_battle(state)
 	if board_view != null:
 		board_view.world_slice_window_size = Vector2i(29, 29)
-		board_view.board_origin = Vector2(24, 84)
-		board_view.position = board_view.board_origin
+		board_view.reset_camera()
 	battle_ui.show_battle()
 	_update_world_slice_editability(true)
 	_refresh_world_visibility("init")
@@ -623,6 +628,16 @@ func _refresh_views() -> void:
 			snap_actor_views = true
 		_battle_presentation.sync_views(state, snap_actor_views)
 	battle_ui.update_state(state)
+	_sync_actor_roots_with_board_view()
+
+
+func _sync_actor_roots_with_board_view() -> void:
+	if board_view == null:
+		return
+	$ActorRoot.position = board_view.position
+	$ActorRoot.scale = board_view.scale
+	$EffectRoot.position = board_view.position
+	$EffectRoot.scale = board_view.scale
 
 
 func _on_actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i) -> void:
