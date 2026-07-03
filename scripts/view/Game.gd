@@ -640,8 +640,7 @@ func _update_world_slice_camera() -> void:
 		return
 	if not board_view.world_slice_camera_follow:
 		return
-	var cell_size: int = board_view.compute_world_slice_zoomed_cell_size()
-	camera.position = Vector2(state.player.grid_pos) * float(cell_size + 1) + Vector2(cell_size * 0.5, cell_size * 0.5)
+	board_view.center_world_slice_camera_on_player(state)
 
 
 func _sync_actor_roots_with_board_view() -> void:

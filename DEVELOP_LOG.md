@@ -10,9 +10,9 @@
   forwards selection to `SettingsService`.
 - `BoardView` applies the zoom multiplier to the world-slice base `cell_size`
   and re-renders immediately when the setting changes.
-- Added `BoardView.compute_world_slice_zoomed_cell_size()` so `Game.gd` can
-  keep the camera centered on the player using the same zoomed cell size that
-  the board renders with, preventing empty off-map cells when zoomed in.
+- Added `BoardView.center_world_slice_camera_on_player()` so `Game.gd` and the
+  zoom-change handler both use the same camera-position logic; zoom changes now
+  recenter the camera immediately before re-rendering.
 - Zoomed cell size is clamped to a separate range
   (`world_slice_min_zoom_cell_size` / `world_slice_max_zoom_cell_size`) so the
   higher magnification levels are not capped by the default 1× layout bounds.
