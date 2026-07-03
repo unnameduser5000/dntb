@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ActorDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActorDef.gd" id="1_actor"]
+[ext_resource type="PackedScene" path="res://scenes/actors/EnemyActorView.tscn" id="2_view"]
+
+[resource]
+script = ExtResource("1_actor")
+id = "line_warden"
+display_name = "线卫"
+max_hp = 3
+atk = 1
+move_range = 1
+map_char = "L"
+team = "enemy"
+ai_type = "line_keeper"
+default_drop_key = ""
+view_scene = ExtResource("2_view")
+color = Color(0.95, 0.75, 0.3, 1)

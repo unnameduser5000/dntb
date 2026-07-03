@@ -27,6 +27,18 @@ const WORLD_SLICE_FAST_TIMING_PROFILE := {
 	"effect_duration_scale": 0.65,
 	"action_pause_duration": 0.0,
 }
+const AUTOPATH_TIMING_PROFILE := {
+	"move_duration": 0.11,
+	"hit_flash_in_duration": 0.028,
+	"hit_flash_out_duration": 0.04,
+	"die_squash_duration": 0.03,
+	"die_fade_duration": 0.08,
+	"action_start_expand_duration": 0.02,
+	"action_start_settle_duration": 0.025,
+	"animation_speed_scale": 1.0,
+	"effect_duration_scale": 0.65,
+	"action_pause_duration": 0.04,
+}
 
 var board_view
 var actor_root
@@ -73,10 +85,20 @@ func use_legacy_timing_profile() -> void:
 	_apply_timing_profile(LEGACY_TIMING_PROFILE)
 
 
+func use_autopath_timing_profile() -> void:
+	_apply_timing_profile(AUTOPATH_TIMING_PROFILE)
+
+
 func debug_current_timing_profile_name() -> String:
+	if is_equal_approx(float(_timing_profile.get("move_duration", 0.0)), float(AUTOPATH_TIMING_PROFILE.get("move_duration", 0.0))) and is_equal_approx(action_pause_duration, float(AUTOPATH_TIMING_PROFILE.get("action_pause_duration", 0.04))):
+		return "autopath"
 	if is_equal_approx(action_pause_duration, 0.0):
 		return "world_slice_fast"
 	return "legacy"
+
+
+func get_action_cycle_duration() -> float:
+	return float(_timing_profile.get("action_start_expand_duration", 0.0)) + float(_timing_profile.get("action_start_settle_duration", 0.0)) + float(_timing_profile.get("move_duration", 0.0)) + maxf(0.0, action_pause_duration)
 
 
 func clear_views() -> void:

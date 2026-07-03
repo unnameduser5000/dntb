@@ -278,6 +278,12 @@ func _relocate_spawn_into_tavern(map_data) -> void:
 func _pick_tavern_spawn_cell(map_data, record: Dictionary) -> Vector2i:
 	if map_data == null:
 		return Vector2i(-1, -1)
+	var origin: Vector2i = Vector2i(record.get("origin", Vector2i(-1, -1)))
+	var fixed_spawn_local: Vector2i = Vector2i(record.get("fixed_player_spawn_local", Vector2i(-1, -1)))
+	if origin != Vector2i(-1, -1) and fixed_spawn_local != Vector2i(-1, -1):
+		var fixed_spawn: Vector2i = origin + fixed_spawn_local
+		if map_data.is_walkable(fixed_spawn):
+			return fixed_spawn
 	var interaction_cell: Vector2i = Vector2i(record.get("interaction_cell", Vector2i(-1, -1)))
 	var occupied_cells: Array = record.get("occupied_cells", [])
 	var best: Vector2i = Vector2i(-1, -1)

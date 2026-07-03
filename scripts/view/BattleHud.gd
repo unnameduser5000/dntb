@@ -7,6 +7,8 @@ extends Control
 @onready var _turn_value: Label = %TurnValue
 @onready var _player_box: Label = %PlayerBox
 @onready var _enemy_value: Label = %EnemyValue
+@onready var _xp_bar = %XpBar
+@onready var _xp_value: Label = %XpValue
 @onready var _enemy_intent_list: VBoxContainer = %EnemyIntentList
 
 
@@ -21,7 +23,16 @@ func update_state(state) -> void:
 	_turn_value.text = "回合 %d" % state.turn_count
 	_player_box.text = "玩家 %s · 朝向 %s" % [str(state.player.grid_pos), _direction_label(state.player.facing)]
 	_enemy_value.text = "敌人: %d" % state.get_alive_enemies().size()
+	var xp_target := _xp_required_for_next_level(state)
+	_xp_bar.set_value(int(state.player_xp), xp_target)
+	_xp_value.text = "等级 Lv.%d · 经验 %d/%d" % [int(state.player_level), int(state.player_xp), xp_target]
 	_refresh_enemy_intents(state.enemy_intents)
+
+
+func _xp_required_for_next_level(state) -> int:
+	if state == null:
+		return 1
+	return maxi(1, int(state.player_level) * 2)
 
 
 func _refresh_enemy_intents(intents: Array) -> void:
