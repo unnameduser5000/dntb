@@ -95,6 +95,10 @@ func _resolve_action_direction(action, preview_facing: Vector2i) -> Vector2i:
 		return preview_facing
 	if action.chosen_dir != Vector2i.ZERO:
 		return action.chosen_dir
+	if String(action.def.id) == "step_left":
+		return Vector2i(preview_facing.y, -preview_facing.x)
+	if String(action.def.id) == "step_right":
+		return Vector2i(-preview_facing.y, preview_facing.x)
 	if String(action.def.id) == "move_back":
 		return -preview_facing
 	return preview_facing
@@ -155,6 +159,11 @@ func _preview_attack_cells(state, origin: Vector2i, direction: Vector2i, action_
 		var left := Vector2i(direction.y, -direction.x)
 		var right := Vector2i(-direction.y, direction.x)
 		for cell in [origin + left, origin + direction, origin + right]:
+			_add_preview_attack_cell(state, cells, cell)
+		return cells
+
+	if action_def.id == "cross_attack":
+		for cell in [origin + Vector2i.UP, origin + Vector2i.DOWN, origin + Vector2i.LEFT, origin + Vector2i.RIGHT]:
 			_add_preview_attack_cell(state, cells, cell)
 		return cells
 

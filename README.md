@@ -25,7 +25,7 @@ The project includes a headless smoke test scene tree script:
 
     godot --headless --path . --script res://scripts/tests/SmokeTest.gd
 
-This test covers the current combat loop, programmable key slots, direction-chain weapon techniques, rewards, modifiers, and achievement events.
+This test covers the current combat loop, programmable key slots, world-slice onboarding, POI hints and ruin interaction, first-kill attack-token reward, XP/level-up progression, rewards, modifiers, and achievement events.
 
 ## Repository layout
 

@@ -17,11 +17,15 @@ const ActorInteractionServiceScript := preload("res://scripts/core/ActorInteract
 
 const PLAYER_DEF := preload("res://data/actors/player.tres")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
+const WISP_DEF := preload("res://data/actors/wisp.tres")
 const BRUTE_DEF := preload("res://data/actors/brute.tres")
 const BOSS_DEF := preload("res://data/actors/boss.tres")
+const LINE_WARDEN_DEF := preload("res://data/actors/line_warden.tres")
 
 const ACTION_MOVE_FORWARD := preload("res://data/actions/move_forward.tres")
 const ACTION_MOVE_BACK := preload("res://data/actions/move_back.tres")
+const ACTION_STEP_LEFT := preload("res://data/actions/step_left.tres")
+const ACTION_STEP_RIGHT := preload("res://data/actions/step_right.tres")
 const ACTION_TURN_LEFT := preload("res://data/actions/turn_left.tres")
 const ACTION_TURN_RIGHT := preload("res://data/actions/turn_right.tres")
 const ACTION_JUMP := preload("res://data/actions/jump.tres")
@@ -35,6 +39,8 @@ const ACTION_MOVE_KEY := preload("res://data/actions/move_key.tres")
 const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
 const GREATBLADE := preload("res://data/weapons/greatblade.tres")
+const RUSTY_SWORD := preload("res://data/weapons/rusty_sword.tres")
+const TWIN_DAGGERS := preload("res://data/weapons/twin_daggers.tres")
 
 const MOD_ECHO_STRIKE := preload("res://data/modifiers/echo_strike.tres")
 const MOD_ECHO_STEP := preload("res://data/modifiers/echo_step.tres")
@@ -56,7 +62,7 @@ const ROOMS := [
 			{"key": "R", "cell": Vector2i(1, 2)},
 		],
 		"enemies": [
-			{"def": "slime", "cell": Vector2i(3, 1)},
+			{"def": "wisp", "cell": Vector2i(3, 1)},
 			{"def": "slime", "cell": Vector2i(5, 4)},
 		],
 	},
@@ -176,6 +182,14 @@ var _world_slice_last_rest_area_state: bool = false
 var _world_npc_interaction_counts: Dictionary = {}
 var _world_npc_dialogue_active := false
 var _world_npc_dialogue_npc_id := ""
+var _world_ruin_claims: Dictionary = {}
+var _world_autopath_target: Vector2i = Vector2i(-1, -1)
+var _world_autopath_active := false
+var _world_autopath_steps: Array[Vector2i] = []
+var _world_autopath_last_step_msec := 0
+var _world_autopath_step_scheduled := false
+var _pending_level_reward := false
+var _player_input_locked := false
 var _bag_open := false
 var _shell_overlay_active := false
 
@@ -183,6 +197,8 @@ func _ready() -> void:
 	_action_by_id = {
 		"move_forward": ACTION_MOVE_FORWARD,
 		"move_back": ACTION_MOVE_BACK,
+		"step_left": ACTION_STEP_LEFT,
+		"step_right": ACTION_STEP_RIGHT,
 		"turn_left": ACTION_TURN_LEFT,
 		"turn_right": ACTION_TURN_RIGHT,
 		"jump": ACTION_JUMP,
@@ -192,6 +208,7 @@ func _ready() -> void:
 		"interact": ACTION_INTERACT,
 		"charge_thrust": ACTION_CHARGE_THRUST,
 		"great_sweep": ACTION_GREAT_SWEEP,
+		"cross_attack": preload("res://data/actions/cross_attack.tres"),
 		"move_key": ACTION_MOVE_KEY,
 	}
 	_modifier_by_id = {
@@ -203,6 +220,8 @@ func _ready() -> void:
 		"impact_shield": IMPACT_SHIELD,
 		"iron_spear": IRON_SPEAR,
 		"greatblade": GREATBLADE,
+		"rusty_sword": RUSTY_SWORD,
+		"twin_daggers": TWIN_DAGGERS,
 	}
 	_action_program = ActionProgramControllerScript.new()
 	_action_program.setup()
@@ -224,7 +243,7 @@ func _ready() -> void:
 	enemy_planner.attack_action = ACTION_ATTACK
 	var enemy_spawn_service = get_node_or_null("/root/EnemySpawnService")
 	if enemy_spawn_service != null:
-		enemy_spawn_service.register_enemy_defs([SLIME_DEF, BRUTE_DEF, BOSS_DEF])
+		enemy_spawn_service.register_enemy_defs([SLIME_DEF, WISP_DEF, BRUTE_DEF, BOSS_DEF, LINE_WARDEN_DEF])
 
 	_connect_signals()
 	_register_save_provider()
@@ -349,13 +368,17 @@ func _connect_signals() -> void:
 	battle_ui.rest_continue_requested.connect(_on_rest_continue_requested)
 	battle_ui.bag_toggle_requested.connect(_toggle_bag)
 	battle_ui.pause_menu_requested.connect(_on_pause_menu_requested)
+	battle_ui.get_node("RunSidebar").boss_poi_requested.connect(_on_boss_poi_requested)
+	battle_ui.get_node("RunSidebar").safe_zone_poi_requested.connect(_on_safe_zone_poi_requested)
+	battle_ui.get_node("RunSidebar").ruin_poi_requested.connect(_on_ruin_poi_requested)
 	turn_controller.action_finished.connect(func(_action) -> void: _refresh_views())
-	turn_controller.turn_finished.connect(_refresh_views)
-	turn_controller.planning_started.connect(_refresh_views)
+	turn_controller.turn_finished.connect(_on_turn_finished)
+	turn_controller.planning_started.connect(_on_planning_started)
 	turn_controller.battle_finished.connect(_on_battle_finished)
 	resolver.rule_message.connect(func(_message: String) -> void: _refresh_views())
 	resolver.key_picked.connect(_on_key_picked)
 	resolver.actor_moved.connect(_on_actor_moved)
+	resolver.actor_died.connect(_on_actor_died)
 	resolver.world_npc_interaction_requested.connect(_on_world_npc_interaction_requested)
 
 func start_run() -> void:
@@ -378,6 +401,17 @@ func start_seeded_run(seed_value) -> void:
 func start_world_slice_debug() -> void:
 	_ensure_action_helpers()
 	_world_npc_interaction_counts.clear()
+	_world_ruin_claims.clear()
+	if state != null:
+		state.player_xp = 0
+		state.player_level = 1
+	_pending_level_reward = false
+	_player_input_locked = false
+	_world_autopath_active = false
+	_world_autopath_target = Vector2i(-1, -1)
+	_world_autopath_steps.clear()
+	_world_autopath_last_step_msec = 0
+	_world_autopath_step_scheduled = false
 	_close_world_npc_dialogue(false)
 	if world_loading_overlay != null:
 		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
@@ -421,6 +455,13 @@ func _on_world_generation_progress(progress_data: Dictionary) -> void:
 
 func _start_new_run(seed_value) -> void:
 	_close_world_npc_dialogue(false)
+	_world_autopath_active = false
+	_world_autopath_target = Vector2i(-1, -1)
+	_world_autopath_steps.clear()
+	_world_autopath_last_step_msec = 0
+	_world_autopath_step_scheduled = false
+	_pending_level_reward = false
+	_player_input_locked = false
 	_current_room_index = 0
 	_current_map_node_index = 0
 	_run_player_max_hp = PLAYER_DEF.max_hp
@@ -435,6 +476,9 @@ func _start_new_run(seed_value) -> void:
 	var curse_service = get_node_or_null("/root/CurseService")
 	if curse_service != null:
 		curse_service.reset_run()
+	_world_ruin_claims.clear()
+	if state != null:
+		state.player_xp = 0
 	_run_modifier_ids.clear()
 	_run_weapon_id = _default_run_weapon_id()
 	_setup_default_key_slots()
@@ -559,6 +603,13 @@ func _on_reward_chosen(index: int) -> void:
 	_close_bag_if_open()
 	_apply_reward(_current_rewards[index])
 	_current_rewards = []
+	if _pending_level_reward:
+		_pending_level_reward = false
+		_refresh_inventory_ui()
+		_refresh_permanent_buffs_ui()
+		_refresh_views()
+		battle_ui.show_battle()
+		return
 	_advance_to_next_map_node()
 
 func _on_rest_continue_requested() -> void:
@@ -712,6 +763,7 @@ func _try_interact_with_world_npc() -> bool:
 		line = "只是安静地点了点头。"
 	var actor_id := String(result.get("actor_id", result.get("npc_id", "")))
 	var actor_name := String(result.get("actor_name", result.get("npc_name", speaker)))
+	line = _resolve_world_actor_dialogue_line(actor_id, line)
 	state.tracked_world_actor_id = actor_id
 	state.show_tracked_world_actor_hint = true
 	state.world_actor_display_names[actor_id] = actor_name
@@ -719,6 +771,7 @@ func _try_interact_with_world_npc() -> bool:
 	state.show_tracked_world_npc_hint = true
 	_world_npc_dialogue_active = true
 	_world_npc_dialogue_npc_id = actor_id
+	_try_grant_world_actor_first_talk_reward(actor_id, speaker)
 	if is_instance_valid(battle_ui):
 		battle_ui.show_world_npc_dialogue(speaker, line)
 	state.add_message("%s：%s" % [speaker, line])
@@ -731,6 +784,25 @@ func _try_interact_with_world_npc() -> bool:
 	return true
 
 
+func _resolve_world_actor_dialogue_line(actor_id: String, fallback_line: String) -> String:
+	if actor_id == "tavern_keeper" and int(_world_npc_interaction_counts.get(actor_id, 0)) == 1:
+		return "“别急着出门。我先把攻击 token 放进你的备用行动池；记得去分配键位，出手才会朝你面前劈出去。”"
+	return fallback_line
+
+
+func _try_grant_world_actor_first_talk_reward(actor_id: String, speaker: String) -> void:
+	if actor_id != "tavern_keeper":
+		return
+	if int(_world_npc_interaction_counts.get(actor_id, 0)) != 1:
+		return
+	_ensure_action_helpers()
+	if not _action_program.add_token_to_pool("A", false):
+		return
+	state.add_message("%s把攻击 token 放进了你的备用行动池。去背包里把它分配到一个键位上，再出门。" % speaker)
+	state.add_feed_message("获得了“攻击”动作。", "token")
+	_refresh_key_program_ui()
+
+
 func _submit_world_interact_action() -> bool:
 	if state == null or not bool(state.is_world_slice) or state.player == null:
 		return false
@@ -738,6 +810,8 @@ func _submit_world_interact_action() -> bool:
 		return false
 	var has_target: bool = _actor_interaction_service.find_interactable_actor(state) != null
 	if not has_target:
+		if _try_interact_with_world_ruin():
+			return true
 		if _world_npc_dialogue_active:
 			return _try_interact_with_world_npc()
 		if _is_player_in_world_slice_rest_area():
@@ -752,6 +826,281 @@ func _submit_world_interact_action() -> bool:
 		return false
 	turn_controller.submit_player_plan([interact_action])
 	return true
+
+
+func _try_interact_with_world_ruin() -> bool:
+	if state == null or not bool(state.is_world_slice) or state.player == null or state.map_data == null:
+		return false
+	var ruin_record: Dictionary = _find_ruin_record_at_player()
+	if ruin_record.is_empty():
+		return false
+	var ruin_id: String = String(ruin_record.get("id", ""))
+	if ruin_id.is_empty():
+		return false
+	if _world_ruin_claims.has(ruin_id):
+		state.add_message("这处小遗迹已经调查过了。")
+		_refresh_views()
+		return true
+	_world_ruin_claims[ruin_id] = true
+	_ensure_action_helpers()
+	var granted: Array[String] = []
+	if _action_program.add_token_to_pool("SL", false):
+		granted.append("SL")
+	if _action_program.add_token_to_pool("SR", false):
+		granted.append("SR")
+	if granted.is_empty():
+		state.add_message("你翻找了这处小遗迹，但这里只剩下已经学会的旧套路。")
+	else:
+		state.add_message("你调查了这处小遗迹，获得了 %s，并已放入备用行动池。" % "/".join(granted))
+	_refresh_key_program_ui()
+	_refresh_views()
+	return true
+
+
+func _on_boss_poi_requested() -> void:
+	if state == null:
+		return
+	_start_world_autopath(Vector2i(state.tracked_boss_poi_cell), "Boss遗迹")
+
+
+func _on_safe_zone_poi_requested() -> void:
+	if state == null:
+		return
+	_start_world_autopath(Vector2i(state.tracked_safe_zone_cell), "最近安全区")
+
+
+func _on_ruin_poi_requested() -> void:
+	if state == null:
+		return
+	_start_world_autopath(Vector2i(state.tracked_nearest_ruin_cell), "最近小遗迹")
+
+
+func _start_world_autopath(target_cell: Vector2i, label: String) -> void:
+	if state == null or not bool(state.is_world_slice) or state.player == null or state.grid == null:
+		return
+	if target_cell == Vector2i(-1, -1):
+		state.add_message("%s 当前未定位。" % label)
+		_refresh_views()
+		return
+	if _world_slice_has_visible_enemy():
+		state.add_message("视野内已有敌人，自动跑图已取消。")
+		_refresh_views()
+		return
+	var path_steps: Array[Vector2i] = _find_world_autopath_path(state.player.grid_pos, target_cell)
+	if path_steps.is_empty():
+		state.add_message("自动跑图失败：找不到可通行路径。")
+		_refresh_views()
+		return
+	_world_autopath_target = target_cell
+	_world_autopath_steps = path_steps
+	_world_autopath_active = true
+	_world_autopath_last_step_msec = 0
+	_world_autopath_step_scheduled = false
+	if _battle_presentation != null and _battle_presentation.has_method("use_autopath_timing_profile"):
+		_battle_presentation.use_autopath_timing_profile()
+	state.add_message("开始自动前往%s。" % label)
+	_refresh_views()
+	_schedule_world_autopath_step()
+
+
+func _stop_world_autopath(show_message: bool = true) -> void:
+	if not _world_autopath_active:
+		return
+	_world_autopath_active = false
+	_world_autopath_target = Vector2i(-1, -1)
+	_world_autopath_steps.clear()
+	_world_autopath_last_step_msec = 0
+	_world_autopath_step_scheduled = false
+	if _battle_presentation != null and _battle_presentation.has_method("use_world_slice_fast_timing_profile") and state != null and bool(state.is_world_slice):
+		_battle_presentation.use_world_slice_fast_timing_profile()
+	if show_message and state != null:
+		state.add_message("自动跑图已停止。")
+		_refresh_views()
+
+
+func _on_turn_finished() -> void:
+	_refresh_views()
+
+
+func _on_planning_started() -> void:
+	_player_input_locked = false
+	_refresh_views()
+	_schedule_world_autopath_step()
+
+
+func _schedule_world_autopath_step() -> void:
+	if not _world_autopath_active or _world_autopath_step_scheduled:
+		return
+	_world_autopath_step_scheduled = true
+	call_deferred("_run_world_autopath_step_with_delay")
+
+
+func _run_world_autopath_step_with_delay() -> void:
+	if not _world_autopath_active:
+		_world_autopath_step_scheduled = false
+		return
+	var cycle_duration := 0.1
+	if _battle_presentation != null and _battle_presentation.has_method("get_action_cycle_duration"):
+		cycle_duration = maxf(0.01, float(_battle_presentation.get_action_cycle_duration()))
+	if _world_autopath_last_step_msec > 0:
+		await get_tree().create_timer(cycle_duration).timeout
+	_world_autopath_step_scheduled = false
+	_call_world_autopath_step()
+
+
+func _call_world_autopath_step() -> void:
+	if not _world_autopath_active:
+		return
+	if state == null or not bool(state.is_world_slice) or state.player == null or state.phase != "planning" or state.battle_finished:
+		return
+	if _world_slice_has_visible_enemy():
+		_stop_world_autopath(false)
+		state.add_message("视野内出现敌人，自动跑图已暂停。")
+		_refresh_views()
+		return
+	if state.player.grid_pos == _world_autopath_target:
+		_stop_world_autopath(false)
+		state.add_message("已抵达目标位置。")
+		_refresh_views()
+		return
+	if _world_autopath_steps.is_empty():
+		_stop_world_autopath(false)
+		state.add_message("自动跑图结束。")
+		_refresh_views()
+		return
+	var next_step: Vector2i = _world_autopath_steps[0]
+	if next_step == Vector2i.ZERO:
+		_stop_world_autopath(false)
+		state.add_message("自动跑图失败：找不到可通行路径。")
+		_refresh_views()
+		return
+	_world_autopath_last_step_msec = Time.get_ticks_msec()
+	_world_autopath_steps.remove_at(0)
+	var move_action = ActionInstanceScript.new()
+	move_action.actor = state.player
+	move_action.def = ACTION_MOVE_KEY
+	move_action.chosen_dir = next_step
+	move_action.key_id = "AUTOPATH"
+	if move_action.def == null:
+		_stop_world_autopath(false)
+		state.add_message("自动跑图失败：缺少移动动作定义。")
+		_refresh_views()
+		return
+	turn_controller.submit_player_plan([move_action])
+
+
+func _find_world_autopath_path(start_cell: Vector2i, target_cell: Vector2i) -> Array[Vector2i]:
+	if state == null or state.grid == null:
+		return []
+	if start_cell == target_cell:
+		return []
+	var open: Array[Vector2i] = [start_cell]
+	var came_from: Dictionary = {}
+	var g_score := {start_cell: 0}
+	var f_score := {start_cell: _manhattan(start_cell, target_cell)}
+	while not open.is_empty():
+		open.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+			return int(f_score.get(a, 1_000_000)) < int(f_score.get(b, 1_000_000))
+		)
+		var current: Vector2i = open[0]
+		open.remove_at(0)
+		if current == target_cell:
+			return _reconstruct_path_steps(came_from, current, start_cell)
+		for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var next_cell: Vector2i = current + dir
+			if not state.grid.is_inside(next_cell):
+				continue
+			if next_cell != target_cell and not state.grid.can_enter(next_cell):
+				continue
+			var tentative_g := int(g_score.get(current, 1_000_000)) + 1
+			if tentative_g >= int(g_score.get(next_cell, 1_000_000)):
+				continue
+			came_from[next_cell] = current
+			g_score[next_cell] = tentative_g
+			f_score[next_cell] = tentative_g + _manhattan(next_cell, target_cell)
+			if not open.has(next_cell):
+				open.append(next_cell)
+	return []
+
+
+func _reconstruct_path_steps(came_from: Dictionary, current: Vector2i, start_cell: Vector2i) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = [current]
+	var cursor: Vector2i = current
+	while came_from.has(cursor):
+		cursor = Vector2i(came_from[cursor])
+		cells.append(cursor)
+		if cursor == start_cell:
+			break
+	cells.reverse()
+	var steps: Array[Vector2i] = []
+	for index in range(1, cells.size()):
+		steps.append(cells[index] - cells[index - 1])
+	return steps
+
+
+func _world_slice_has_visible_enemy() -> bool:
+	if state == null:
+		return false
+	for actor in state.get_alive_enemies():
+		if actor != null and state.visible_cells.has(actor.grid_pos):
+			return true
+	return false
+
+
+func _on_actor_died(actor) -> void:
+	if state == null or actor == null or state.player == null:
+		return
+	if String(actor.team) != "enemy":
+		return
+	state.player_xp += 1
+	state.add_message("击杀敌人，获得 1 点经验。当前经验：%d。" % int(state.player_xp))
+	_ensure_action_helpers()
+	if not _action_program.has_token("CA"):
+		_action_program.add_token_to_pool("CA", false)
+		state.add_message("第一只怪掉落了十字刃动作。你自动拾取并将其放入备用行动池。")
+		state.add_feed_message("获得了“十字刃”动作。", "token")
+	_try_trigger_level_up_reward()
+	_refresh_inventory_ui()
+	_refresh_key_program_ui()
+	_refresh_views()
+
+
+func _try_trigger_level_up_reward() -> void:
+	if state == null or _pending_level_reward:
+		return
+	var target_xp := _xp_required_for_next_level(state.player_level)
+	if state.player_xp < target_xp:
+		return
+	state.player_level += 1
+	_run_player_max_hp += 1
+	_run_player_hp = min(_run_player_max_hp, _run_player_hp + 1)
+	if state.player != null:
+		state.player.max_hp = _run_player_max_hp
+		state.player.hp = min(state.player.max_hp, state.player.hp + 1)
+	_pending_level_reward = true
+	_current_rewards = _build_level_up_rewards()
+	if is_instance_valid(battle_ui):
+		battle_ui.show_reward(_current_rewards, "升级选择", "生命上限 +1，并恢复 1 点生命。请选择一个永久增益。")
+	state.add_message("升级！你达到了 Lv.%d，生命上限 +1。请选择一个永久增益。" % int(state.player_level))
+
+
+func _xp_required_for_next_level(level: int) -> int:
+	return maxi(1, level * 2)
+
+
+func _manhattan(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x - b.x) + absi(a.y - b.y)
+
+
+func _find_ruin_record_at_player() -> Dictionary:
+	if state == null or state.player == null or state.map_data == null:
+		return {}
+	for record in state.map_data.get_poi_records():
+		if String(record.get("type", "")) != "ruin":
+			continue
+		if Vector2i(record.get("interaction_cell", Vector2i(-1, -1))) == state.player.grid_pos:
+			return record
+	return {}
 
 
 func _build_world_interact_action():
@@ -908,10 +1257,14 @@ func _enemy_def(id: String):
 			return registered_def
 
 	match id:
+		"wisp":
+			return WISP_DEF
 		"brute":
 			return BRUTE_DEF
 		"boss":
 			return BOSS_DEF
+		"line_warden":
+			return LINE_WARDEN_DEF
 		_:
 			return SLIME_DEF
 
@@ -929,11 +1282,21 @@ func _build_rewards() -> Array:
 		{"name": "攻击 +1", "kind": "attack", "value": 1},
 	]
 
+
+func _build_level_up_rewards() -> Array:
+	return [
+		{"name": "升级增益：回响刃", "description": "攻击造成伤害时，额外复制一次 50% 伤害包。", "kind": "add_modifier", "modifier": MOD_ECHO_STRIKE},
+		{"name": "升级增益：回响步", "description": "方向移动会额外复制一次移动包。", "kind": "add_modifier", "modifier": MOD_ECHO_STEP},
+		{"name": "升级增益：力场棱镜", "description": "冲击产生的击退距离翻倍。", "kind": "add_modifier", "modifier": MOD_FORCE_PRISM},
+	]
+
 func _apply_reward(reward: Dictionary) -> void:
 	match String(reward["kind"]):
 		"add_modifier":
 			var modifier = reward.get("modifier")
 			if _add_run_modifier(modifier):
+				if state != null and modifier != null:
+					state.add_feed_message("获得了永久效果“%s”。" % String(modifier.display_name), "modifier")
 				_record_achievement_event("modifier_gained", {
 					"modifier_id": String(modifier.id),
 					"modifier_name": String(modifier.display_name),
@@ -1022,6 +1385,8 @@ func _weapon_inventory_labels() -> Array[String]:
 
 func _inventory_labels() -> Array[String]:
 	var labels: Array[String] = []
+	if state != null:
+		labels.append("经验：%d" % int(state.player_xp))
 	labels.append_array(_weapon_inventory_labels())
 	labels.append_array(_modifier_inventory_labels())
 	return labels
@@ -1137,6 +1502,8 @@ func _on_key_token_move_requested(source_slot_id: String, source_index: int, tar
 func _on_key_picked(_actor, key_id: String, _cell: Vector2i) -> void:
 	_ensure_action_helpers()
 	_action_program.add_token_to_pool(key_id, true)
+	if state != null:
+		state.add_feed_message("获得了“%s”动作。" % _token_display_name(key_id), "token")
 	_record_achievement_event("key_picked", {
 		"key_id": key_id,
 		"room_index": state.room_index if state != null else -1,
@@ -1303,6 +1670,8 @@ func get_save_data() -> Dictionary:
 		"run_seed": _run_seed,
 		"run_modifier_ids": _run_modifier_ids,
 		"run_weapon_id": _run_weapon_id,
+		"world_npc_interaction_counts": _world_npc_interaction_counts.duplicate(true),
+		"world_ruin_claims": _world_ruin_claims.duplicate(true),
 		"key_slots": key_program_save["key_slots"],
 		"pool_tokens": key_program_save["pool_tokens"],
 	}
@@ -1322,6 +1691,10 @@ func load_save_data(data: Dictionary) -> void:
 	_run_weapon_id = String(data.get("run_weapon_id", _default_run_weapon_id()))
 	if _weapon_for_id(_run_weapon_id) == null:
 		_run_weapon_id = _default_run_weapon_id()
+	var interaction_counts = data.get("world_npc_interaction_counts", {})
+	var ruin_claims = data.get("world_ruin_claims", {})
+	_world_npc_interaction_counts = interaction_counts.duplicate(true) if typeof(interaction_counts) == TYPE_DICTIONARY else {}
+	_world_ruin_claims = ruin_claims.duplicate(true) if typeof(ruin_claims) == TYPE_DICTIONARY else {}
 
 	_run_modifier_ids.clear()
 	for modifier_id in data.get("run_modifier_ids", []):
