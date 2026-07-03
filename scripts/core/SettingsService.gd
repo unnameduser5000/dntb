@@ -123,4 +123,4 @@ func set_world_slice_zoom_index(index: int) -> void:
 func get_world_slice_zoom_label(index: int) -> String:
 	if index < 0 or index >= WORLD_SLICE_ZOOM_OPTIONS.size():
 		return ""
-	return "%gx" % WORLD_SLICE_ZOOM_OPTIONS[index]
+	return "%0.1fx" % WORLD_SLICE_ZOOM_OPTIONS[index]

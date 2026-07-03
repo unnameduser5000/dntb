@@ -1,5 +1,30 @@
 # Develop Log
 
+## 2026-07-04 World-slice map zoom setting
+
+- Added a "地图缩放" option to the settings menu with five fixed levels:
+  `0.5x / 1x / 1.5x / 2x / 4x`.
+- `SettingsService` now persists `gameplay.world_slice_zoom_index` and emits
+  `world_slice_zoom_changed` when the value changes.
+- `SettingsMenu` populates the dropdown from `WORLD_SLICE_ZOOM_OPTIONS` and
+  forwards selection to `SettingsService`.
+- `BoardView` applies the zoom multiplier to the world-slice base `cell_size`
+  and re-renders immediately when the setting changes.
+- Zoomed cell size is clamped to a separate range
+  (`world_slice_min_zoom_cell_size` / `world_slice_max_zoom_cell_size`) so the
+  higher magnification levels are not capped by the default 1× layout bounds.
+- Scope is limited to world-slice camera-follow mode; traditional 8×8 rooms
+  and the legacy manual pan/zoom mode are unaffected.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
 ## 2026-07-04 Camera2D-centered world-slice map
 
 - Switched the world-slice view from a virtual pan/zoom camera to a real
