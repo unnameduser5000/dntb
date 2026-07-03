@@ -297,14 +297,10 @@ func _preview_cell_style(is_danger: bool, is_preview_move: bool, is_preview_atta
 
 
 func _item_display_char(item_id: String) -> String:
-	if item_id == "cross_blade_pickup":
-		return "+"
 	return item_id
 
 
 func _item_tooltip(state, item_id: String) -> String:
-	if state != null and String(item_id) == String(state.ITEM_CROSS_BLADE):
-		return "Weapon pickup: 十字刃"
 	return "Key token: %s" % item_id
 
 

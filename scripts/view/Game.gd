@@ -41,7 +41,6 @@ const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
 const GREATBLADE := preload("res://data/weapons/greatblade.tres")
 const RUSTY_SWORD := preload("res://data/weapons/rusty_sword.tres")
 const TWIN_DAGGERS := preload("res://data/weapons/twin_daggers.tres")
-const CROSS_BLADE := preload("res://data/weapons/cross_blade.tres")
 
 const MOD_ECHO_STRIKE := preload("res://data/modifiers/echo_strike.tres")
 const MOD_ECHO_STEP := preload("res://data/modifiers/echo_step.tres")
@@ -222,7 +221,6 @@ func _ready() -> void:
 		"greatblade": GREATBLADE,
 		"rusty_sword": RUSTY_SWORD,
 		"twin_daggers": TWIN_DAGGERS,
-		"cross_blade": CROSS_BLADE,
 	}
 	_action_program = ActionProgramControllerScript.new()
 	_action_program.setup()
@@ -767,6 +765,7 @@ func _try_grant_world_actor_first_talk_reward(actor_id: String, speaker: String)
 	if not _action_program.add_token_to_pool("A", false):
 		return
 	state.add_message("%s把攻击 token 放进了你的备用行动池。去背包里把它分配到一个键位上，再出门。" % speaker)
+	state.add_feed_message("获得了“攻击”动作。", "token")
 	_refresh_key_program_ui()
 
 
@@ -1021,11 +1020,14 @@ func _on_actor_died(actor) -> void:
 		return
 	state.player_xp += 1
 	state.add_message("击杀敌人，获得 1 点经验。当前经验：%d。" % int(state.player_xp))
-	if _run_weapon_id != "cross_blade" and not state.items_at.has(actor.grid_pos):
-		state.drop_key_at(actor.grid_pos, state.ITEM_CROSS_BLADE)
-		state.add_message("第一只怪掉落了十字刃。走上去将其拾取。")
+	_ensure_action_helpers()
+	if not _action_program.has_token("CA"):
+		_action_program.add_token_to_pool("CA", false)
+		state.add_message("第一只怪掉落了十字刃动作。你自动拾取并将其放入备用行动池。")
+		state.add_feed_message("获得了“十字刃”动作。", "token")
 	_try_trigger_level_up_reward()
 	_refresh_inventory_ui()
+	_refresh_key_program_ui()
 	_refresh_views()
 
 
@@ -1259,6 +1261,8 @@ func _apply_reward(reward: Dictionary) -> void:
 		"add_modifier":
 			var modifier = reward.get("modifier")
 			if _add_run_modifier(modifier):
+				if state != null and modifier != null:
+					state.add_feed_message("获得了永久效果“%s”。" % String(modifier.display_name), "modifier")
 				_record_achievement_event("modifier_gained", {
 					"modifier_id": String(modifier.id),
 					"modifier_name": String(modifier.display_name),
@@ -1463,12 +1467,9 @@ func _on_key_token_move_requested(source_slot_id: String, source_index: int, tar
 
 func _on_key_picked(_actor, key_id: String, _cell: Vector2i) -> void:
 	_ensure_action_helpers()
-	if key_id == state.ITEM_CROSS_BLADE:
-		_equip_run_weapon_by_id("cross_blade")
-		state.add_message("你装备了十字刃。现在攻击会同时覆盖四个方向。")
-		_refresh_inventory_ui()
-		return
 	_action_program.add_token_to_pool(key_id, true)
+	if state != null:
+		state.add_feed_message("获得了“%s”动作。" % _token_display_name(key_id), "token")
 	_record_achievement_event("key_picked", {
 		"key_id": key_id,
 		"room_index": state.room_index if state != null else -1,

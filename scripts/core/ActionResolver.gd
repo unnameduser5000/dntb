@@ -617,7 +617,4 @@ func _try_pickup_key(actor, state) -> void:
 		return
 
 	key_picked.emit(actor, key_id, actor.grid_pos)
-	if key_id == state.ITEM_CROSS_BLADE:
-		_add_message(state, "拾取了%s。" % state.key_name(key_id))
-	else:
-		_add_message(state, "拾取了%s按键。" % state.key_name(key_id))
+	_add_message(state, "拾取了%s按键。" % state.key_name(key_id))

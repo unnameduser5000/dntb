@@ -1,5 +1,28 @@
 # Develop Log
 
+## 2026-07-03 Added first-kill attack-token and level-up reward loop
+
+- Changed the first four-direction reward into a real programmable attack-token
+  flow instead of a weapon pickup flow:
+  - the first kill now grants the `十字刃` attack token
+  - that token is auto-collected into the spare/pool inventory
+  - the player still decides later which physical key slot should carry it
+- Removed the stale `cross_blade` reward-chain dependency so the live first-kill
+  flow now only depends on `CA -> cross_attack`.
+- Renamed the player-facing `cross_attack` display text to `十字刃` so token,
+  action UI, and design docs no longer split between `十字斩` and `十字刃`.
+- Added a minimal XP and level system:
+  - enemy kills grant `1 XP`
+  - current level threshold is `level * 2`
+  - BattleHud now shows both an XP bar and `等级 Lv.X · 经验 Y/Z`
+- Added level-up benefits and reward choice:
+  - level-up immediately increases max HP by `1`
+  - level-up restores `1` HP
+  - level-up opens an `升级选择` reward overlay with three permanent modifier
+    choices
+- Kept the implementation on top of the existing modifier reward path so level-up
+  rewards and room rewards still converge through the same permanent-buff system.
+
 ## 2026-07-03 Prevented enemies from entering the tavern safe zone
 
 - Updated world-slice enemy spawn selection so both the initial enemy batch and

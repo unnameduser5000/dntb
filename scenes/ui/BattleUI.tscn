@@ -22,6 +22,43 @@ script = ExtResource("1_script")
 [node name="BattleHud" parent="." instance=ExtResource("6_hud")]
 unique_name_in_owner = true
 
+[node name="FeedPanel" parent="." instance=ExtResource("3_panel")]
+unique_name_in_owner = true
+layout_mode = 0
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 0.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -196.0
+offset_right = 360.0
+offset_bottom = -20.0
+grow_vertical = 0
+
+[node name="Margin" type="MarginContainer" parent="FeedPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Content" type="VBoxContainer" parent="FeedPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="FeedTitle" type="Label" parent="FeedPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BattleSectionTitle"
+text = "获得提示"
+
+[node name="FeedText" type="Label" parent="FeedPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BattleMessage"
+autowrap_mode = 3
+text = "暂无新的获得内容。"
+
 [node name="RunSidebar" parent="." instance=ExtResource("7_sidebar")]
 unique_name_in_owner = true
 

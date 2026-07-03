@@ -7,7 +7,6 @@ const KEY_NAMES := {
 	"L": "左",
 	"R": "右",
 }
-const ITEM_CROSS_BLADE := "cross_blade_pickup"
 
 var grid
 var map_data = null
@@ -18,6 +17,7 @@ var phase: String = "planning"
 var items_at: Dictionary = {}
 var exit_cell: Vector2i = Vector2i.ZERO
 var messages: Array[String] = []
+var feed_messages: Array[Dictionary] = []
 var battle_finished: bool = false
 var victory: bool = false
 var room_index: int = 0
@@ -91,8 +91,6 @@ func get_alive_enemies() -> Array:
 
 func key_name(key_id: String) -> String:
 	match key_id:
-		ITEM_CROSS_BLADE:
-			return "十字刃"
 		"TL":
 			return "左转"
 		"TR":
@@ -118,6 +116,15 @@ func add_message(message: String) -> void:
 	messages.push_front(message)
 	if messages.size() > 9:
 		messages.resize(9)
+
+
+func add_feed_message(message: String, message_type: String = "generic") -> void:
+	feed_messages.push_front({
+		"text": message,
+		"type": message_type,
+	})
+	if feed_messages.size() > 6:
+		feed_messages.resize(6)
 
 func clear_temporary_flags() -> void:
 	for actor in actors:

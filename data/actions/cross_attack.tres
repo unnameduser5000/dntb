@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1_action")
 id = "cross_attack"
-display_name = "十字斩"
-short_name = "十字斩"
+display_name = "十字刃"
+short_name = "十字刃"
 kind = 1
 direction_mode = "facing"
 combo_symbol = &"A"

@@ -27,6 +27,7 @@ const TOKEN_ACTION_IDS := {
 	"B": "move_back",
 	"SL": "step_left",
 	"SR": "step_right",
+	"CA": "cross_attack",
 	"TL": "turn_left",
 	"TR": "turn_right",
 	"A": "attack",
