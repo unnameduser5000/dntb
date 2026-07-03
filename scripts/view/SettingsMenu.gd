@@ -65,9 +65,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_VISIBILITY_CHANGED and not visible:
-		_pending_rebind_action = ""
-		refresh_controls()
+	if what != NOTIFICATION_VISIBILITY_CHANGED:
+		return
+	if visible:
+		return
+	if not is_node_ready():
+		return
+	_pending_rebind_action = ""
+	refresh_controls()
 
 
 func refresh_controls() -> void:
