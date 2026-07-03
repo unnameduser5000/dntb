@@ -2,14 +2,17 @@
 
 ## 2026-07-04 World-slice map zoom setting
 
-- Added a "地图缩放" option to the settings menu with five fixed levels:
-  `0.5x / 1x / 1.5x / 2x / 4x`.
+- Added a "地图缩放" option to the settings menu with four fixed levels:
+  `1.0x / 1.5x / 2.0x / 4.0x`.
 - `SettingsService` now persists `gameplay.world_slice_zoom_index` and emits
   `world_slice_zoom_changed` when the value changes.
 - `SettingsMenu` populates the dropdown from `WORLD_SLICE_ZOOM_OPTIONS` and
   forwards selection to `SettingsService`.
 - `BoardView` applies the zoom multiplier to the world-slice base `cell_size`
   and re-renders immediately when the setting changes.
+- Added `BoardView.compute_world_slice_zoomed_cell_size()` so `Game.gd` can
+  keep the camera centered on the player using the same zoomed cell size that
+  the board renders with, preventing empty off-map cells when zoomed in.
 - Zoomed cell size is clamped to a separate range
   (`world_slice_min_zoom_cell_size` / `world_slice_max_zoom_cell_size`) so the
   higher magnification levels are not capped by the default 1× layout bounds.
