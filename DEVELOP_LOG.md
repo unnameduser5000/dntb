@@ -10,6 +10,12 @@
   detect player damage and stop autopath immediately.
 - Updated the pause message to tell the player that clicking the target resumes
   autopath.
+- Fix: clicking the destination while enemies were visible did not resume
+  autopath because `_start_world_autopath()` returned early both when an enemy
+  was visible and when the same target was already active. Added the
+  `_world_autopath_ignore_enemy` flag so a run started while an enemy is already
+  in view continues until damage; a run started with no visible enemy still
+  pauses on first enemy sight.
 
 Validation:
 
