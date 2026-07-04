@@ -1,5 +1,25 @@
 # Develop Log
 
+## 2026-07-04 World autopath A* performance fix
+
+- Replaced the naive A* open-list sort in `Game._find_world_autopath_path()`
+  with a dedicated binary min-heap (`_AStarHeap`).
+- Removed per-iteration `Array.sort_custom()` and linear `Array.has()` checks,
+  both of which scaled poorly on the 256×256 world slice.
+- Added a `closed` set so already-processed nodes are skipped immediately
+  instead of being re-examined through stale heap entries.
+- Time complexity per step dropped from O(n log n) sort + O(n) membership scan
+  to O(log n) heap push/pop.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
 ## 2026-07-04 Independent arrow-key movement bindings
 
 - Added four new independent player input actions:

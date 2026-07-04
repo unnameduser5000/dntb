@@ -995,33 +995,93 @@ func _find_world_autopath_path(start_cell: Vector2i, target_cell: Vector2i) -> A
 		return []
 	if start_cell == target_cell:
 		return []
-	var open: Array[Vector2i] = [start_cell]
+
+	var heap := _AStarHeap.new()
 	var came_from: Dictionary = {}
 	var g_score := {start_cell: 0}
-	var f_score := {start_cell: _manhattan(start_cell, target_cell)}
-	while not open.is_empty():
-		open.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-			return int(f_score.get(a, 1_000_000)) < int(f_score.get(b, 1_000_000))
-		)
-		var current: Vector2i = open[0]
-		open.remove_at(0)
+	var closed: Dictionary = {}
+	var start_h := _manhattan(start_cell, target_cell)
+	heap.push(start_cell, start_h)
+
+	while not heap.is_empty():
+		var current: Vector2i = heap.pop()
+		if closed.has(current):
+			continue
+		closed[current] = true
+
 		if current == target_cell:
 			return _reconstruct_path_steps(came_from, current, start_cell)
+
+		var current_g: int = int(g_score.get(current, 1_000_000))
 		for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 			var next_cell: Vector2i = current + dir
 			if not state.grid.is_inside(next_cell):
 				continue
+			if closed.has(next_cell):
+				continue
 			if next_cell != target_cell and not state.grid.can_enter(next_cell):
 				continue
-			var tentative_g := int(g_score.get(current, 1_000_000)) + 1
-			if tentative_g >= int(g_score.get(next_cell, 1_000_000)):
+
+			var tentative_g := current_g + 1
+			var existing_g: int = int(g_score.get(next_cell, 1_000_000))
+			if tentative_g >= existing_g:
 				continue
+
 			came_from[next_cell] = current
 			g_score[next_cell] = tentative_g
-			f_score[next_cell] = tentative_g + _manhattan(next_cell, target_cell)
-			if not open.has(next_cell):
-				open.append(next_cell)
+			var next_f := tentative_g + _manhattan(next_cell, target_cell)
+			heap.push(next_cell, next_f)
 	return []
+
+
+class _AStarHeap:
+	var _nodes: Array[Vector2i] = []
+	var _priorities: Array[int] = []
+
+	func is_empty() -> bool:
+		return _nodes.is_empty()
+
+	func push(node: Vector2i, priority: int) -> void:
+		_nodes.append(node)
+		_priorities.append(priority)
+		var index := _nodes.size() - 1
+		while index > 0:
+			var parent := (index - 1) / 2
+			if _priorities[parent] <= _priorities[index]:
+				break
+			_swap(index, parent)
+			index = parent
+
+	func pop() -> Vector2i:
+		var last_index := _nodes.size() - 1
+		_swap(0, last_index)
+		var node: Vector2i = _nodes.pop_back()
+		_priorities.pop_back()
+		_heapify(0)
+		return node
+
+	func _heapify(index: int) -> void:
+		var size := _nodes.size()
+		while true:
+			var left := index * 2 + 1
+			var right := index * 2 + 2
+			var smallest := index
+			if left < size and _priorities[left] < _priorities[smallest]:
+				smallest = left
+			if right < size and _priorities[right] < _priorities[smallest]:
+				smallest = right
+			if smallest == index:
+				break
+			_swap(index, smallest)
+			index = smallest
+
+	func _swap(a: int, b: int) -> void:
+		var temp_node := _nodes[a]
+		var temp_priority := _priorities[a]
+		_nodes[a] = _nodes[b]
+		_priorities[a] = _priorities[b]
+		_nodes[b] = temp_node
+		_priorities[b] = temp_priority
 
 
 func _reconstruct_path_steps(came_from: Dictionary, current: Vector2i, start_cell: Vector2i) -> Array[Vector2i]:
