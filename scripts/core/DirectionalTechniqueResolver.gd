@@ -11,8 +11,7 @@ extends RefCounted
 ##
 ## Important boundary:
 ## - it does not recognize weapon-specific combos
-## - weapon identity only changes which concrete attack action is bound to the
-##   generic attack token
+## - each token resolves to a concrete action directly
 
 const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 
@@ -27,6 +26,15 @@ const TOKEN_ACTION_IDS := {
 	"B": "move_back",
 	"SL": "step_left",
 	"SR": "step_right",
+	"DS": "dash",
+	"HK": "hook_pull",
+	"SB": "shield_bash",
+	"HM": "hammer_smash",
+	"RA": "spin_axe",
+	"PI": "pierce_line",
+	"TH": "charge_thrust",
+	"SW": "great_sweep",
+	"BW": "bow_shot",
 	"CA": "cross_attack",
 	"TL": "turn_left",
 	"TR": "turn_right",
@@ -117,10 +125,4 @@ func _build_action_from_spec(spec: Dictionary, actor):
 func _resolve_action_def(action_id: String, actor):
 	if action_id == "move_key":
 		return move_key_action
-	if action_id == "attack" and actor != null:
-		var active_weapon = actor.get("active_weapon")
-		if active_weapon != null:
-			var weapon_attack = active_weapon.get("attack_action")
-			if weapon_attack != null:
-				return weapon_attack
 	return action_by_id.get(action_id)

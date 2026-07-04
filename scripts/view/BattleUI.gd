@@ -15,8 +15,26 @@ signal auto_advance_mode_changed(mode: int)
 const AUTO_PAUSE := 0
 const AUTO_PLAY := 1
 const AUTO_FAST := 2
-const AUTO_ADVANCE_ICONS := ["⏸", "▶", "⏩"]
-const AUTO_ADVANCE_HINTS := ["手动", "2秒自动", "1秒自动"]
+const AUTO_TOGGLE_ICONS := {
+	AUTO_PAUSE: "⏸",
+	AUTO_PLAY: "▶",
+	AUTO_FAST: "▶",
+}
+const AUTO_SPEED_ICONS := {
+	AUTO_PAUSE: "▷",
+	AUTO_PLAY: "▷",
+	AUTO_FAST: "⚡",
+}
+const AUTO_TOGGLE_HINTS := {
+	AUTO_PAUSE: "自动：关闭",
+	AUTO_PLAY: "自动：开启",
+	AUTO_FAST: "自动：开启",
+}
+const AUTO_SPEED_HINTS := {
+	AUTO_PAUSE: "速度：普通",
+	AUTO_PLAY: "速度：普通",
+	AUTO_FAST: "速度：加速",
+}
 
 const UiActionCardScene := preload("res://scenes/ui/components/UiActionCard.tscn")
 const UiRewardCardScene := preload("res://scenes/ui/components/UiRewardCard.tscn")
@@ -37,7 +55,8 @@ const BagUIScript = preload("res://scripts/view/BagUI.gd")
 @onready var _npc_dialogue_title: Label = %NpcDialogueTitle
 @onready var _npc_dialogue_body: Label = %NpcDialogueBody
 @onready var _npc_dialogue_hint: Label = %NpcDialogueHint
-@onready var _auto_advance_button: Button = %AutoAdvanceButton
+@onready var _auto_toggle_button: Button = %AutoToggleButton
+@onready var _auto_speed_button: Button = %AutoSpeedButton
 
 var _key_program_editable := false
 var _permanent_buffs: Array[Dictionary] = []
@@ -50,7 +69,8 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_rest_continue_button.pressed.connect(func() -> void: rest_continue_requested.emit())
-	_auto_advance_button.pressed.connect(_on_auto_advance_button_pressed)
+	_auto_toggle_button.pressed.connect(_on_auto_toggle_button_pressed)
+	_auto_speed_button.pressed.connect(_on_auto_speed_button_pressed)
 	_panel.visible = false
 	show_title()
 	_connect_bag_ui_signals()
@@ -202,7 +222,8 @@ func show_title() -> void:
 	_hud.visible = false
 	_run_sidebar.visible = false
 	_rest_continue_button.visible = false
-	_auto_advance_button.visible = false
+	_auto_toggle_button.visible = false
+	_auto_speed_button.visible = false
 	_show_overlay("别按那个键", "Tab 键打开背包调整按键编排，进战斗后按键执行，真实结果再驱动武器连招。", [
 		{"text": "开始游戏", "callback": func() -> void: start_requested.emit()},
 	])
@@ -214,7 +235,8 @@ func show_battle() -> void:
 	_hud.visible = true
 	_run_sidebar.visible = true
 	_rest_continue_button.visible = false
-	_auto_advance_button.visible = true
+	_auto_toggle_button.visible = true
+	_auto_speed_button.visible = true
 
 
 func show_rest_site(title: String, body: String = "") -> void:
@@ -223,7 +245,8 @@ func show_rest_site(title: String, body: String = "") -> void:
 	_hud.visible = true
 	_run_sidebar.visible = true
 	_rest_continue_button.visible = true
-	_auto_advance_button.visible = true
+	_auto_toggle_button.visible = true
+	_auto_speed_button.visible = true
 	if not body.is_empty():
 		_run_sidebar.set_debug_messages([body])
 
@@ -312,15 +335,65 @@ func _on_run_sidebar_menu_requested() -> void:
 	pause_menu_requested.emit()
 
 
-func _on_auto_advance_button_pressed() -> void:
-	_auto_advance_mode = (_auto_advance_mode + 1) % 3
+func _on_auto_toggle_button_pressed() -> void:
+	match _auto_advance_mode:
+		AUTO_PAUSE:
+			_auto_advance_mode = AUTO_FAST if _is_fast_enabled() else AUTO_PLAY
+		_:
+			_auto_advance_mode = AUTO_PAUSE
+	_update_auto_advance_button()
+	auto_advance_mode_changed.emit(_auto_advance_mode)
+
+
+func _on_auto_speed_button_pressed() -> void:
+	if _auto_advance_mode == AUTO_FAST:
+		_auto_advance_mode = AUTO_PLAY
+	elif _auto_advance_mode == AUTO_PLAY:
+		_auto_advance_mode = AUTO_FAST
+	else:
+		_auto_advance_mode = AUTO_FAST
 	_update_auto_advance_button()
 	auto_advance_mode_changed.emit(_auto_advance_mode)
 
 
 func _update_auto_advance_button() -> void:
-	_auto_advance_button.text = AUTO_ADVANCE_ICONS[_auto_advance_mode]
-	_auto_advance_button.tooltip_text = AUTO_ADVANCE_HINTS[_auto_advance_mode]
+	_auto_toggle_button.text = String(AUTO_TOGGLE_ICONS.get(_auto_advance_mode, "⏸"))
+	_auto_toggle_button.tooltip_text = String(AUTO_TOGGLE_HINTS.get(_auto_advance_mode, "自动：关闭"))
+	_auto_speed_button.text = String(AUTO_SPEED_ICONS.get(_auto_advance_mode, "▷"))
+	_auto_speed_button.tooltip_text = String(AUTO_SPEED_HINTS.get(_auto_advance_mode, "速度：普通"))
+	_apply_auto_button_visuals(_auto_toggle_button, _auto_advance_mode != AUTO_PAUSE)
+	_apply_auto_button_visuals(_auto_speed_button, _auto_advance_mode == AUTO_FAST)
+
+
+func _is_fast_enabled() -> bool:
+	return _auto_advance_mode == AUTO_FAST
+
+
+func _apply_auto_button_visuals(button: Button, is_active: bool) -> void:
+	if button == null:
+		return
+	button.self_modulate = Color(1, 1, 1, 0.96) if is_active else Color(0.62, 0.66, 0.72, 0.72)
+	button.add_theme_stylebox_override("normal", _make_auto_button_style(is_active, false))
+	button.add_theme_stylebox_override("hover", _make_auto_button_style(is_active, true))
+	button.add_theme_stylebox_override("pressed", _make_auto_button_style(is_active, true))
+	button.add_theme_stylebox_override("focus", _make_auto_button_style(is_active, true))
+
+
+func _make_auto_button_style(is_active: bool, is_hovered: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.92, 0.8, 0.38, 0.28) if is_active else Color(0.12, 0.15, 0.2, 0.18)
+	if is_hovered:
+		style.bg_color = style.bg_color.lightened(0.08)
+	style.border_width_left = 2 if is_active else 1
+	style.border_width_top = 2 if is_active else 1
+	style.border_width_right = 2 if is_active else 1
+	style.border_width_bottom = 2 if is_active else 1
+	style.border_color = Color(1.0, 0.9, 0.58, 0.95) if is_active else Color(0.52, 0.58, 0.68, 0.45)
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_right = 10
+	style.corner_radius_bottom_left = 10
+	return style
 
 
 func _emit_reward_chosen(index: int) -> void:

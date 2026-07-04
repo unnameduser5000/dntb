@@ -1,5 +1,61 @@
 # Develop Log
 
+## 2026-07-04 Expanded action tokens and level-up modifier pool
+
+- Added two new concrete action tokens:
+  - `HK -> hook_pull`
+  - `SB -> shield_bash`
+- Added three more concrete heavy-attack tokens:
+  - `HM -> hammer_smash`
+  - `RA -> spin_axe`
+  - `PI -> pierce_line`
+- `hook_pull` now hits the first enemy within two cells in front and pulls it
+  one cell closer.
+- `shield_bash` now deals front-cell melee damage and applies one tile of
+  knockback through the shared impact pipeline.
+- `hammer_smash` now covers the forward `2x3` area.
+- `spin_axe` now covers the surrounding `3x3` ring.
+- `pierce_line` now hits the forward `1x4` line.
+- Expanded the level-up permanent-buff pool from a fixed three-item set to a
+  larger modifier roster with rotation over already-owned buffs.
+- Added three new permanent modifiers:
+  - `长弦校准`：ranged damage +50%
+  - `收割回生`：heal 1 on kill
+  - `追电步`：moving with a directional action zaps the enemy directly ahead
+- Added five more permanent modifiers to make level-up builds less repetitive:
+  - `锋刃校准`：all attack damage +50%
+  - `壁垒猛进`：shield-bash / hammer-smash damage +50%
+  - `枪锋专注`：charge-thrust / pierce-line damage +50%
+  - `回旋怒潮`：spin-axe / great-sweep damage +50%
+  - `战意回护`：gain guard after dealing attack damage
+- Extended SmokeTest coverage for the new token mappings, runtime effects, and
+  modifier behaviors.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- Result: `SmokeTest passed`
+
+## 2026-07-04 Autopath startup guard when enemies are already visible
+
+- Reintroduced the startup guard for world-slice autopath.
+- Clicking `Boss遗迹` / `最近安全区` / `最近小遗迹` now refuses to start
+  auto movement if a visible enemy is already on screen.
+- Removed the `_world_autopath_ignore_enemy` bypass so the same visibility rule
+  applies both before the run starts and while it is advancing step by step.
+- Added a SmokeTest regression that clicks a POI while an enemy is visible and
+  verifies that autopath does not start, consume a turn, or move the player.
+- Updated the design and test docs so the rule is explicit:
+  - startup requires no visible enemy
+  - first visible enemy pauses autopath
+  - player damage stops autopath
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+
 ## 2026-07-04 Autopath resume on enemy sight, stop on damage
 
 - Removed the hard refusal to start autopath when enemies are visible.
@@ -1546,3 +1602,37 @@ Validation:
   demo flow.
 - The world-slice sandbox default size is now 256x256 so the first playable
   entry matches the larger-map work better.
+
+## 2026-07-04 Attack token and weapon API rollback
+
+- Fixed the `A` token back to a concrete `attack` action instead of resolving
+  through `active_weapon.attack_action`.
+- Removed run-time weapon swap state from the main combat loop, reward flow,
+  debug/sidebar text, and save payload.
+- Updated the current design/docs to treat future weapon-flavored content as
+  dedicated tokens plus `ActionDef`, rather than as "change current weapon"
+  APIs.
+
+## 2026-07-04 Passive regen accumulation
+
+- Added run-level passive healing progress:
+  - base regen starts at `0.5` per non-rest turn
+  - only whole points convert into actual HP recovery
+  - full HP no longer banks regen progress
+- Regen rate now scales slowly with level at `+0.05` per level.
+- SmokeTest now covers both the two-turn `+1 HP` conversion and the higher
+  level regen-rate increase.
+
+## 2026-07-04 First batch of expanded action tokens
+
+- Added the first new token batch to the editable key-program layer:
+  - `DS -> dash`
+  - `TH -> charge_thrust`
+  - `SW -> great_sweep`
+  - `BW -> bow_shot`
+- `Dash` reuses the existing multi-step move path and is excluded from normal
+  movement momentum stacking.
+- `bow_shot` is a first-pass ranged action that hits the nearest enemy in front
+  along a clear line, without introducing a full projectile runtime yet.
+- SmokeTest now covers token legality, plan mapping, dash movement, and bow
+  targeting behavior.

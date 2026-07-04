@@ -214,12 +214,42 @@ func _get_attack_cells(origin: Vector2i, direction: Vector2i, action_def, grid) 
 	var result: Array[Vector2i] = []
 	if direction == Vector2i.ZERO or action_def == null:
 		return result
+	var left := Vector2i(direction.y, -direction.x)
+	var right := Vector2i(-direction.y, direction.x)
 
 	if action_def.id == "sweep":
-		var left := Vector2i(direction.y, -direction.x)
-		var right := Vector2i(-direction.y, direction.x)
 		for cell in [origin + left, origin + direction, origin + right]:
 			_add_attack_cell(result, cell, grid)
+		return result
+
+	if action_def.id == "great_sweep":
+		for cell in [origin + left, origin + direction, origin + right]:
+			_add_attack_cell(result, cell, grid)
+		return result
+
+	if action_def.id == "cross_attack":
+		for cell in [origin + Vector2i.UP, origin + Vector2i.DOWN, origin + Vector2i.LEFT, origin + Vector2i.RIGHT]:
+			_add_attack_cell(result, cell, grid)
+		return result
+
+	if action_def.id == "hammer_smash":
+		for cell in [
+			origin + direction + left,
+			origin + direction,
+			origin + direction + right,
+			origin + direction * 2 + left,
+			origin + direction * 2,
+			origin + direction * 2 + right,
+		]:
+			_add_attack_cell(result, cell, grid)
+		return result
+
+	if action_def.id == "spin_axe":
+		for y in range(-1, 2):
+			for x in range(-1, 2):
+				if x == 0 and y == 0:
+					continue
+				_add_attack_cell(result, origin + Vector2i(x, y), grid)
 		return result
 
 	for step in range(1, max(1, int(action_def.range)) + 1):

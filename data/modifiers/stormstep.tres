@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StormstepModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/OnMoveZapAheadModifierDef.gd" id="1_modifier"]
+
+[resource]
+script = ExtResource("1_modifier")
+id = "stormstep"
+display_name = "追电步"
+description = "方向移动后，若面前紧邻敌人，则追加 1 点电击伤害。"
+priority = 10
+max_event_depth = 2
+zap_damage = 1
+required_tag = "action_move"
+added_tag = "stormstep"

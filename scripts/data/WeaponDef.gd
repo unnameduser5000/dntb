@@ -1,10 +1,9 @@
 class_name WeaponDef
 extends Resource
 
-## WeaponDef is now a thin data resource:
-## one weapon corresponds to one attack action.
-## The key-program layer still emits the generic attack token, but that token
-## resolves to the equipped weapon's declared attack_action.
+## Legacy data resource kept for content reference.
+## Current combat flow no longer resolves attacks through an equipped weapon.
+## New weapon-flavored content should be exposed as its own token + ActionDef.
 
 @export var id: String = ""
 @export var display_name: String = ""

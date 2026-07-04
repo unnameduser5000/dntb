@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ActionIdScaleModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActionIdScaleModifierDef.gd" id="1_modifier"]
+
+[resource]
+script = ExtResource("1_modifier")
+id = "cyclone_fury"
+display_name = "回旋怒潮"
+description = "旋转斧与横扫造成的伤害提高 50%。"
+priority = 10
+packet_kind = "damage"
+required_tag = "attack"
+action_ids = Array[String](["spin_axe", "great_sweep"])
+multiplier = 1.5
+added_tag = "cyclone_fury"

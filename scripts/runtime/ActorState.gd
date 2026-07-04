@@ -12,7 +12,6 @@ var team: String = "enemy"
 var drop_key: String = ""
 var guarded: bool = false
 var revealed: bool = true
-var active_weapon: Resource
 var effect_modifiers: Array = []
 
 func setup(new_id: int, actor_def, start_cell: Vector2i) -> void:
@@ -31,7 +30,6 @@ func setup(new_id: int, actor_def, start_cell: Vector2i) -> void:
 	atk = actor_def.atk
 	team = actor_def.team
 	drop_key = actor_def.default_drop_key
-	active_weapon = actor_def.default_weapon
 	effect_modifiers.clear()
 	for modifier in actor_def.default_effect_modifiers:
 		if modifier != null:

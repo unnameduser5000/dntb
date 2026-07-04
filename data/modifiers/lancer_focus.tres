@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ActionIdScaleModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActionIdScaleModifierDef.gd" id="1_modifier"]
+
+[resource]
+script = ExtResource("1_modifier")
+id = "lancer_focus"
+display_name = "枪锋专注"
+description = "贯刺与穿刺造成的伤害提高 50%。"
+priority = 10
+packet_kind = "damage"
+required_tag = "attack"
+action_ids = Array[String](["charge_thrust", "pierce_line"])
+multiplier = 1.5
+added_tag = "lancer_focus"

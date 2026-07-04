@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="OnAttackGuardModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/OnAttackGuardModifierDef.gd" id="1_modifier"]
+
+[resource]
+script = ExtResource("1_modifier")
+id = "battle_trance"
+display_name = "战意回护"
+description = "攻击造成伤害后，立刻进入防御。"
+priority = 10
+max_event_depth = 2

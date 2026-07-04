@@ -26,25 +26,35 @@ const ACTION_MOVE_FORWARD := preload("res://data/actions/move_forward.tres")
 const ACTION_MOVE_BACK := preload("res://data/actions/move_back.tres")
 const ACTION_STEP_LEFT := preload("res://data/actions/step_left.tres")
 const ACTION_STEP_RIGHT := preload("res://data/actions/step_right.tres")
+const ACTION_DASH := preload("res://data/actions/dash.tres")
+const ACTION_HOOK_PULL := preload("res://data/actions/hook_pull.tres")
+const ACTION_SHIELD_BASH := preload("res://data/actions/shield_bash.tres")
+const ACTION_HAMMER_SMASH := preload("res://data/actions/hammer_smash.tres")
+const ACTION_SPIN_AXE := preload("res://data/actions/spin_axe.tres")
+const ACTION_PIERCE_LINE := preload("res://data/actions/pierce_line.tres")
 const ACTION_TURN_LEFT := preload("res://data/actions/turn_left.tres")
 const ACTION_TURN_RIGHT := preload("res://data/actions/turn_right.tres")
 const ACTION_JUMP := preload("res://data/actions/jump.tres")
 const ACTION_ATTACK := preload("res://data/actions/attack.tres")
+const ACTION_BOW_SHOT := preload("res://data/actions/bow_shot.tres")
 const ACTION_WAIT := preload("res://data/actions/wait.tres")
 const ACTION_GUARD := preload("res://data/actions/guard.tres")
 const ACTION_INTERACT := preload("res://data/actions/interact.tres")
 const ACTION_CHARGE_THRUST := preload("res://data/actions/charge_thrust.tres")
 const ACTION_GREAT_SWEEP := preload("res://data/actions/great_sweep.tres")
 const ACTION_MOVE_KEY := preload("res://data/actions/move_key.tres")
-const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
-const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
-const GREATBLADE := preload("res://data/weapons/greatblade.tres")
-const RUSTY_SWORD := preload("res://data/weapons/rusty_sword.tres")
-const TWIN_DAGGERS := preload("res://data/weapons/twin_daggers.tres")
 
 const MOD_ECHO_STRIKE := preload("res://data/modifiers/echo_strike.tres")
 const MOD_ECHO_STEP := preload("res://data/modifiers/echo_step.tres")
 const MOD_FORCE_PRISM := preload("res://data/modifiers/force_prism.tres")
+const MOD_LONG_DRAW := preload("res://data/modifiers/long_draw.tres")
+const MOD_BLOOD_DRAIN := preload("res://data/modifiers/blood_drain.tres")
+const MOD_STORMSTEP := preload("res://data/modifiers/stormstep.tres")
+const MOD_KEEN_EDGE := preload("res://data/modifiers/keen_edge.tres")
+const MOD_PHALANX_RUSH := preload("res://data/modifiers/phalanx_rush.tres")
+const MOD_LANCER_FOCUS := preload("res://data/modifiers/lancer_focus.tres")
+const MOD_CYCLONE_FURY := preload("res://data/modifiers/cyclone_fury.tres")
+const MOD_BATTLE_TRANCE := preload("res://data/modifiers/battle_trance.tres")
 
 const ROOM_SIZE := 8
 const MAP_NODE_COMBAT := "combat"
@@ -166,12 +176,11 @@ var _run_player_hp := 8
 var _run_player_max_san := 100
 var _run_player_san := 100
 var _run_player_atk := 2
+var _run_regen_progress := 0.0
 var _run_seed = ""
 var _action_by_id: Dictionary = {}
 var _modifier_by_id: Dictionary = {}
-var _weapon_by_id: Dictionary = {}
 var _run_modifier_ids: Array[String] = []
-var _run_weapon_id := "impact_shield"
 var _action_program
 var _action_preview
 var _directional_techniques
@@ -190,7 +199,6 @@ var _world_autopath_active := false
 var _world_autopath_steps: Array[Vector2i] = []
 var _world_autopath_last_step_msec := 0
 var _world_autopath_step_scheduled := false
-var _world_autopath_ignore_enemy := false
 var _pending_level_reward := false
 var _player_input_locked := false
 var _bag_open := false
@@ -203,10 +211,17 @@ func _ready() -> void:
 		"move_back": ACTION_MOVE_BACK,
 		"step_left": ACTION_STEP_LEFT,
 		"step_right": ACTION_STEP_RIGHT,
+		"dash": ACTION_DASH,
+		"hook_pull": ACTION_HOOK_PULL,
+		"shield_bash": ACTION_SHIELD_BASH,
+		"hammer_smash": ACTION_HAMMER_SMASH,
+		"spin_axe": ACTION_SPIN_AXE,
+		"pierce_line": ACTION_PIERCE_LINE,
 		"turn_left": ACTION_TURN_LEFT,
 		"turn_right": ACTION_TURN_RIGHT,
 		"jump": ACTION_JUMP,
 		"attack": ACTION_ATTACK,
+		"bow_shot": ACTION_BOW_SHOT,
 		"wait": ACTION_WAIT,
 		"guard": ACTION_GUARD,
 		"interact": ACTION_INTERACT,
@@ -219,13 +234,14 @@ func _ready() -> void:
 		"echo_strike": MOD_ECHO_STRIKE,
 		"echo_step": MOD_ECHO_STEP,
 		"force_prism": MOD_FORCE_PRISM,
-	}
-	_weapon_by_id = {
-		"impact_shield": IMPACT_SHIELD,
-		"iron_spear": IRON_SPEAR,
-		"greatblade": GREATBLADE,
-		"rusty_sword": RUSTY_SWORD,
-		"twin_daggers": TWIN_DAGGERS,
+		"long_draw": MOD_LONG_DRAW,
+		"blood_drain": MOD_BLOOD_DRAIN,
+		"stormstep": MOD_STORMSTEP,
+		"keen_edge": MOD_KEEN_EDGE,
+		"phalanx_rush": MOD_PHALANX_RUSH,
+		"lancer_focus": MOD_LANCER_FOCUS,
+		"cyclone_fury": MOD_CYCLONE_FURY,
+		"battle_trance": MOD_BATTLE_TRANCE,
 	}
 	_action_program = ActionProgramControllerScript.new()
 	_action_program.setup()
@@ -415,6 +431,7 @@ func start_world_slice_debug() -> void:
 	if state != null:
 		state.player_xp = 0
 		state.player_level = 1
+	_run_regen_progress = 0.0
 	_pending_level_reward = false
 	_player_input_locked = false
 	_world_autopath_active = false
@@ -422,7 +439,6 @@ func start_world_slice_debug() -> void:
 	_world_autopath_steps.clear()
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
-	_world_autopath_ignore_enemy = false
 	_close_world_npc_dialogue(false)
 	state = await _world_slice_controller.create_demo_state_with_progress("", Callable(self, "_on_world_generation_progress")) if _world_slice_controller != null else null
 	if state == null:
@@ -467,7 +483,6 @@ func _start_new_run(seed_value) -> void:
 	_world_autopath_steps.clear()
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
-	_world_autopath_ignore_enemy = false
 	_pending_level_reward = false
 	_player_input_locked = false
 	_current_room_index = 0
@@ -477,6 +492,7 @@ func _start_new_run(seed_value) -> void:
 	_run_player_max_san = PLAYER_DEF.max_san
 	_run_player_san = _run_player_max_san
 	_run_player_atk = PLAYER_DEF.atk
+	_run_regen_progress = 0.0
 	_run_seed = str(seed_value)
 	var random_service = get_node_or_null("/root/RandomService")
 	if random_service != null:
@@ -488,7 +504,6 @@ func _start_new_run(seed_value) -> void:
 	if state != null:
 		state.player_xp = 0
 	_run_modifier_ids.clear()
-	_run_weapon_id = _default_run_weapon_id()
 	_setup_default_key_slots()
 	_refresh_inventory_ui()
 	_start_map_node(_current_map_node_index)
@@ -892,6 +907,10 @@ func _start_world_autopath(target_cell: Vector2i, label: String) -> void:
 		state.add_message("%s 当前未定位。" % label)
 		_refresh_views()
 		return
+	if _world_slice_has_visible_enemy():
+		state.add_message("视野内已有敌人，无法开始自动跑图。")
+		_refresh_views()
+		return
 
 	var path_steps: Array[Vector2i] = _find_world_autopath_path(state.player.grid_pos, target_cell)
 	if path_steps.is_empty():
@@ -903,7 +922,6 @@ func _start_world_autopath(target_cell: Vector2i, label: String) -> void:
 	_world_autopath_active = true
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
-	_world_autopath_ignore_enemy = _world_slice_has_visible_enemy()
 	if _battle_presentation != null and _battle_presentation.has_method("use_autopath_timing_profile"):
 		_battle_presentation.use_autopath_timing_profile()
 	state.add_message("开始自动前往%s。" % label)
@@ -919,7 +937,6 @@ func _stop_world_autopath(show_message: bool = true) -> void:
 	_world_autopath_steps.clear()
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
-	_world_autopath_ignore_enemy = false
 	if _battle_presentation != null and _battle_presentation.has_method("use_world_slice_fast_timing_profile") and state != null and bool(state.is_world_slice):
 		_battle_presentation.use_world_slice_fast_timing_profile()
 	if show_message and state != null:
@@ -928,6 +945,7 @@ func _stop_world_autopath(show_message: bool = true) -> void:
 
 
 func _on_turn_finished() -> void:
+	_apply_turn_regen()
 	_refresh_views()
 	_update_auto_advance_state()
 
@@ -964,9 +982,9 @@ func _call_world_autopath_step() -> void:
 		return
 	if state == null or not bool(state.is_world_slice) or state.player == null or state.phase != "planning" or state.battle_finished:
 		return
-	if _world_slice_has_visible_enemy() and not _world_autopath_ignore_enemy:
+	if _world_slice_has_visible_enemy():
 		_stop_world_autopath(false)
-		state.add_message("视野内出现敌人，自动跑图已暂停。点击目标可继续。")
+		state.add_message("视野内出现敌人，自动跑图已暂停。")
 		_refresh_views()
 		return
 	if state.player.grid_pos == _world_autopath_target:
@@ -1166,6 +1184,34 @@ func _xp_required_for_next_level(level: int) -> int:
 	return maxi(1, level * 2)
 
 
+func _regen_per_turn(level: int) -> float:
+	return 0.5 + float(maxi(0, level - 1)) * 0.05
+
+
+func _apply_turn_regen() -> void:
+	if state == null or state.player == null or state.battle_finished:
+		return
+	if bool(state.is_safe_training):
+		return
+	if state.player.hp >= state.player.max_hp:
+		_run_regen_progress = 0.0
+		_run_player_hp = state.player.hp
+		return
+
+	_run_regen_progress += _regen_per_turn(int(state.player_level))
+	var healed: int = 0
+	while _run_regen_progress >= 1.0 and state.player.hp < state.player.max_hp:
+		state.player.hp += 1
+		healed += 1
+		_run_regen_progress -= 1.0
+
+	if healed > 0:
+		state.add_message("自然恢复：生命 +%d。" % healed)
+	if state.player.hp >= state.player.max_hp:
+		_run_regen_progress = 0.0
+	_run_player_hp = state.player.hp
+
+
 func _manhattan(a: Vector2i, b: Vector2i) -> int:
 	return absi(a.x - b.x) + absi(a.y - b.y)
 
@@ -1257,7 +1303,6 @@ func _create_room_state(room_index: int):
 	player.max_san = _run_player_max_san
 	player.san = min(_run_player_san, _run_player_max_san)
 	player.atk = _run_player_atk
-	player.active_weapon = _current_run_weapon()
 
 	for enemy_data in room["enemies"]:
 		_add_actor(new_state, _enemy_def(String(enemy_data["def"])), enemy_data["cell"])
@@ -1285,7 +1330,6 @@ func _create_rest_state(node: Dictionary):
 	player.max_san = _run_player_max_san
 	player.san = min(_run_player_san, _run_player_max_san)
 	player.atk = _run_player_atk
-	player.active_weapon = _current_run_weapon()
 
 	var heal_amount := int(node.get("heal", 0))
 	if heal_amount > 0:
@@ -1355,18 +1399,50 @@ func _build_rewards() -> Array:
 		]
 
 	return [
-		{"name": "更换武器：铁枪", "kind": "equip_weapon", "weapon_id": "iron_spear"},
-		{"name": "更换武器：巨剑", "kind": "equip_weapon", "weapon_id": "greatblade"},
+		{"name": "获得遗物：力场棱镜", "kind": "add_modifier", "modifier": MOD_FORCE_PRISM},
+		{"name": "最大生命 +2", "kind": "max_hp", "value": 2},
 		{"name": "攻击 +1", "kind": "attack", "value": 1},
 	]
 
 
 func _build_level_up_rewards() -> Array:
-	return [
-		{"name": "升级增益：回响刃", "description": "攻击造成伤害时，额外复制一次 50% 伤害包。", "kind": "add_modifier", "modifier": MOD_ECHO_STRIKE},
-		{"name": "升级增益：回响步", "description": "方向移动会额外复制一次移动包。", "kind": "add_modifier", "modifier": MOD_ECHO_STEP},
-		{"name": "升级增益：力场棱镜", "description": "冲击产生的击退距离翻倍。", "kind": "add_modifier", "modifier": MOD_FORCE_PRISM},
-	]
+	var rewards: Array = []
+	for modifier in [
+		MOD_ECHO_STRIKE,
+		MOD_ECHO_STEP,
+		MOD_FORCE_PRISM,
+		MOD_LONG_DRAW,
+		MOD_BLOOD_DRAIN,
+		MOD_STORMSTEP,
+		MOD_KEEN_EDGE,
+		MOD_PHALANX_RUSH,
+		MOD_LANCER_FOCUS,
+		MOD_CYCLONE_FURY,
+		MOD_BATTLE_TRANCE,
+	]:
+		if modifier == null:
+			continue
+		var modifier_id := String(modifier.id)
+		if modifier_id.is_empty() or _run_modifier_ids.has(modifier_id):
+			continue
+		rewards.append({
+			"name": "升级增益：%s" % String(modifier.display_name),
+			"description": String(modifier.description),
+			"kind": "add_modifier",
+			"modifier": modifier,
+		})
+		if rewards.size() >= 3:
+			return rewards
+
+	for fallback_reward in [
+		{"name": "升级增益：最大生命 +2", "description": "立刻提高 2 点生命上限，并恢复同等生命。", "kind": "max_hp", "value": 2},
+		{"name": "升级增益：攻击 +1", "description": "永久提高 1 点基础攻击。", "kind": "attack", "value": 1},
+		{"name": "升级增益：恢复 2 点生命", "description": "立刻恢复 2 点生命。", "kind": "heal", "value": 2},
+	]:
+		rewards.append(fallback_reward)
+		if rewards.size() >= 3:
+			break
+	return rewards
 
 func _apply_reward(reward: Dictionary) -> void:
 	match String(reward["kind"]):
@@ -1386,8 +1462,6 @@ func _apply_reward(reward: Dictionary) -> void:
 			_run_player_atk += int(reward["value"])
 		"heal":
 			_run_player_hp = min(_run_player_max_hp, _run_player_hp + int(reward["value"]))
-		"equip_weapon":
-			_equip_run_weapon_by_id(String(reward.get("weapon_id", "")))
 	_refresh_inventory_ui()
 
 func _add_run_modifier(modifier) -> bool:
@@ -1405,7 +1479,6 @@ func _add_run_modifier(modifier) -> bool:
 func _apply_run_modifiers_to_player() -> void:
 	if state == null or state.player == null:
 		return
-	state.player.active_weapon = _current_run_weapon()
 	for modifier_id in _run_modifier_ids:
 		var modifier = _modifier_for_id(modifier_id)
 		if modifier != null:
@@ -1449,23 +1522,12 @@ func _modifier_inventory_labels() -> Array[String]:
 			labels.append(modifier_id)
 	return labels
 
-func _weapon_inventory_labels() -> Array[String]:
-	var labels: Array[String] = []
-	if state == null or state.player == null or state.player.active_weapon == null:
-		return labels
-
-	var weapon = state.player.active_weapon
-	labels.append("当前武器：%s" % String(weapon.display_name))
-	var attack_action = weapon.get("attack_action")
-	if attack_action != null:
-		labels.append("攻击动作：%s" % String(attack_action.display_name))
-	return labels
-
 func _inventory_labels() -> Array[String]:
 	var labels: Array[String] = []
 	if state != null:
 		labels.append("经验：%d" % int(state.player_xp))
-	labels.append_array(_weapon_inventory_labels())
+		labels.append("每回合恢复：%.2f" % _regen_per_turn(int(state.player_level)))
+	labels.append("基础攻击：%s" % String(ACTION_ATTACK.display_name))
 	labels.append_array(_modifier_inventory_labels())
 	return labels
 
@@ -1478,15 +1540,13 @@ func _refresh_inventory_ui() -> void:
 # - 基础行动既包括绝对方向移动（U/D/L/R），也包括前进、后退、转向、
 #   攻击、防御、等待、跳跃这类显式动作。
 # - 玩家按下某个实体按键时，会先取出该槽中的 token 链，再解析为实际行动。
-# - 武器不再通过独立武器技系统派生招式；每把武器直接声明一个攻击动作。
-# - 因此按键编程层管理“基础输入与基础动作”；攻击 token 会在计划构建时
-#   解析成当前武器声明的具体攻击动作。
+# - `A` 是固定的基础攻击 token，会直接解析成 `attack`。
+# - 后续若要加入武器风格动作，应直接做成新的独立 token，而不是切换当前武器。
 # - 只有在休息点可以调整 token 与键槽，战斗中行动编码锁定。
 # Key-program layer notes:
 # - slots store editable base-action tokens
 # - slot execution expands those tokens into runtime base actions
-# - equipped weapon chooses the concrete attack action used by the generic
-#   attack token
+# - attack-style variants should be exposed as their own tokens
 func _ensure_action_helpers() -> void:
 	if _action_program == null:
 		_action_program = ActionProgramControllerScript.new()
@@ -1775,9 +1835,9 @@ func get_save_data() -> Dictionary:
 		"run_player_max_san": _run_player_max_san,
 		"run_player_san": _run_player_san,
 		"run_player_atk": _run_player_atk,
+		"run_regen_progress": _run_regen_progress,
 		"run_seed": _run_seed,
 		"run_modifier_ids": _run_modifier_ids,
-		"run_weapon_id": _run_weapon_id,
 		"world_npc_interaction_counts": _world_npc_interaction_counts.duplicate(true),
 		"world_ruin_claims": _world_ruin_claims.duplicate(true),
 		"key_slots": key_program_save["key_slots"],
@@ -1795,10 +1855,8 @@ func load_save_data(data: Dictionary) -> void:
 	_run_player_max_san = int(data.get("run_player_max_san", PLAYER_DEF.max_san))
 	_run_player_san = int(data.get("run_player_san", _run_player_max_san))
 	_run_player_atk = int(data.get("run_player_atk", PLAYER_DEF.atk))
+	_run_regen_progress = float(data.get("run_regen_progress", 0.0))
 	_run_seed = data.get("run_seed", "")
-	_run_weapon_id = String(data.get("run_weapon_id", _default_run_weapon_id()))
-	if _weapon_for_id(_run_weapon_id) == null:
-		_run_weapon_id = _default_run_weapon_id()
 	var interaction_counts = data.get("world_npc_interaction_counts", {})
 	var ruin_claims = data.get("world_ruin_claims", {})
 	_world_npc_interaction_counts = interaction_counts.duplicate(true) if typeof(interaction_counts) == TYPE_DICTIONARY else {}
@@ -1818,30 +1876,3 @@ func _load_key_program(data: Dictionary) -> void:
 	_ensure_action_helpers()
 	_action_program.load_save_data(data)
 	_refresh_key_program_ui()
-
-
-func _default_run_weapon_id() -> String:
-	if PLAYER_DEF.default_weapon != null and not String(PLAYER_DEF.default_weapon.id).is_empty():
-		return String(PLAYER_DEF.default_weapon.id)
-	return "impact_shield"
-
-
-func _weapon_for_id(weapon_id: String):
-	return _weapon_by_id.get(weapon_id)
-
-
-func _current_run_weapon():
-	var weapon = _weapon_for_id(_run_weapon_id)
-	if weapon != null:
-		return weapon
-	return PLAYER_DEF.default_weapon
-
-
-func _equip_run_weapon_by_id(weapon_id: String) -> bool:
-	var weapon = _weapon_for_id(weapon_id)
-	if weapon == null:
-		return false
-	_run_weapon_id = weapon_id
-	if state != null and state.player != null:
-		state.player.active_weapon = weapon
-	return true

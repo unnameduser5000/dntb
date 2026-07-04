@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActionDef.gd" id="1_action"]
+
+[resource]
+script = ExtResource("1_action")
+id = "hammer_smash"
+display_name = "锤击"
+short_name = "锤击"
+kind = 1
+range = 2
+power = 1
+direction_mode = "facing"

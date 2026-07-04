@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActionDef.gd" id="1_action"]
+
+[resource]
+script = ExtResource("1_action")
+id = "bow_shot"
+display_name = "弓射"
+short_name = "弓射"
+kind = 1
+range = 4
+power = 1
+direction_mode = "facing"
+combo_symbol = &"A"
