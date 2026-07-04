@@ -188,6 +188,7 @@ var _world_autopath_active := false
 var _world_autopath_steps: Array[Vector2i] = []
 var _world_autopath_last_step_msec := 0
 var _world_autopath_step_scheduled := false
+var _world_autopath_ignore_enemy := false
 var _pending_level_reward := false
 var _player_input_locked := false
 var _bag_open := false
@@ -413,6 +414,7 @@ func start_world_slice_debug() -> void:
 	_world_autopath_steps.clear()
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
+	_world_autopath_ignore_enemy = false
 	_close_world_npc_dialogue(false)
 	if world_loading_overlay != null:
 		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
@@ -462,6 +464,7 @@ func _start_new_run(seed_value) -> void:
 	_world_autopath_steps.clear()
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
+	_world_autopath_ignore_enemy = false
 	_pending_level_reward = false
 	_player_input_locked = false
 	_current_room_index = 0
@@ -884,8 +887,7 @@ func _start_world_autopath(target_cell: Vector2i, label: String) -> void:
 		state.add_message("%s 当前未定位。" % label)
 		_refresh_views()
 		return
-	if _world_autopath_active and _world_autopath_target == target_cell:
-		return
+
 	var path_steps: Array[Vector2i] = _find_world_autopath_path(state.player.grid_pos, target_cell)
 	if path_steps.is_empty():
 		state.add_message("自动跑图失败：找不到可通行路径。")
@@ -896,6 +898,7 @@ func _start_world_autopath(target_cell: Vector2i, label: String) -> void:
 	_world_autopath_active = true
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
+	_world_autopath_ignore_enemy = _world_slice_has_visible_enemy()
 	if _battle_presentation != null and _battle_presentation.has_method("use_autopath_timing_profile"):
 		_battle_presentation.use_autopath_timing_profile()
 	state.add_message("开始自动前往%s。" % label)
@@ -911,6 +914,7 @@ func _stop_world_autopath(show_message: bool = true) -> void:
 	_world_autopath_steps.clear()
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
+	_world_autopath_ignore_enemy = false
 	if _battle_presentation != null and _battle_presentation.has_method("use_world_slice_fast_timing_profile") and state != null and bool(state.is_world_slice):
 		_battle_presentation.use_world_slice_fast_timing_profile()
 	if show_message and state != null:
@@ -953,7 +957,7 @@ func _call_world_autopath_step() -> void:
 		return
 	if state == null or not bool(state.is_world_slice) or state.player == null or state.phase != "planning" or state.battle_finished:
 		return
-	if _world_slice_has_visible_enemy():
+	if _world_slice_has_visible_enemy() and not _world_autopath_ignore_enemy:
 		_stop_world_autopath(false)
 		state.add_message("视野内出现敌人，自动跑图已暂停。点击目标可继续。")
 		_refresh_views()
