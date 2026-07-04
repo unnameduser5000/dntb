@@ -11,7 +11,6 @@ extends Resource
 @export var team: String = "enemy"
 @export var ai_type: String = "static"
 @export var default_drop_key: String = ""
-@export var default_weapon: Resource
 @export var default_effect_modifiers: Array[Resource] = []
 # Optional battle presentation scene override. If empty, the default ActorView is used.
 @export var view_scene: PackedScene

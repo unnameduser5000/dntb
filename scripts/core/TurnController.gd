@@ -201,11 +201,11 @@ func _get_action_dir_for_chain(action) -> Vector2i:
 	# This helper mirrors the executable direction used for chain-speed /
 	# momentum tracking before the action resolves.
 	#
-	# jump is intentionally excluded from directional momentum stacking for now:
-	# it travels along facing, but it behaves as traversal rather than a shove or
-	# charge step. That keeps impact-style collision scaling tied to repeated
-	# grounded directional movement.
-	if action.def != null and action.def.id == "jump":
+	# jump and dash are intentionally excluded from directional momentum stacking
+	# for now: they travel along facing, but they behave as traversal rather than
+	# repeated grounded shoves. That keeps impact-style scaling tied to the
+	# ordinary step-by-step move chain.
+	if action.def != null and String(action.def.id) in ["jump", "dash"]:
 		return Vector2i.ZERO
 	if action.chosen_dir != Vector2i.ZERO:
 		return action.chosen_dir

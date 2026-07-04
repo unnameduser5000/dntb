@@ -14,10 +14,6 @@ const SLIME_DEF := preload("res://data/actors/monster.tres")
 const TALKATIVE_SLIME_DEF := preload("res://data/actors/talkative_slime.tres")
 const LINE_WARDEN_DEF := preload("res://data/actors/line_warden.tres")
 const WISP_DEF := preload("res://data/actors/wisp.tres")
-const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
-const IRON_SPEAR := preload("res://data/weapons/iron_spear.tres")
-const GREATBLADE := preload("res://data/weapons/greatblade.tres")
-const TWIN_DAGGERS := preload("res://data/weapons/twin_daggers.tres")
 
 func _init() -> void:
 	var game = GameScene.instantiate()
@@ -55,8 +51,6 @@ func _init() -> void:
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "first reward advances to post-practice rest")
 	_require(not _reward_list_has_kind(game._current_rewards, "unlock_technique"), "rewards no longer offer weapon technique unlocks")
-	_require(game.state.player.active_weapon != null, "player still has an equipped weapon after reward")
-	_require(game.state.player.active_weapon.get("attack_action") != null, "equipped weapon exposes attack_action")
 	_require(not game.get_key_program_pool_tokens().has("lunge"), "lunge does not enter key token pool")
 	_require(game._key_program_editable, "post-practice rest unlocks key slot editing")
 	var lunge_plan: Array = game._build_key_slot_plan(["R", "R"])
@@ -84,10 +78,19 @@ func _init() -> void:
 	_require(_array_equals(relative_slots["A"], ["TL", "F"]), "relative starter preset puts TL/F in A")
 	_require(_array_equals(relative_slots["D"], ["TR", "F"]), "relative starter preset puts TR/F in D")
 	_require(_array_equals(relative_slots["F"], ["I"]), "starter preset now reserves physical F for the interact token")
-	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "SL", "SR", "CA", "TL", "TR", "A", "I", "G", "W", "J"]), "token drop pool includes all current program tokens")
+	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "SL", "SR", "DS", "HK", "SB", "HM", "RA", "PI", "TH", "SW", "BW", "CA", "TL", "TR", "A", "I", "G", "W", "J"]), "token drop pool includes all current program tokens")
 	_require(starter_program.is_program_token("F"), "F is a legal program token")
 	_require(starter_program.is_program_token("I"), "I is a legal program token")
 	_require(starter_program.is_program_token("CA"), "CA is a legal program token")
+	_require(starter_program.is_program_token("DS"), "DS is a legal program token")
+	_require(starter_program.is_program_token("HK"), "HK is a legal program token")
+	_require(starter_program.is_program_token("SB"), "SB is a legal program token")
+	_require(starter_program.is_program_token("HM"), "HM is a legal program token")
+	_require(starter_program.is_program_token("RA"), "RA is a legal program token")
+	_require(starter_program.is_program_token("PI"), "PI is a legal program token")
+	_require(starter_program.is_program_token("TH"), "TH is a legal program token")
+	_require(starter_program.is_program_token("SW"), "SW is a legal program token")
+	_require(starter_program.is_program_token("BW"), "BW is a legal program token")
 	_require(starter_program.is_program_token("TL"), "TL is a legal program token")
 	_require(starter_program.is_program_token("TR"), "TR is a legal program token")
 	_require(_array_equals(game._build_key_slot_plan(relative_slots["A"]).map(func(action): return action.def.id), ["turn_left", "move_forward"]), "relative starter A slot builds turn_left + move_forward")
@@ -128,6 +131,24 @@ func _init() -> void:
 	var cross_plan: Array = game._build_key_slot_plan(["CA"])
 	_require(cross_plan.size() == 1 and cross_plan[0].def.id == "cross_attack", "CA token maps to cross_attack action")
 	_require(String(cross_plan[0].def.display_name) == "十字刃", "cross_attack display name is unified as 十字刃")
+	var dash_plan: Array = game._build_key_slot_plan(["DS"])
+	_require(dash_plan.size() == 1 and dash_plan[0].def.id == "dash", "DS token maps to dash action")
+	var hook_plan: Array = game._build_key_slot_plan(["HK"])
+	_require(hook_plan.size() == 1 and hook_plan[0].def.id == "hook_pull", "HK token maps to hook_pull action")
+	var bash_plan: Array = game._build_key_slot_plan(["SB"])
+	_require(bash_plan.size() == 1 and bash_plan[0].def.id == "shield_bash", "SB token maps to shield_bash action")
+	var hammer_plan: Array = game._build_key_slot_plan(["HM"])
+	_require(hammer_plan.size() == 1 and hammer_plan[0].def.id == "hammer_smash", "HM token maps to hammer_smash action")
+	var spin_plan: Array = game._build_key_slot_plan(["RA"])
+	_require(spin_plan.size() == 1 and spin_plan[0].def.id == "spin_axe", "RA token maps to spin_axe action")
+	var pierce_plan: Array = game._build_key_slot_plan(["PI"])
+	_require(pierce_plan.size() == 1 and pierce_plan[0].def.id == "pierce_line", "PI token maps to pierce_line action")
+	var thrust_plan: Array = game._build_key_slot_plan(["TH"])
+	_require(thrust_plan.size() == 1 and thrust_plan[0].def.id == "charge_thrust", "TH token maps to charge_thrust action")
+	var sweep_plan: Array = game._build_key_slot_plan(["SW"])
+	_require(sweep_plan.size() == 1 and sweep_plan[0].def.id == "great_sweep", "SW token maps to great_sweep action")
+	var bow_plan: Array = game._build_key_slot_plan(["BW"])
+	_require(bow_plan.size() == 1 and bow_plan[0].def.id == "bow_shot", "BW token maps to bow_shot action")
 	var tl_plan: Array = game._build_key_slot_plan(["TL"])
 	_require(tl_plan.size() == 1 and tl_plan[0].def.id == "turn_left", "TL token maps to turn_left action")
 	var tr_plan: Array = game._build_key_slot_plan(["TR"])
@@ -202,7 +223,6 @@ func _init() -> void:
 	var trace_semantic_game = game
 	_move_player_to(trace_semantic_game, Vector2i(2, 2))
 	trace_semantic_game.state.player.facing = Vector2i.UP
-	trace_semantic_game.state.player.active_weapon = IMPACT_SHIELD
 	var absolute_trace_plan: Array = trace_semantic_game._build_key_slot_plan(["R"])
 	trace_semantic_game.turn_controller.submit_player_plan(absolute_trace_plan)
 	await process_frame
@@ -222,6 +242,115 @@ func _init() -> void:
 	_require(game.state.player.grid_pos == Vector2i(1, 2), "SL action moves the player left relative to facing")
 	_require(game.state.player.facing == Vector2i.UP, "SL action keeps facing unchanged")
 
+	await _start_seeded_combat_run(game, "dash-action")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	var dash_action_plan: Array = game._build_key_slot_plan(["DS"])
+	game.turn_controller.submit_player_plan(dash_action_plan)
+	await process_frame
+	_require(game.state.player.grid_pos == Vector2i(4, 2), "dash moves two cells forward when unobstructed")
+
+	await _start_seeded_combat_run(game, "hook-pull-action")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	var hooked_enemy = game._add_actor(game.state, SLIME_DEF, Vector2i(4, 2))
+	hooked_enemy.team = "enemy"
+	hooked_enemy.max_hp = 5
+	hooked_enemy.hp = 5
+	var hook_action_plan: Array = game._build_key_slot_plan(["HK"])
+	game.turn_controller.submit_player_plan(hook_action_plan)
+	await process_frame
+	_require(hooked_enemy.hp == 3, "hook pull deals normal attack damage to the first target in line")
+	_require(hooked_enemy.grid_pos == Vector2i(3, 2), "hook pull drags the target one cell closer")
+
+	await _start_seeded_combat_run(game, "shield-bash-action")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	var bashed_enemy = game._add_actor(game.state, SLIME_DEF, Vector2i(3, 2))
+	bashed_enemy.team = "enemy"
+	bashed_enemy.max_hp = 5
+	bashed_enemy.hp = 5
+	var bash_action_plan: Array = game._build_key_slot_plan(["SB"])
+	game.turn_controller.submit_player_plan(bash_action_plan)
+	await process_frame
+	_require(bashed_enemy.hp == 3, "shield bash deals normal melee damage")
+	_require(bashed_enemy.grid_pos == Vector2i(4, 2), "shield bash knocks the target back by one cell")
+
+	await _start_seeded_combat_run(game, "hammer-smash-preview-and-hit")
+	_disable_enemies(game)
+	game.state.grid.blocked_cells.clear()
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	var hammer_preview: Dictionary = game._build_key_slot_preview(["HM"])
+	_require(
+		_vector2i_set_equals(
+			Array(hammer_preview.get("attack_cells", [])),
+			[Vector2i(3, 1), Vector2i(3, 2), Vector2i(3, 3), Vector2i(4, 1), Vector2i(4, 2), Vector2i(4, 3)]
+		),
+		"hammer smash preview covers the forward 2x3 area"
+	)
+	var hammer_enemy_a = game._add_actor(game.state, SLIME_DEF, Vector2i(3, 1))
+	hammer_enemy_a.team = "enemy"
+	hammer_enemy_a.hp = 5
+	var hammer_enemy_b = game._add_actor(game.state, SLIME_DEF, Vector2i(4, 3))
+	hammer_enemy_b.team = "enemy"
+	hammer_enemy_b.hp = 5
+	var hammer_action_plan: Array = game._build_key_slot_plan(["HM"])
+	game.turn_controller.submit_player_plan(hammer_action_plan)
+	await process_frame
+	_require(hammer_enemy_a.hp == 3 and hammer_enemy_b.hp == 3, "hammer smash damages multiple enemies inside the 2x3 area")
+
+	await _start_seeded_combat_run(game, "spin-axe-preview-and-hit")
+	_disable_enemies(game)
+	game.state.grid.blocked_cells.clear()
+	_move_player_to(game, Vector2i(3, 3))
+	game.state.player.facing = Vector2i.RIGHT
+	var spin_preview: Dictionary = game._build_key_slot_preview(["RA"])
+	_require(
+		_vector2i_set_equals(
+			Array(spin_preview.get("attack_cells", [])),
+			[Vector2i(2, 2), Vector2i(3, 2), Vector2i(4, 2), Vector2i(2, 3), Vector2i(4, 3), Vector2i(2, 4), Vector2i(3, 4), Vector2i(4, 4)]
+		),
+		"spin axe preview covers the surrounding 3x3 ring"
+	)
+	var spin_enemy_a = game._add_actor(game.state, SLIME_DEF, Vector2i(2, 3))
+	spin_enemy_a.team = "enemy"
+	spin_enemy_a.hp = 5
+	var spin_enemy_b = game._add_actor(game.state, SLIME_DEF, Vector2i(4, 4))
+	spin_enemy_b.team = "enemy"
+	spin_enemy_b.hp = 5
+	var spin_action_plan: Array = game._build_key_slot_plan(["RA"])
+	game.turn_controller.submit_player_plan(spin_action_plan)
+	await process_frame
+	_require(spin_enemy_a.hp == 3 and spin_enemy_b.hp == 3, "spin axe damages enemies around the player")
+
+	await _start_seeded_combat_run(game, "pierce-line-preview-and-hit")
+	_disable_enemies(game)
+	game.state.grid.blocked_cells.clear()
+	_move_player_to(game, Vector2i(1, 3))
+	game.state.player.facing = Vector2i.RIGHT
+	var pierce_preview: Dictionary = game._build_key_slot_preview(["PI"])
+	_require(
+		_vector2i_set_equals(
+			Array(pierce_preview.get("attack_cells", [])),
+			[Vector2i(2, 3), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)]
+		),
+		"pierce line preview covers four cells straight ahead"
+	)
+	var pierce_enemy_a = game._add_actor(game.state, SLIME_DEF, Vector2i(2, 3))
+	pierce_enemy_a.team = "enemy"
+	pierce_enemy_a.hp = 5
+	var pierce_enemy_b = game._add_actor(game.state, SLIME_DEF, Vector2i(5, 3))
+	pierce_enemy_b.team = "enemy"
+	pierce_enemy_b.hp = 5
+	var pierce_action_plan: Array = game._build_key_slot_plan(["PI"])
+	game.turn_controller.submit_player_plan(pierce_action_plan)
+	await process_frame
+	_require(pierce_enemy_a.hp == 3 and pierce_enemy_b.hp == 3, "pierce line damages enemies along the full 1x4 line")
+
 	var attack_dir_game = GameScene.instantiate()
 	root.add_child(attack_dir_game)
 	await process_frame
@@ -234,21 +363,45 @@ func _init() -> void:
 	_prepare_single_enemy_room(attack_dir_game, Vector2i(3, 2), 10, Vector2i(2, 2))
 	_move_player_to(attack_dir_game, Vector2i(2, 2))
 	attack_dir_game.state.player.facing = Vector2i.UP
-	attack_dir_game.state.player.active_weapon = IRON_SPEAR
 	var attack_dir_action = attack_dir_game._build_key_slot_plan(["A"])[0]
 	attack_dir_action.chosen_dir = Vector2i.RIGHT
 	var right_enemy = attack_dir_game.state.grid.get_actor(Vector2i(3, 2))
 	var right_enemy_hp_before: int = right_enemy.hp
 	attack_dir_game.resolver.resolve(attack_dir_action, attack_dir_game.state)
-	_require(attack_dir_game.state.player.facing == Vector2i.RIGHT, "weapon attack updates facing to chosen_dir when present")
-	_require(right_enemy.hp < right_enemy_hp_before, "weapon-bound attack uses chosen_dir instead of current facing")
+	_require(attack_dir_game.state.player.facing == Vector2i.RIGHT, "attack action updates facing to chosen_dir when present")
+	_require(right_enemy.hp < right_enemy_hp_before, "A token uses the concrete attack action instead of current facing")
+
+	var bow_game = GameScene.instantiate()
+	root.add_child(bow_game)
+	await process_frame
+	bow_game.start_seeded_run("bow-shot")
+	await process_frame
+	_enter_first_combat_from_camp(bow_game)
+	await process_frame
+	bow_game.enemy_planner.enemies_are_static = true
+	_disable_enemies(bow_game)
+	_move_player_to(bow_game, Vector2i(2, 2))
+	bow_game.state.player.facing = Vector2i.RIGHT
+	var near_enemy = bow_game._add_actor(bow_game.state, SLIME_DEF, Vector2i(3, 2))
+	near_enemy.team = "enemy"
+	near_enemy.max_hp = 5
+	near_enemy.hp = 5
+	var far_enemy = bow_game._add_actor(bow_game.state, SLIME_DEF, Vector2i(5, 2))
+	far_enemy.team = "enemy"
+	far_enemy.max_hp = 5
+	far_enemy.hp = 5
+	var bow_preview: Dictionary = bow_game._build_key_slot_preview(["BW"])
+	_require(_vector2i_array_equals(Array(bow_preview.get("attack_cells", [])), [Vector2i(3, 2)]), "bow preview locks onto the nearest enemy cell in front")
+	var bow_action = bow_game._build_key_slot_plan(["BW"])[0]
+	bow_game.resolver.resolve(bow_action, bow_game.state)
+	_require(near_enemy.hp == 3, "bow shot hits the nearest enemy in front")
+	_require(far_enemy.hp == 5, "bow shot does not pierce through to farther enemies")
 
 	await _start_seeded_combat_run(game, "line-warden-ai")
 	_disable_enemies(game)
 	var line_enemy = game._add_actor(game.state, LINE_WARDEN_DEF, Vector2i(2, 4))
 	line_enemy.team = "enemy"
 	_move_player_to(game, Vector2i(2, 1))
-	game.state.player.active_weapon = TWIN_DAGGERS
 	var line_action = game.enemy_planner.decide_enemy_action(line_enemy, game.state)
 	_require(line_action != null and line_action.def != null and line_action.def.id == "move_forward", "line keeper advances along the player's line when out of range")
 	_require(line_action.chosen_dir == Vector2i.UP, "line keeper moves straight along the same column toward the player")
@@ -257,7 +410,7 @@ func _init() -> void:
 	await process_frame
 	_require(game.state.map_node_kind == "rest", "mixed-drop test starts from camp")
 	_require(game._key_program_editable, "mixed-drop test keeps rest editing enabled")
-	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "SL", "SR", "CA", "TL", "TR", "A", "I", "G", "W", "J"]), "game exposes the full token drop pool")
+	_require(_array_equals(game.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "SL", "SR", "DS", "HK", "SB", "HM", "RA", "PI", "TH", "SW", "BW", "CA", "TL", "TR", "A", "I", "G", "W", "J"]), "game exposes the full token drop pool")
 	_require(not game.get_key_program_pool_tokens().has("lunge"), "lunge is not a key program pool token")
 	_require(not game.get_key_program_pool_tokens().has("sweep"), "sweep is not a key program pool token")
 	game.state.drop_key_at(Vector2i(2, 2), "F")
@@ -420,6 +573,37 @@ func _init() -> void:
 	_require(world_game.state.explored_cells.has(world_game.state.player.grid_pos), "world slice explored keeps the player cell")
 	var visible_enemy_count: int = _count_visible_world_slice_enemies(world_game.state)
 	_require(world_game.state.enemy_intents.size() == visible_enemy_count, "world slice only previews intents for visible enemies")
+	var autopath_blocker = null
+	if visible_enemy_count == 0:
+		var blocker_cell := Vector2i(-1, -1)
+		for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var candidate: Vector2i = world_game.state.player.grid_pos + dir
+			if not world_game.state.map_data.is_walkable(candidate):
+				continue
+			if world_game.state.grid.get_actor(candidate) != null:
+				continue
+			blocker_cell = candidate
+			break
+		_require(blocker_cell != Vector2i(-1, -1), "world slice can place a temporary visible enemy next to the player for autopath guard coverage")
+		autopath_blocker = world_game._add_actor(world_game.state, SLIME_DEF, blocker_cell)
+		world_game._refresh_world_visibility("test_visible_enemy_for_autopath")
+		world_game._refresh_views()
+		await process_frame
+	_require(_count_visible_world_slice_enemies(world_game.state) > 0, "world slice has at least one visible enemy before the autopath click test")
+	var autopath_turn_before_click: int = int(world_game.state.turn_count)
+	var autopath_player_before_click: Vector2i = world_game.state.player.grid_pos
+	world_game._on_ruin_poi_requested()
+	await process_frame
+	_require(not world_game._world_autopath_active, "world slice does not start autopath when an enemy is already visible")
+	_require(world_game.state.turn_count == autopath_turn_before_click, "blocked autopath click does not consume a turn")
+	_require(world_game.state.player.grid_pos == autopath_player_before_click, "blocked autopath click does not move the player")
+	_require(String(world_game.state.messages[0]).contains("视野内已有敌人"), "blocked autopath click explains that visible enemies prevent auto movement")
+	if autopath_blocker != null:
+		world_game.state.grid.remove_actor(autopath_blocker)
+		autopath_blocker.hp = 0
+		world_game._refresh_world_visibility("cleanup_autopath_test_enemy")
+		world_game._refresh_views()
+		await process_frame
 	var world_snapshot_before: String = _world_slice_snapshot_key(world_game.state)
 	var world_seed_before: String = String(world_game.state.map_data.seed)
 	var explored_before_move: int = world_game.state.explored_cells.size()
@@ -514,7 +698,6 @@ func _init() -> void:
 	_require(game.state.player.grid_pos == Vector2i(4, 2), "repeated movement still executes both chained move actions")
 
 	await _start_seeded_combat_run(game, "effect-pipeline")
-	game.state.player.active_weapon = null
 	var duplicate_damage = DuplicateDamageModifierScript.new()
 	var amplify_duplicated = AmplifyTagDamageModifierScript.new()
 	game.state.player.effect_modifiers.append(duplicate_damage)
@@ -547,7 +730,7 @@ func _init() -> void:
 	_require(amplified_enemy.hp == 10, "knockback packet does not imply damage")
 	_require(amplified_enemy.grid_pos == Vector2i(6, 2), "amplified knockback packet pushes farther")
 
-	game.start_seeded_run("weapon-reward")
+	game.start_seeded_run("late-reward")
 	await process_frame
 	game._on_rest_continue_requested()
 	await process_frame
@@ -559,10 +742,8 @@ func _init() -> void:
 	await process_frame
 	game._on_battle_finished(true)
 	await process_frame
-	_require(_reward_list_has_kind(game._current_rewards, "equip_weapon"), "later combat reward pool can offer weapon swaps")
-	game._on_reward_chosen(0)
-	await process_frame
-	_require(game.state.player.active_weapon == IRON_SPEAR, "weapon reward can equip iron spear for the run")
+	_require(not _reward_list_has_kind(game._current_rewards, "equip_weapon"), "later combat reward pool no longer offers weapon swaps")
+	_require(_reward_list_has_kind(game._current_rewards, "add_modifier"), "later combat reward pool can offer permanent modifiers")
 
 	await _start_seeded_combat_run(game, "modifier-reward")
 	game._current_rewards = game._build_rewards()
@@ -576,7 +757,6 @@ func _init() -> void:
 	_require(_actor_has_modifier(game.state.player, "echo_strike"), "modifier reward is applied to the new room player")
 	var reward_save_data: Dictionary = game.get_save_data()
 	_require(reward_save_data.get("run_modifier_ids", []).has("echo_strike"), "modifier reward is included in save data")
-	game.state.player.active_weapon = null
 	var reward_enemy = _prepare_single_enemy_room(game, Vector2i(2, 1), 20)
 	var reward_plan: Array = [_make_player_action(game, "attack")]
 	game.turn_controller.submit_player_plan(reward_plan)
@@ -584,7 +764,6 @@ func _init() -> void:
 	_require(reward_enemy.hp == 17, "formal echo strike modifier reward affects attack damage")
 
 	await _start_seeded_combat_run(game, "effect-event-on-hit")
-	game.state.player.active_weapon = null
 	var on_hit_bonus = OnHitBonusDamageModifierScript.new()
 	game.state.player.effect_modifiers.append(on_hit_bonus)
 	var on_hit_enemy = _prepare_single_enemy_room(game, Vector2i(2, 1), 20)
@@ -595,7 +774,6 @@ func _init() -> void:
 	_require(on_hit_enemy.hp == 17, "on-hit event can generate a follow-up damage packet")
 
 	await _start_seeded_combat_run(game, "effect-event-attack-hit-confirmed")
-	game.state.player.active_weapon = null
 	game.state.player.atk = 1
 	game.enemy_planner.enemies_are_static = true
 	var confirmed_enemy = _prepare_single_enemy_room(game, Vector2i(2, 1), 10)
@@ -616,7 +794,6 @@ func _init() -> void:
 	_require(not confirmed_event_types.has(&"damage_dealt"), "guarded zero-damage hit does not fake a damage dealt event")
 
 	await _start_seeded_combat_run(game, "effect-packet-teleport")
-	game.state.player.active_weapon = null
 	game.enemy_planner.enemies_are_static = true
 	_move_player_to(game, Vector2i(2, 2))
 	var teleport_events: Array[StringName] = []
@@ -632,7 +809,6 @@ func _init() -> void:
 	_require(teleport_events.has(&"teleport_applied"), "teleport packet emits teleport_applied event")
 
 	await _start_seeded_combat_run(game, "effect-packet-pull")
-	game.state.player.active_weapon = null
 	game.enemy_planner.enemies_are_static = true
 	_move_player_to(game, Vector2i(2, 2))
 	var pull_enemy = _prepare_single_enemy_room(game, Vector2i(5, 2), 10, Vector2i(2, 2))
@@ -649,7 +825,6 @@ func _init() -> void:
 	_require(pull_events.has(&"pull_applied"), "pull packet emits pull_applied event")
 
 	await _start_seeded_combat_run(game, "effect-packet-swap")
-	game.state.player.active_weapon = null
 	game.enemy_planner.enemies_are_static = true
 	_move_player_to(game, Vector2i(2, 2))
 	var swap_enemy = _prepare_single_enemy_room(game, Vector2i(4, 2), 10, Vector2i(2, 2))
@@ -667,7 +842,6 @@ func _init() -> void:
 	_require(swap_events.has(&"swap_applied"), "swap packet emits swap_applied event")
 
 	await _start_seeded_combat_run(game, "effect-event-on-move")
-	game.state.player.active_weapon = null
 	game.enemy_planner.enemies_are_static = true
 	_move_player_to(game, Vector2i(2, 2))
 	var on_move_enemy = _prepare_single_enemy_room(game, Vector2i(4, 2), 10)
@@ -680,6 +854,115 @@ func _init() -> void:
 	_require(on_move_zap.triggered_count == 1, "effect event modifier reacts to actor moved")
 	_require(game.state.player.grid_pos == Vector2i(3, 2), "on-move event keeps normal movement result")
 	_require(on_move_enemy.hp == 9, "on-move event can generate a follow-up damage packet")
+
+	await _start_seeded_combat_run(game, "turn-regen")
+	game.enemy_planner.enemies_are_static = true
+	var regen_enemy = _prepare_single_enemy_room(game, Vector2i(6, 6), 10, Vector2i(1, 1))
+	regen_enemy.team = "enemy"
+	game.state.player.hp = 5
+	game._run_player_hp = 5
+	game._run_regen_progress = 0.0
+	var regen_turn_before := int(game.state.turn_count)
+	game.turn_controller.submit_player_plan([])
+	await _wait_for_turn_completion(game, regen_turn_before)
+	_require(game.state.player.hp == 5, "first regen half-step does not heal immediately")
+	_require(absf(game._run_regen_progress - 0.5) < 0.001, "first combat turn stores 0.5 regen progress")
+	regen_turn_before = int(game.state.turn_count)
+	game.turn_controller.submit_player_plan([])
+	await _wait_for_turn_completion(game, regen_turn_before)
+	_require(game.state.player.hp == 6, "second combat turn converts accumulated regen into 1 hp")
+	_require(absf(game._run_regen_progress - 0.0) < 0.001, "regen progress resets after spending exactly 1 hp")
+	game.state.player.hp = 5
+	game._run_player_hp = 5
+	game.state.player_level = 2
+	game._run_regen_progress = 0.0
+	regen_turn_before = int(game.state.turn_count)
+	game.turn_controller.submit_player_plan([])
+	await _wait_for_turn_completion(game, regen_turn_before)
+	_require(absf(game._run_regen_progress - 0.55) < 0.001, "level 2 slightly increases passive regen per turn")
+
+	await _start_seeded_combat_run(game, "modifier-long-draw")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	_require(game._add_run_modifier(game._modifier_for_id("long_draw")), "long draw modifier can be added to the run")
+	var long_draw_enemy = game._add_actor(game.state, SLIME_DEF, Vector2i(3, 2))
+	long_draw_enemy.team = "enemy"
+	long_draw_enemy.max_hp = 5
+	long_draw_enemy.hp = 5
+	var long_draw_action = game._build_key_slot_plan(["BW"])[0]
+	game.resolver.resolve(long_draw_action, game.state)
+	_require(long_draw_enemy.hp == 2, "long draw increases ranged damage by 50 percent")
+
+	await _start_seeded_combat_run(game, "modifier-keen-edge")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	_require(game._add_run_modifier(game._modifier_for_id("keen_edge")), "keen edge modifier can be added to the run")
+	var keen_enemy = game._add_actor(game.state, SLIME_DEF, Vector2i(3, 2))
+	keen_enemy.team = "enemy"
+	keen_enemy.max_hp = 5
+	keen_enemy.hp = 5
+	var keen_action = game._build_key_slot_plan(["A"])[0]
+	game.resolver.resolve(keen_action, game.state)
+	_require(keen_enemy.hp == 2, "keen edge increases base attack damage by 50 percent")
+
+	await _start_seeded_combat_run(game, "modifier-phalanx-rush")
+	_disable_enemies(game)
+	game.state.grid.blocked_cells.clear()
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	_require(game._add_run_modifier(game._modifier_for_id("phalanx_rush")), "phalanx rush modifier can be added to the run")
+	var phalanx_enemy = game._add_actor(game.state, SLIME_DEF, Vector2i(3, 2))
+	phalanx_enemy.team = "enemy"
+	phalanx_enemy.max_hp = 5
+	phalanx_enemy.hp = 5
+	var phalanx_action = game._build_key_slot_plan(["SB"])[0]
+	game.resolver.resolve(phalanx_action, game.state)
+	_require(phalanx_enemy.hp == 2, "phalanx rush increases shield-bash damage by 50 percent")
+
+	await _start_seeded_combat_run(game, "modifier-blood-drain")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.UP
+	game.state.player.hp = 5
+	game._run_player_hp = 5
+	_require(game._add_run_modifier(game._modifier_for_id("blood_drain")), "blood drain modifier can be added to the run")
+	var blood_enemy = game._add_actor(game.state, SLIME_DEF, Vector2i(2, 1))
+	blood_enemy.team = "enemy"
+	blood_enemy.hp = 1
+	var blood_attack = _make_player_action(game, "attack")
+	game.resolver.resolve(blood_attack, game.state)
+	_require(game.state.player.hp == 6, "blood drain heals the player after a kill")
+
+	await _start_seeded_combat_run(game, "modifier-stormstep")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	_require(game._add_run_modifier(game._modifier_for_id("stormstep")), "stormstep modifier can be added to the run")
+	var storm_enemy = game._add_actor(game.state, SLIME_DEF, Vector2i(4, 2))
+	storm_enemy.team = "enemy"
+	storm_enemy.max_hp = 5
+	storm_enemy.hp = 5
+	var storm_plan: Array = game._build_key_slot_plan(["R"])
+	game.turn_controller.submit_player_plan(storm_plan)
+	await process_frame
+	_require(game.state.player.grid_pos == Vector2i(3, 2), "stormstep keeps the original movement result")
+	_require(storm_enemy.hp == 4, "stormstep zaps the enemy now standing directly ahead after a move")
+
+	await _start_seeded_combat_run(game, "modifier-battle-trance")
+	_disable_enemies(game)
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	game.state.player.guarded = false
+	_require(game._add_run_modifier(game._modifier_for_id("battle_trance")), "battle trance modifier can be added to the run")
+	var trance_enemy = game._add_actor(game.state, SLIME_DEF, Vector2i(3, 2))
+	trance_enemy.team = "enemy"
+	trance_enemy.max_hp = 5
+	trance_enemy.hp = 5
+	var trance_action = game._build_key_slot_plan(["A"])[0]
+	game.resolver.resolve(trance_action, game.state)
+	_require(game.state.player.guarded, "battle trance grants guard after dealing attack damage")
 
 	await _start_seeded_combat_run(game, "xp-and-level-up")
 	_disable_enemies(game)
@@ -706,9 +989,31 @@ func _init() -> void:
 	_require(game.state.player.max_hp == max_hp_before_level_up + 1, "leveling up increases max hp")
 	_require(game.state.player.hp >= hp_before_level_up, "leveling up restores hp immediately")
 	_require(game._current_rewards.size() == 3, "level up offers three permanent buff choices")
+	_require(String(game._current_rewards[0].get("name", "")).contains("回响刃"), "first level-up reward set starts from the modifier reward pool")
 	game._on_reward_chosen(0)
 	await process_frame
 	_require(game._run_modifier_ids.size() >= 1, "choosing a level-up reward grants a permanent modifier")
+	game._run_modifier_ids.clear()
+	game._run_modifier_ids.append("echo_strike")
+	game._run_modifier_ids.append("echo_step")
+	game._run_modifier_ids.append("force_prism")
+	var late_level_rewards: Array = game._build_level_up_rewards()
+	_require(late_level_rewards.size() == 3, "later level-up reward pool still offers three choices")
+	_require(String(late_level_rewards[0].get("name", "")).contains("长弦校准"), "later level-up rewards rotate to newly added permanent buffs")
+	_require(String(late_level_rewards[1].get("name", "")).contains("收割回生"), "later level-up rewards include the kill-heal permanent buff")
+	_require(String(late_level_rewards[2].get("name", "")).contains("追电步"), "later level-up rewards include the move-zap permanent buff")
+	game._run_modifier_ids.clear()
+	game._run_modifier_ids.append("echo_strike")
+	game._run_modifier_ids.append("echo_step")
+	game._run_modifier_ids.append("force_prism")
+	game._run_modifier_ids.append("long_draw")
+	game._run_modifier_ids.append("blood_drain")
+	game._run_modifier_ids.append("stormstep")
+	var richer_level_rewards: Array = game._build_level_up_rewards()
+	_require(richer_level_rewards.size() == 3, "expanded modifier roster still returns three level-up choices")
+	_require(String(richer_level_rewards[0].get("name", "")).contains("锋刃校准"), "expanded level-up pool includes a universal attack-damage buff")
+	_require(String(richer_level_rewards[1].get("name", "")).contains("壁垒猛进"), "expanded level-up pool includes a shield-and-hammer build buff")
+	_require(String(richer_level_rewards[2].get("name", "")).contains("枪锋专注"), "expanded level-up pool includes a piercing build buff")
 
 	var achievement_service = root.get_node_or_null("/root/AchievementService")
 	_require(achievement_service != null, "achievement service autoload exists")
@@ -900,6 +1205,15 @@ func _vector2i_array_equals(values: Array, expected: Array) -> bool:
 		if Vector2i(values[index]) != Vector2i(expected[index]):
 			return false
 
+	return true
+
+
+func _vector2i_set_equals(values: Array, expected: Array) -> bool:
+	if values.size() != expected.size():
+		return false
+	for expected_cell in expected:
+		if not values.has(Vector2i(expected_cell)):
+			return false
 	return true
 
 

@@ -114,6 +114,15 @@
 - `U / D / L / R -> move_key`
 - `F / B -> move_forward / move_back`
 - `SL / SR -> step_left / step_right`
+- `DS -> dash`
+- `HK -> hook_pull`
+- `SB -> shield_bash`
+- `HM -> hammer_smash`
+- `RA -> spin_axe`
+- `PI -> pierce_line`
+- `TH -> charge_thrust`
+- `SW -> great_sweep`
+- `BW -> bow_shot`
 - `TL / TR -> turn_left / turn_right`
 - `A -> attack`
 - `CA -> cross_attack`
@@ -140,8 +149,9 @@
 
 ### 2.3 约束
 
-- `A` 仍是通用攻击 token，语义由当前 `active_weapon.attack_action` 决定。
+- `A` 当前固定解析成基础攻击 `attack`。
 - `CA` 是额外攻击动作 token，当前直接解析成 `cross_attack`。
+- `HK / SB / HM / RA / PI / TH / SW / BW` 都是“一个 token 对应一个具体攻击动作”的直接映射，不走武器切换。
 - 这里不处理武器组合技、动作结果事件或伤害规则。
 
 ## 3. `ActionResolver.gd`
@@ -432,6 +442,7 @@ WorldSliceController
 → RunSidebar 常驻方向标识
 → 点击 POI 标识
 → Game._start_world_autopath()
+→ 启动前先检查 `_world_slice_has_visible_enemy()`
 → A* 路径缓存
 → 每次动画周期推进一步
 → 视野内遇敌暂停

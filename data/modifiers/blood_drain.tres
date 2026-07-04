@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="OnKillHealModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/OnKillHealModifierDef.gd" id="1_modifier"]
+
+[resource]
+script = ExtResource("1_modifier")
+id = "blood_drain"
+display_name = "收割回生"
+description = "击杀敌人后，恢复 1 点生命。"
+priority = 10
+max_event_depth = 2
+heal_amount = 1

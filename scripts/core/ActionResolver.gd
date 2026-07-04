@@ -108,6 +108,13 @@ func _resolve_attack(action, state):
 	var result = AttackResultScript.new()
 	result.setup(actor, action, dir)
 
+	if String(action.def.id) == "bow_shot":
+		return _resolve_bow_shot(action, state, actor, dir, attack_cells, result)
+	if String(action.def.id) == "hook_pull":
+		return _resolve_hook_pull(action, state, actor, dir, attack_cells, result)
+	if String(action.def.id) == "shield_bash":
+		return _resolve_shield_bash(action, state, actor, dir, attack_cells, result)
+
 	for target_cell in attack_cells:
 		result.record_attempted_cell(target_cell)
 		var target = state.grid.get_actor(target_cell)
@@ -131,6 +138,92 @@ func _resolve_attack(action, state):
 			"speed": _get_action_momentum_speed(action),
 		})
 		_add_message(state, "%s 攻击落空。" % actor.def.display_name)
+	return result
+
+
+func _resolve_bow_shot(action, state, actor, dir: Vector2i, attack_cells: Array[Vector2i], result):
+	for target_cell in attack_cells:
+		result.record_attempted_cell(target_cell)
+		var target = state.grid.get_actor(target_cell)
+		if target == null or target.team == actor.team:
+			continue
+
+		var damage: int = int(actor.atk) * int(action.def.power)
+		var damage_packets: Array = apply_effect_damage(actor, target, damage, state, action, [&"attack", &"ranged"])
+		result.record_hit(target, target_cell, damage_packets, false, damage)
+		return result
+
+	var miss_cell: Vector2i = actor.grid_pos + dir
+	if not attack_cells.is_empty():
+		miss_cell = Vector2i(attack_cells.back())
+	result.record_miss(miss_cell)
+	attack_missed.emit(actor, miss_cell)
+	_emit_attack_miss_event(actor, action, miss_cell, dir)
+	_append_presentation_frame("attack_missed", {
+		"actor": actor,
+		"target_cell": miss_cell,
+		"direction": dir,
+		"speed": _get_action_momentum_speed(action),
+	})
+	_add_message(state, "%s 的箭射空了。" % actor.def.display_name)
+	return result
+
+
+func _resolve_hook_pull(action, state, actor, dir: Vector2i, attack_cells: Array[Vector2i], result):
+	for target_cell in attack_cells:
+		result.record_attempted_cell(target_cell)
+		var target = state.grid.get_actor(target_cell)
+		if target == null or target.team == actor.team:
+			continue
+
+		var damage: int = int(actor.atk) * int(action.def.power)
+		var damage_packets: Array = apply_effect_damage(actor, target, damage, state, action, [&"attack", &"hook_pull"])
+		result.record_hit(target, target_cell, damage_packets, false, damage)
+		if target != null and not target.is_dead():
+			apply_effect_pull(actor, target, -dir, 1, state, action, [&"hook_pull"])
+		return result
+
+	var miss_cell: Vector2i = actor.grid_pos + dir
+	if not attack_cells.is_empty():
+		miss_cell = Vector2i(attack_cells.back())
+	result.record_miss(miss_cell)
+	attack_missed.emit(actor, miss_cell)
+	_emit_attack_miss_event(actor, action, miss_cell, dir)
+	_append_presentation_frame("attack_missed", {
+		"actor": actor,
+		"target_cell": miss_cell,
+		"direction": dir,
+		"speed": _get_action_momentum_speed(action),
+	})
+	_add_message(state, "%s 的钩拽落空。" % actor.def.display_name)
+	return result
+
+
+func _resolve_shield_bash(action, state, actor, dir: Vector2i, attack_cells: Array[Vector2i], result):
+	for target_cell in attack_cells:
+		result.record_attempted_cell(target_cell)
+		var target = state.grid.get_actor(target_cell)
+		if target == null or target.team == actor.team:
+			continue
+
+		var damage: int = int(actor.atk) * int(action.def.power)
+		var damage_packets: Array = apply_effect_damage(actor, target, damage, state, action, [&"attack", &"shield_bash"])
+		result.record_hit(target, target_cell, damage_packets, false, damage)
+		if target != null and not target.is_dead():
+			apply_effect_knockback(actor, target, dir, 1, state, action, [&"impact", &"shield_bash"])
+		return result
+
+	var miss_cell: Vector2i = actor.grid_pos + dir
+	result.record_miss(miss_cell)
+	attack_missed.emit(actor, miss_cell)
+	_emit_attack_miss_event(actor, action, miss_cell, dir)
+	_append_presentation_frame("attack_missed", {
+		"actor": actor,
+		"target_cell": miss_cell,
+		"direction": dir,
+		"speed": _get_action_momentum_speed(action),
+	})
+	_add_message(state, "%s 的盾击落空。" % actor.def.display_name)
 	return result
 
 func _resolve_turn(action, state) -> void:
@@ -181,9 +274,9 @@ func _get_action_dir(action) -> Vector2i:
 func _get_attack_cells(action) -> Array[Vector2i]:
 	var actor = action.actor
 	var dir = _get_action_dir(action)
+	var left := Vector2i(dir.y, -dir.x)
+	var right := Vector2i(-dir.y, dir.x)
 	if action.def.id == "sweep" or action.def.id == "great_sweep":
-		var left := Vector2i(dir.y, -dir.x)
-		var right := Vector2i(-dir.y, dir.x)
 		return [
 			actor.grid_pos + left,
 			actor.grid_pos + dir,
@@ -197,6 +290,25 @@ func _get_attack_cells(action) -> Array[Vector2i]:
 			actor.grid_pos + Vector2i.LEFT,
 			actor.grid_pos + Vector2i.RIGHT,
 		]
+
+	if action.def.id == "hammer_smash":
+		return [
+			actor.grid_pos + dir + left,
+			actor.grid_pos + dir,
+			actor.grid_pos + dir + right,
+			actor.grid_pos + dir * 2 + left,
+			actor.grid_pos + dir * 2,
+			actor.grid_pos + dir * 2 + right,
+		]
+
+	if action.def.id == "spin_axe":
+		var cells_around: Array[Vector2i] = []
+		for y in range(-1, 2):
+			for x in range(-1, 2):
+				if x == 0 and y == 0:
+					continue
+				cells_around.append(actor.grid_pos + Vector2i(x, y))
+		return cells_around
 
 	var cells: Array[Vector2i] = []
 	for step in range(1, max(1, int(action.def.range)) + 1):

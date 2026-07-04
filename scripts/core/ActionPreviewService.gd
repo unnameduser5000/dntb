@@ -154,10 +154,10 @@ func _preview_attack_cells(state, origin: Vector2i, direction: Vector2i, action_
 	var cells: Array[Vector2i] = []
 	if direction == Vector2i.ZERO or action_def == null:
 		return cells
+	var left := Vector2i(direction.y, -direction.x)
+	var right := Vector2i(-direction.y, direction.x)
 
 	if action_def.id == "sweep" or action_def.id == "great_sweep":
-		var left := Vector2i(direction.y, -direction.x)
-		var right := Vector2i(-direction.y, direction.x)
 		for cell in [origin + left, origin + direction, origin + right]:
 			_add_preview_attack_cell(state, cells, cell)
 		return cells
@@ -165,6 +165,37 @@ func _preview_attack_cells(state, origin: Vector2i, direction: Vector2i, action_
 	if action_def.id == "cross_attack":
 		for cell in [origin + Vector2i.UP, origin + Vector2i.DOWN, origin + Vector2i.LEFT, origin + Vector2i.RIGHT]:
 			_add_preview_attack_cell(state, cells, cell)
+		return cells
+
+	if action_def.id == "hammer_smash":
+		for cell in [
+			origin + direction + left,
+			origin + direction,
+			origin + direction + right,
+			origin + direction * 2 + left,
+			origin + direction * 2,
+			origin + direction * 2 + right,
+		]:
+			_add_preview_attack_cell(state, cells, cell)
+		return cells
+
+	if action_def.id == "spin_axe":
+		for y in range(-1, 2):
+			for x in range(-1, 2):
+				if x == 0 and y == 0:
+					continue
+				_add_preview_attack_cell(state, cells, origin + Vector2i(x, y))
+		return cells
+
+	if action_def.id == "bow_shot":
+		for step in range(1, max(1, int(action_def.range)) + 1):
+			var cell: Vector2i = origin + direction * step
+			if not state.grid.is_inside(cell) or state.grid.is_blocked(cell):
+				break
+			var target = state.grid.get_actor(cell)
+			if target != null and target != state.player and target.team != state.player.team:
+				cells.append(cell)
+				return cells
 		return cells
 
 	for step in range(1, max(1, int(action_def.range)) + 1):

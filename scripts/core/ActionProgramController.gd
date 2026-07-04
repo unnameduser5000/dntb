@@ -9,9 +9,7 @@ extends RefCounted
 ##
 ## Current design:
 ## - there are twelve physical keyboard slots: QWER / ASDF / ZXCV
-## - slots can hold both movement tokens and base-action tokens
-## - weapon techniques are not direct slot tokens; they are follow-up results
-##   recognized later from ActionTrace
+## - slots can hold both movement tokens and concrete action tokens
 ## - reset_default_slots() builds the absolute starter preset
 ## - reset_starter_slots(preset_id) applies a specific starter preset
 
@@ -28,10 +26,19 @@ const TOKEN_NAMES := {
 	"B": "后退",
 	"SL": "左侧移",
 	"SR": "右侧移",
+	"DS": "冲刺",
+	"HK": "钩拽",
+	"SB": "盾击",
+	"HM": "锤击",
+	"RA": "旋斧",
+	"PI": "穿刺",
+	"TH": "贯刺",
+	"SW": "横扫",
+	"BW": "弓射",
 	"CA": "十字刃",
 	"TL": "左转",
 	"TR": "右转",
-	"A": "攻击",
+	"A": "斩击",
 	"I": "交互",
 	"G": "防御",
 	"W": "等待",
@@ -43,11 +50,11 @@ const KEY_DIRECTIONS := {
 	"L": Vector2i.LEFT,
 	"R": Vector2i.RIGHT,
 }
-const ACTION_TOKENS: Array[String] = ["F", "B", "SL", "SR", "CA", "TL", "TR", "A", "I", "G", "W", "J"]
+const ACTION_TOKENS: Array[String] = ["F", "B", "SL", "SR", "DS", "HK", "SB", "HM", "RA", "PI", "TH", "SW", "BW", "CA", "TL", "TR", "A", "I", "G", "W", "J"]
 ## Shared token-drop pool for future room / reward sources.
 ## This keeps mixed drops aligned with the same legal token set as the
 ## program editor and save/load layer.
-const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "B", "SL", "SR", "CA", "TL", "TR", "A", "I", "G", "W", "J"]
+const TOKEN_DROP_POOL: Array[String] = ["U", "D", "L", "R", "F", "B", "SL", "SR", "DS", "HK", "SB", "HM", "RA", "PI", "TH", "SW", "BW", "CA", "TL", "TR", "A", "I", "G", "W", "J"]
 const KeyProgramScript := preload("res://scripts/runtime/KeyProgram.gd")
 
 var key_program = null

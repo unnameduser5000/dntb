@@ -13,7 +13,6 @@ const SLIME_DEF := preload("res://data/actors/monster.tres")
 const WISP_DEF := preload("res://data/actors/wisp.tres")
 const BRUTE_DEF := preload("res://data/actors/brute.tres")
 const TAVERN_KEEPER_DEF := preload("res://data/actors/tavern_keeper.tres")
-const IMPACT_SHIELD := preload("res://data/weapons/impact_shield.tres")
 
 const WORLD_GRID_SIZE := Vector2i(256, 256)
 const DEFAULT_FOV_RADIUS := 8
@@ -268,7 +267,6 @@ func _apply_generated_map_state(state, visibility_reason: String) -> void:
 
 	var player_cell: Vector2i = _resolve_player_spawn(state.map_data)
 	var player = _add_actor(state, PLAYER_DEF, player_cell, _pick_player_facing(state.map_data, player_cell))
-	player.active_weapon = IMPACT_SHIELD
 
 	var reserved: Dictionary = {}
 	reserved[player_cell] = true
@@ -681,7 +679,6 @@ func _add_actor(state, actor_def, cell: Vector2i, facing: Vector2i):
 	actor.setup(_next_actor_id, actor_def, cell)
 	_next_actor_id += 1
 	actor.facing = facing if facing != Vector2i.ZERO else Vector2i.RIGHT
-	actor.active_weapon = IMPACT_SHIELD if actor_def == PLAYER_DEF else null
 	state.grid.place_actor(actor, cell)
 	state.add_actor(actor)
 	return actor

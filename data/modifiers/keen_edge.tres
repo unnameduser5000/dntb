@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ScalePacketModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ScalePacketModifierDef.gd" id="1_modifier"]
+
+[resource]
+script = ExtResource("1_modifier")
+id = "keen_edge"
+display_name = "锋刃校准"
+description = "攻击造成的伤害提高 50%。"
+priority = 10
+max_generation_depth = 2
+packet_kind = "damage"
+required_tag = "attack"
+multiplier = 1.5
+added_tag = "keen_edge"

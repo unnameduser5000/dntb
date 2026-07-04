@@ -154,21 +154,13 @@ func _build_debug_state_text(state) -> String:
 	if bool(state.is_world_slice) and state.map_data != null:
 		return _build_world_slice_debug_text(state)
 
-	var weapon_name := "-"
-	var attack_action_name := "-"
-	if state.player.active_weapon != null:
-		weapon_name = str(state.player.active_weapon.display_name)
-		var attack_action = state.player.active_weapon.get("attack_action")
-		if attack_action != null:
-			attack_action_name = String(attack_action.display_name)
-
 	var trace_text := "-"
 	var move_text := "-"
 	if state.action_trace != null:
 		trace_text = state.action_trace.debug_string_for_actor(int(state.player.id), 4)
 		move_text = _recent_move_dirs_text(state)
 
-	return "Mode: %s\nPos: %s\nFacing: %s\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV: %s\nWeapon: %s\nAttack Action: %s\nTrace: %s\nMoveDir: %s\nHP: %d / %d\nSAN: %d / %d\nRoom: %s" % [
+	return "Mode: %s\nPos: %s\nFacing: %s\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV: %s\nTrace: %s\nMoveDir: %s\nHP: %d / %d\nSAN: %d / %d\nRoom: %s" % [
 		str(state.map_node_kind),
 		str(state.player.grid_pos),
 		_move_dir_label(state.player.facing),
@@ -177,8 +169,6 @@ func _build_debug_state_text(state) -> String:
 		state.explored_cells.size(),
 		"on" if bool(state.reveal_all_debug) else "off",
 		str(state.last_visibility_recompute_reason),
-		weapon_name,
-		attack_action_name,
 		trace_text,
 		move_text,
 		state.player.hp,
@@ -191,18 +181,11 @@ func _build_debug_state_text(state) -> String:
 
 func _build_world_slice_debug_text(state) -> String:
 	var terrain_counts: Dictionary = state.map_data.get_terrain_counts()
-	var weapon_name := "-"
-	var attack_action_name := "-"
 	var tracked_name := "-"
 	var tracked_hint := "off"
 	var boss_ruin_hint := "off"
 	var safe_zone_hint := "off"
 	var nearest_ruin_hint := "off"
-	if state.player.active_weapon != null:
-		weapon_name = str(state.player.active_weapon.display_name)
-		var attack_action = state.player.active_weapon.get("attack_action")
-		if attack_action != null:
-			attack_action_name = String(attack_action.display_name)
 	var tracked_actor_id := String(state.tracked_world_actor_id) if state.get("tracked_world_actor_id") != null else ""
 	if tracked_actor_id.is_empty():
 		tracked_actor_id = String(state.tracked_world_npc_id)
@@ -215,7 +198,7 @@ func _build_world_slice_debug_text(state) -> String:
 	nearest_ruin_hint = String(state.tracked_nearest_ruin_relative_hint) if state.get("tracked_nearest_ruin_relative_hint") != null and not String(state.tracked_nearest_ruin_relative_hint).is_empty() else "off"
 
 	var render_rect: Rect2i = state.render_window_rect
-	return "Mode: %s\nSeed: %s\nMap Size: %dx%d\nPlayer: %s\nFacing: %s\nCurrent Tile: %s\nProgram Edit: %s\nTracked NPC: %s\nTracked Hint: %s\n最近安全区: %s\nBoss遗迹: %s\n最近小遗迹: %s\nWindow: %s size=%s tiles=%d\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV Reason: %s\nBoard Refreshes: %d (%.2f ms)\nFOV Recomputes: %d (%.2f ms)\nHUD Refreshes: %d\nEntity Visuals: %d\nGeneration: %.2f ms\nGeneration Breakdown: %s\nEnemy Stream: active %d / target %d | refresh %d | +%d/-%d | total +%d/-%d | reason %s\nWeapon: %s\nAttack Action: %s\nTrace: %s\nMoveDir: %s\nXP: %d\nTavern: %s\nChallenge: %d\nChest: %d\nRuin: %d\nEgg: %d\nTerrain: plain %d | forest %d | tree %d | hill %d | mountain %d | peak %d | water %d | river %d | bridge %d | swamp %d | desert %d\nReachable: %d\nUnreachable POI: %d\nCarved Passes: %d\nHotkeys: F5 same seed | F6 new seed | V reveal | M summary" % [
+	return "Mode: %s\nSeed: %s\nMap Size: %dx%d\nPlayer: %s\nFacing: %s\nCurrent Tile: %s\nProgram Edit: %s\nTracked NPC: %s\nTracked Hint: %s\n最近安全区: %s\nBoss遗迹: %s\n最近小遗迹: %s\nWindow: %s size=%s tiles=%d\nFOV Radius: %d\nVisible: %d\nExplored: %d\nReveal All: %s\nLast FOV Reason: %s\nBoard Refreshes: %d (%.2f ms)\nFOV Recomputes: %d (%.2f ms)\nHUD Refreshes: %d\nEntity Visuals: %d\nGeneration: %.2f ms\nGeneration Breakdown: %s\nEnemy Stream: active %d / target %d | refresh %d | +%d/-%d | total +%d/-%d | reason %s\nTrace: %s\nMoveDir: %s\nXP: %d\nTavern: %s\nChallenge: %d\nChest: %d\nRuin: %d\nEgg: %d\nTerrain: plain %d | forest %d | tree %d | hill %d | mountain %d | peak %d | water %d | river %d | bridge %d | swamp %d | desert %d\nReachable: %d\nUnreachable POI: %d\nCarved Passes: %d\nHotkeys: F5 same seed | F6 new seed | V reveal | M summary" % [
 		str(state.map_node_kind),
 		str(state.map_data.seed),
 		int(state.map_data.width),
@@ -253,8 +236,6 @@ func _build_world_slice_debug_text(state) -> String:
 		int(state.world_enemy_stream_spawn_total),
 		int(state.world_enemy_stream_despawn_total),
 		str(state.world_enemy_stream_last_reason),
-		weapon_name,
-		attack_action_name,
 		state.action_trace.debug_string_for_actor(int(state.player.id), 6) if state.action_trace != null else "-",
 		_recent_move_dirs_text(state),
 		int(state.player_xp),

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ActionIdScaleModifierDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActionIdScaleModifierDef.gd" id="1_modifier"]
+
+[resource]
+script = ExtResource("1_modifier")
+id = "phalanx_rush"
+display_name = "壁垒猛进"
+description = "盾击与锤击造成的伤害提高 50%。"
+priority = 10
+packet_kind = "damage"
+required_tag = "attack"
+action_ids = Array[String](["shield_bash", "hammer_smash"])
+multiplier = 1.5
+added_tag = "phalanx_rush"
