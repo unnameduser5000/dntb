@@ -1686,14 +1686,7 @@ func _update_auto_advance_state() -> void:
 
 
 func _submit_cached_plan() -> void:
-	_submit_key_chain("W")
-
-
-func _get_first_programmed_key() -> String:
-	for key_id in ["Q", "W", "E", "R", "A", "S", "D", "F", "Z", "X", "C", "V"]:
-		if not _action_program.get_slot(key_id).is_empty():
-			return key_id
-	return ""
+	turn_controller.submit_player_plan([])
 
 
 func _on_pause_menu_requested() -> void:
