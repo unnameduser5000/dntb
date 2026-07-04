@@ -1686,11 +1686,7 @@ func _update_auto_advance_state() -> void:
 
 
 func _submit_cached_plan() -> void:
-	var first_key: String = _get_first_programmed_key()
-	if first_key.is_empty():
-		_submit_key_chain("W")
-		return
-	_submit_key_chain(first_key)
+	_submit_key_chain("W")
 
 
 func _get_first_programmed_key() -> String:
