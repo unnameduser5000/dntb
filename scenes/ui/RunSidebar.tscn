@@ -170,7 +170,7 @@ theme_override_constants/separation = 6
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"BattleSectionTitle"
-text = "方向标识"
+text = "自动导航"
 
 [node name="SafeZonePoiHint" parent="PoiHintPanel/Margin/Content" instance=ExtResource("4_button")]
 unique_name_in_owner = true
@@ -179,7 +179,7 @@ theme_type_variation = &"ScreenHint"
 alignment = 0
 flat = true
 autowrap_mode = 3
-text = "最近安全区：-"
+text = "前往最近安全区"
 
 [node name="BossPoiHint" parent="PoiHintPanel/Margin/Content" instance=ExtResource("4_button")]
 unique_name_in_owner = true
@@ -188,7 +188,7 @@ theme_type_variation = &"ScreenHint"
 alignment = 0
 flat = true
 autowrap_mode = 3
-text = "Boss遗迹：-"
+text = "前往 Boss遗迹"
 
 [node name="RuinPoiHint" parent="PoiHintPanel/Margin/Content" instance=ExtResource("4_button")]
 unique_name_in_owner = true
@@ -197,7 +197,7 @@ theme_type_variation = &"ScreenHint"
 alignment = 0
 flat = true
 autowrap_mode = 3
-text = "最近小遗迹：-"
+text = "前往最近小遗迹"
 
 [node name="InventoryButton" parent="BottomButtons" instance=ExtResource("4_button")]
 unique_name_in_owner = true

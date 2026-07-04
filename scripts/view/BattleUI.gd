@@ -61,7 +61,7 @@ const BagUIScript = preload("res://scripts/view/BagUI.gd")
 var _key_program_editable := false
 var _permanent_buffs: Array[Dictionary] = []
 var _cached_slot_chains: Dictionary = {}
-var _cached_pool_tokens: Array[String] = []
+var _cached_pool_entries: Array[Dictionary] = []
 var _auto_advance_mode := AUTO_PAUSE
 
 
@@ -100,17 +100,17 @@ func _connect_bag_ui_signals() -> void:
 func _refresh_bag_ui() -> void:
 	if not is_node_ready():
 		return
-	_bag_ui.setup(_cached_slot_chains, _cached_pool_tokens, _key_program_editable, _permanent_buffs)
+	_bag_ui.setup(_cached_slot_chains, _cached_pool_entries, _key_program_editable, _permanent_buffs)
 
 
-func set_key_program(slot_chains: Dictionary, pool_tokens: Array) -> void:
+func set_key_program(slot_chains: Dictionary, pool_entries: Array) -> void:
 	_cached_slot_chains.clear()
 	for key_id in slot_chains:
 		_cached_slot_chains[key_id] = slot_chains[key_id].duplicate()
 
-	_cached_pool_tokens.clear()
-	for token_id in pool_tokens:
-		_cached_pool_tokens.append(String(token_id))
+	_cached_pool_entries.clear()
+	for entry in pool_entries:
+		_cached_pool_entries.append(Dictionary(entry).duplicate(true))
 
 	_refresh_bag_ui()
 

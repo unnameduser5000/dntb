@@ -14,5 +14,6 @@ map_char = "L"
 team = "enemy"
 ai_type = "line_keeper"
 default_drop_key = ""
+drop_tier = 2
 view_scene = ExtResource("2_view")
 color = Color(0.95, 0.75, 0.3, 1)

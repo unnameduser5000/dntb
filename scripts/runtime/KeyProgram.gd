@@ -48,6 +48,8 @@ func move_token(source_slot_id: String, source_index: int, target_slot_id: Strin
 		return {"moved": false, "token_id": ""}
 	if source_index < 0 or source_index >= source.size():
 		return {"moved": false, "token_id": ""}
+	if target_slot_id != POOL_SLOT_ID and target.size() >= 2:
+		return {"moved": false, "token_id": ""}
 
 	var token_id := String(source[source_index])
 	source.remove_at(source_index)

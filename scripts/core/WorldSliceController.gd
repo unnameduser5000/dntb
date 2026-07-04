@@ -12,6 +12,11 @@ const PLAYER_DEF := preload("res://data/actors/player.tres")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
 const WISP_DEF := preload("res://data/actors/wisp.tres")
 const BRUTE_DEF := preload("res://data/actors/brute.tres")
+const LINE_WARDEN_DEF := preload("res://data/actors/line_warden.tres")
+const GOBLIN_SCOUT_DEF := preload("res://data/actors/goblin_scout.tres")
+const GOBLIN_SLINGER_DEF := preload("res://data/actors/goblin_slinger.tres")
+const AOE_SLIME_DEF := preload("res://data/actors/aoe_slime.tres")
+const SPLIT_SLIME_DEF := preload("res://data/actors/split_slime.tres")
 const TAVERN_KEEPER_DEF := preload("res://data/actors/tavern_keeper.tres")
 
 const WORLD_GRID_SIZE := Vector2i(256, 256)
@@ -21,6 +26,14 @@ const STREAM_DESIRED_ACTIVE_ENEMY_COUNT := 10
 const STREAM_SPAWN_RADIUS_MIN := 10
 const STREAM_SPAWN_RADIUS_MAX := 18
 const STREAM_DESPAWN_DISTANCE := 28
+const WORLD_ENEMY_DEFS_BY_TIER := {
+	1: [WISP_DEF, SLIME_DEF, GOBLIN_SCOUT_DEF],
+	2: [BRUTE_DEF, LINE_WARDEN_DEF, GOBLIN_SLINGER_DEF, AOE_SLIME_DEF, SPLIT_SLIME_DEF],
+}
+const WORLD_ENEMY_PROFILE_WEIGHTS := {
+	"calm": {1: 18, 2: 6},
+	"event_alert": {1: 6, 2: 18},
+}
 const NPC_DEF_BY_ID := {
 	"tavern_keeper": TAVERN_KEEPER_DEF,
 }
@@ -176,6 +189,7 @@ func _prepare_state_shell(state) -> void:
 	state.show_tracked_world_npc_hint = false
 	state.tracked_world_npc_relative_hint = ""
 	state.defer_enemy_phase_for_interaction = false
+	state.world_enemy_spawn_profile = "calm"
 
 
 func _rebuild_world_slice_state(state, seed_value: String, visibility_reason: String) -> void:
@@ -238,6 +252,7 @@ func _reset_runtime_state(state) -> void:
 	state.show_tracked_world_npc_hint = false
 	state.tracked_world_npc_relative_hint = ""
 	state.defer_enemy_phase_for_interaction = false
+	state.world_enemy_spawn_profile = "calm"
 	state.last_visibility_recompute_reason = ""
 	state.visible_cells.clear()
 	state.explored_cells.clear()
@@ -279,7 +294,7 @@ func _apply_generated_map_state(state, visibility_reason: String) -> void:
 		reserved[prop_cell] = true
 
 	for enemy_cell in _pick_enemy_spawn_cells(state.map_data, player_cell, reserved, REQUIRED_ENEMY_COUNT):
-		var enemy_def = _pick_world_slice_enemy_def_for_index(state.get_alive_enemies().size(), REQUIRED_ENEMY_COUNT)
+		var enemy_def = _pick_world_slice_enemy_def_for_index(state, state.get_alive_enemies().size(), REQUIRED_ENEMY_COUNT)
 		_add_enemy_actor(state, enemy_def, enemy_cell, _step_direction_toward(enemy_cell, player_cell))
 		reserved[enemy_cell] = true
 
@@ -741,27 +756,53 @@ func _spawn_streamed_enemies_near_player(state) -> int:
 		reserved[cell] = true
 	var candidates: Array[Vector2i] = _pick_stream_spawn_cells(state.map_data, state.player.grid_pos, reserved, needed)
 	for cell in candidates:
-		var enemy_def = _pick_world_slice_stream_enemy_def(state.get_alive_enemies().size() + spawned)
+		var enemy_def = _pick_world_slice_stream_enemy_def(state, state.get_alive_enemies().size() + spawned)
 		if _add_enemy_actor(state, enemy_def, cell, _step_direction_toward(cell, state.player.grid_pos)) != null:
 			reserved[cell] = true
 			spawned += 1
 	return spawned
 
 
-func _pick_world_slice_enemy_def_for_index(index: int, total_required: int):
-	if index == 0:
-		return WISP_DEF
-	if index >= total_required - 1:
-		return BRUTE_DEF
-	return SLIME_DEF
+func _pick_world_slice_enemy_def_for_index(state, index: int, total_required: int):
+	var force_tier: int = 0
+	if String(state.world_enemy_spawn_profile) == "calm":
+		if index == 0:
+			force_tier = 1
+		elif index >= total_required - 1:
+			force_tier = 2
+	return _pick_world_slice_enemy_def_by_profile(state, force_tier)
 
 
-func _pick_world_slice_stream_enemy_def(index: int):
-	if index % 5 == 0:
-		return WISP_DEF
-	if index % 5 == 4:
-		return BRUTE_DEF
-	return SLIME_DEF
+func _pick_world_slice_stream_enemy_def(state, _index: int):
+	return _pick_world_slice_enemy_def_by_profile(state)
+
+
+func _pick_world_slice_enemy_def_by_profile(state, forced_tier: int = 0):
+	var profile_id := String(state.world_enemy_spawn_profile if state != null else "calm")
+	var weights: Dictionary = Dictionary(WORLD_ENEMY_PROFILE_WEIGHTS.get(profile_id, WORLD_ENEMY_PROFILE_WEIGHTS["calm"]))
+	var random_service = Engine.get_main_loop().root.get_node_or_null("/root/RandomService") if Engine.get_main_loop() is SceneTree else null
+	var chosen_tier := forced_tier if forced_tier > 0 else _weighted_pick_tier(weights, random_service)
+	var tier_defs: Array = Array(WORLD_ENEMY_DEFS_BY_TIER.get(chosen_tier, WORLD_ENEMY_DEFS_BY_TIER[1]))
+	if tier_defs.is_empty():
+		return SLIME_DEF
+	if random_service != null and random_service.has_method("randi_range_value"):
+		return tier_defs[int(random_service.randi_range_value(0, tier_defs.size() - 1))]
+	return tier_defs[randi_range(0, tier_defs.size() - 1)]
+
+
+func _weighted_pick_tier(weights: Dictionary, random_service = null) -> int:
+	var total_weight := 0
+	for tier_key in weights.keys():
+		total_weight += maxi(0, int(weights[tier_key]))
+	if total_weight <= 0:
+		return 1
+	var roll: int = random_service.randi_range_value(1, total_weight) if random_service != null and random_service.has_method("randi_range_value") else randi_range(1, total_weight)
+	var cursor := 0
+	for tier in [1, 2]:
+		cursor += maxi(0, int(weights.get(tier, 0)))
+		if roll <= cursor:
+			return tier
+	return 1
 
 
 func _pick_stream_spawn_cells(map_data, player_cell: Vector2i, reserved: Dictionary, required_count: int) -> Array[Vector2i]:

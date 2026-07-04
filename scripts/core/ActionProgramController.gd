@@ -141,6 +141,26 @@ func get_pool_tokens() -> Array[String]:
 	return [] if key_program == null else key_program.pool_tokens.duplicate()
 
 
+func get_pool_token_stacks() -> Array[Dictionary]:
+	var stacks: Array[Dictionary] = []
+	if key_program == null:
+		return stacks
+	var stack_index_by_token: Dictionary = {}
+	for index in range(key_program.pool_tokens.size()):
+		var token_id := String(key_program.pool_tokens[index])
+		if stack_index_by_token.has(token_id):
+			var stack_index: int = int(stack_index_by_token[token_id])
+			stacks[stack_index]["count"] = int(stacks[stack_index].get("count", 0)) + 1
+			continue
+		stack_index_by_token[token_id] = stacks.size()
+		stacks.append({
+			"token_id": token_id,
+			"count": 1,
+			"source_index": index,
+		})
+	return stacks
+
+
 func get_token_drop_pool() -> Array[String]:
 	return TOKEN_DROP_POOL.duplicate()
 
@@ -153,9 +173,9 @@ func _apply_starter_preset(preset_id: String) -> void:
 	match preset_id:
 		STARTER_PRESET_RELATIVE:
 			key_program.slots["W"] = ["F"]
-			key_program.slots["S"] = ["TR", "TR", "F"]
-			key_program.slots["A"] = ["TL", "F"]
-			key_program.slots["D"] = ["TR", "F"]
+			key_program.slots["S"] = ["B"]
+			key_program.slots["A"] = ["SL"]
+			key_program.slots["D"] = ["SR"]
 			key_program.slots["F"] = ["I"]
 		_:
 			key_program.slots["W"] = ["U"]
