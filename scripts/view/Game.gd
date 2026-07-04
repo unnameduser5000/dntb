@@ -386,6 +386,10 @@ func _connect_signals() -> void:
 func start_run() -> void:
 	_close_bag_if_open()
 	_close_world_npc_dialogue(false)
+	set_game_visible(false)
+	if world_loading_overlay != null:
+		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
+		await get_tree().process_frame
 	start_world_slice_debug()
 
 
@@ -416,13 +420,8 @@ func start_world_slice_debug() -> void:
 	_world_autopath_step_scheduled = false
 	_world_autopath_ignore_enemy = false
 	_close_world_npc_dialogue(false)
-	if world_loading_overlay != null:
-		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
-		await get_tree().process_frame
 	state = await _world_slice_controller.create_demo_state_with_progress("", Callable(self, "_on_world_generation_progress")) if _world_slice_controller != null else null
 	if state == null:
-		if world_loading_overlay != null:
-			world_loading_overlay.hide_loading()
 		return
 	_current_rewards = []
 	_current_room_index = int(state.room_index)
