@@ -195,6 +195,7 @@ var _pending_level_reward := false
 var _player_input_locked := false
 var _bag_open := false
 var _shell_overlay_active := false
+var _auto_submitting_plan := false
 
 func _ready() -> void:
 	_action_by_id = {
@@ -573,6 +574,8 @@ func _submit_key_chain(key_id: String) -> void:
 	var plan := _build_key_slot_plan(chain_keys)
 	if not plan.is_empty():
 		turn_controller.submit_player_plan(plan)
+		if not _auto_submitting_plan:
+			_update_auto_advance_state()
 
 func _on_battle_finished(victory: bool) -> void:
 	_close_bag_if_open()
@@ -926,12 +929,14 @@ func _stop_world_autopath(show_message: bool = true) -> void:
 
 func _on_turn_finished() -> void:
 	_refresh_views()
+	_update_auto_advance_state()
 
 
 func _on_planning_started() -> void:
 	_player_input_locked = false
 	_refresh_views()
-	_schedule_world_autopath_step()
+	if not _auto_submitting_plan:
+		_schedule_world_autopath_step()
 
 
 func _schedule_world_autopath_step() -> void:
@@ -1662,6 +1667,37 @@ func _on_auto_advance_mode_changed(mode: int) -> void:
 			turn_controller.auto_advance_delay = AUTO_PLAY_DELAY
 		BattleUI.AUTO_FAST:
 			turn_controller.auto_advance_delay = AUTO_FAST_DELAY
+	_update_auto_advance_state()
+
+
+func _update_auto_advance_state() -> void:
+	if turn_controller.auto_advance_delay <= 0.0:
+		return
+	if state == null or state.battle_finished:
+		return
+	if state.phase != "planning":
+		return
+	if _auto_submitting_plan or _world_autopath_active or _bag_open or _world_npc_dialogue_active:
+		return
+	_auto_submitting_plan = true
+	_player_input_locked = true
+	_submit_cached_plan()
+	_auto_submitting_plan = false
+
+
+func _submit_cached_plan() -> void:
+	var first_key: String = _get_first_programmed_key()
+	if first_key.is_empty():
+		_submit_key_chain("W")
+		return
+	_submit_key_chain(first_key)
+
+
+func _get_first_programmed_key() -> String:
+	for key_id in ["Q", "W", "E", "R", "A", "S", "D", "F", "Z", "X", "C", "V"]:
+		if not _action_program.get_slot(key_id).is_empty():
+			return key_id
+	return ""
 
 
 func _on_pause_menu_requested() -> void:
