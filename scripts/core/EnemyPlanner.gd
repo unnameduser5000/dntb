@@ -76,7 +76,7 @@ func _decide_melee_chaser(enemy, state):
 	if move_action == null:
 		return null
 
-	var move_dir := _get_path_step_towards(enemy.grid_pos, state.player.grid_pos, state.grid)
+	var move_dir := _get_path_step_towards(enemy.grid_pos, state.player.grid_pos, state.grid, state)
 	if move_dir == Vector2i.ZERO:
 		return null
 
@@ -106,7 +106,7 @@ func _decide_line_keeper(enemy, state):
 	var move_dir := _line_step_toward(enemy.grid_pos, player.grid_pos)
 	if move_dir == Vector2i.ZERO:
 		return null
-	if not state.grid.can_enter(enemy.grid_pos + move_dir):
+	if not _can_enemy_enter_cell(state, enemy.grid_pos + move_dir):
 		return null
 
 	var move = ActionInstanceScript.new()
@@ -114,6 +114,14 @@ func _decide_line_keeper(enemy, state):
 	move.def = move_action
 	move.chosen_dir = move_dir
 	return move
+
+
+func _can_enemy_enter_cell(state, cell: Vector2i) -> bool:
+	if state == null or state.grid == null:
+		return false
+	if bool(state.is_world_slice) and state.grid.has_method("can_enemy_enter"):
+		return state.grid.can_enemy_enter(cell)
+	return state.grid.can_enter(cell)
 
 
 func _get_attack_dir_to_player(enemy, state) -> Vector2i:
@@ -228,7 +236,7 @@ func _add_attack_cell(cells: Array[Vector2i], cell: Vector2i, grid) -> void:
 	if not cells.has(cell):
 		cells.append(cell)
 
-func _get_path_step_towards(from_cell: Vector2i, to_cell: Vector2i, grid) -> Vector2i:
+func _get_path_step_towards(from_cell: Vector2i, to_cell: Vector2i, grid, state = null) -> Vector2i:
 	if from_cell == to_cell:
 		return Vector2i.ZERO
 
@@ -249,6 +257,8 @@ func _get_path_step_towards(from_cell: Vector2i, to_cell: Vector2i, grid) -> Vec
 				continue
 			if next_cell != to_cell and grid.get_actor(next_cell) != null:
 				continue
+			if state != null and next_cell != to_cell and not _can_enemy_enter_cell(state, next_cell):
+				continue
 
 			visited[next_cell] = true
 			first_step[next_cell] = direction if current == from_cell else first_step[current]
@@ -258,9 +268,9 @@ func _get_path_step_towards(from_cell: Vector2i, to_cell: Vector2i, grid) -> Vec
 
 			frontier.append(next_cell)
 
-	return _get_greedy_step_towards(from_cell, to_cell, grid)
+	return _get_greedy_step_towards(from_cell, to_cell, grid, state)
 
-func _get_greedy_step_towards(from_cell: Vector2i, to_cell: Vector2i, grid) -> Vector2i:
+func _get_greedy_step_towards(from_cell: Vector2i, to_cell: Vector2i, grid, state = null) -> Vector2i:
 	var candidates: Array[Vector2i] = []
 	for raw_direction in CARDINAL_DIRECTIONS:
 		candidates.append(raw_direction)
@@ -269,8 +279,12 @@ func _get_greedy_step_towards(from_cell: Vector2i, to_cell: Vector2i, grid) -> V
 	)
 
 	for direction in candidates:
-		if grid.can_enter(from_cell + direction):
-			return direction
+		var cell: Vector2i = from_cell + direction
+		if not grid.can_enter(cell):
+			continue
+		if state != null and not _can_enemy_enter_cell(state, cell):
+			continue
+		return direction
 
 	return Vector2i.ZERO
 

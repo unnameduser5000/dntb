@@ -4,6 +4,7 @@ extends RefCounted
 var width: int = 0
 var height: int = 0
 var blocked_cells: Dictionary = {}
+var enemy_blocked_cells: Dictionary = {}
 var actor_at: Dictionary = {}
 var grid_items_at: Dictionary = {}
 var grid_items_by_id: Dictionary = {}
@@ -12,6 +13,7 @@ func setup(new_width: int, new_height: int) -> void:
 	width = new_width
 	height = new_height
 	blocked_cells.clear()
+	enemy_blocked_cells.clear()
 	actor_at.clear()
 	grid_items_at.clear()
 	grid_items_by_id.clear()
@@ -25,6 +27,16 @@ func is_blocked(cell: Vector2i) -> bool:
 func add_blocked(cell: Vector2i) -> void:
 	if is_inside(cell):
 		blocked_cells[cell] = true
+
+func add_enemy_blocked(cell: Vector2i) -> void:
+	if is_inside(cell):
+		enemy_blocked_cells[cell] = true
+
+func remove_enemy_blocked(cell: Vector2i) -> void:
+	enemy_blocked_cells.erase(cell)
+
+func is_enemy_blocked(cell: Vector2i) -> bool:
+	return is_blocked(cell) or enemy_blocked_cells.has(cell)
 
 func get_actor(cell: Vector2i):
 	return actor_at.get(cell)
@@ -40,6 +52,9 @@ func get_blocking_item(cell: Vector2i):
 
 func can_enter(cell: Vector2i) -> bool:
 	return is_inside(cell) and not is_blocked(cell) and get_blocking_item(cell) == null
+
+func can_enemy_enter(cell: Vector2i) -> bool:
+	return is_inside(cell) and not is_enemy_blocked(cell) and get_blocking_item(cell) == null
 
 func place_item(item, cell: Vector2i) -> bool:
 	if item == null:

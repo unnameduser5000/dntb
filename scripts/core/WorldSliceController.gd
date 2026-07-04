@@ -853,6 +853,8 @@ func _sync_grid_from_map_data(state) -> void:
 	for cell in state.map_data.get_all_cells():
 		if not state.map_data.is_walkable(cell):
 			state.grid.add_blocked(cell)
+		elif _is_safe_zone_enemy_blocked_cell(state.map_data, cell):
+			state.grid.add_enemy_blocked(cell)
 
 
 func _build_default_map_config():
