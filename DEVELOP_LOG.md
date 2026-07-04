@@ -1,5 +1,25 @@
 # Develop Log
 
+## 2026-07-04 Autopath resume on enemy sight, stop on damage
+
+- Removed the hard refusal to start autopath when enemies are visible.
+- When autopath pauses because an enemy enters sight, the player can click the
+  same destination again to resume movement.
+- Autopath now stops permanently only when the player takes damage.
+- Added `_on_actor_damaged()` handler connected to `resolver.actor_damaged` to
+  detect player damage and stop autopath immediately.
+- Updated the pause message to tell the player that clicking the target resumes
+  autopath.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- Result: `SmokeTest passed`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- Result: `ActorPresentationSandbox smoke passed`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
+- Result: `BattleEffectSandbox smoke passed`
+
 ## 2026-07-04 World autopath A* performance fix
 
 - Replaced the naive A* open-list sort in `Game._find_world_autopath_path()`

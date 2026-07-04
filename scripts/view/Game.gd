@@ -378,6 +378,7 @@ func _connect_signals() -> void:
 	resolver.rule_message.connect(func(_message: String) -> void: _refresh_views())
 	resolver.key_picked.connect(_on_key_picked)
 	resolver.actor_moved.connect(_on_actor_moved)
+	resolver.actor_damaged.connect(_on_actor_damaged)
 	resolver.actor_died.connect(_on_actor_died)
 	resolver.world_npc_interaction_requested.connect(_on_world_npc_interaction_requested)
 
@@ -883,9 +884,7 @@ func _start_world_autopath(target_cell: Vector2i, label: String) -> void:
 		state.add_message("%s 当前未定位。" % label)
 		_refresh_views()
 		return
-	if _world_slice_has_visible_enemy():
-		state.add_message("视野内已有敌人，自动跑图已取消。")
-		_refresh_views()
+	if _world_autopath_active and _world_autopath_target == target_cell:
 		return
 	var path_steps: Array[Vector2i] = _find_world_autopath_path(state.player.grid_pos, target_cell)
 	if path_steps.is_empty():
@@ -956,7 +955,7 @@ func _call_world_autopath_step() -> void:
 		return
 	if _world_slice_has_visible_enemy():
 		_stop_world_autopath(false)
-		state.add_message("视野内出现敌人，自动跑图已暂停。")
+		state.add_message("视野内出现敌人，自动跑图已暂停。点击目标可继续。")
 		_refresh_views()
 		return
 	if state.player.grid_pos == _world_autopath_target:
@@ -1106,6 +1105,13 @@ func _world_slice_has_visible_enemy() -> bool:
 		if actor != null and state.visible_cells.has(actor.grid_pos):
 			return true
 	return false
+
+
+func _on_actor_damaged(actor, amount: int) -> void:
+	if actor != null and state != null and state.player != null and actor == state.player:
+		_stop_world_autopath(false)
+		state.add_message("受到伤害，自动跑图已停止。")
+		_refresh_views()
 
 
 func _on_actor_died(actor) -> void:
