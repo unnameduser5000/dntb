@@ -242,11 +242,21 @@ func _show_overlay(title_text: String, body_text: String, buttons: Array) -> voi
 	for child in _overlay_buttons.get_children():
 		child.queue_free()
 
+	var left_spacer := Control.new()
+	left_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay_buttons.add_child(left_spacer)
+
 	for index in range(buttons.size()):
 		var button_data = buttons[index]
 		var button := _make_overlay_button(button_data, index)
 		button.pressed.connect(button_data["callback"])
 		_overlay_buttons.add_child(button)
+
+	var right_spacer := Control.new()
+	right_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay_buttons.add_child(right_spacer)
 
 
 func _make_overlay_button(button_data: Dictionary, index: int) -> Button:

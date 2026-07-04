@@ -224,6 +224,7 @@ horizontal_alignment = 1
 [node name="OverlayButtons" type="HBoxContainer" parent="Overlay/Panel/Margin/Content"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
 [node name="BagUI" parent="." instance=ExtResource("8_bag_ui")]
