@@ -236,9 +236,14 @@ func _add_attack_cell(cells: Array[Vector2i], cell: Vector2i, grid) -> void:
 	if not cells.has(cell):
 		cells.append(cell)
 
+const MAX_ENEMY_BFS_DISTANCE := 20
+
 func _get_path_step_towards(from_cell: Vector2i, to_cell: Vector2i, grid, state = null) -> Vector2i:
 	if from_cell == to_cell:
 		return Vector2i.ZERO
+
+	if _manhattan(from_cell, to_cell) > MAX_ENEMY_BFS_DISTANCE:
+		return _get_greedy_step_towards(from_cell, to_cell, grid, state)
 
 	var frontier: Array[Vector2i] = [from_cell]
 	var visited := {from_cell: true}
