@@ -10,6 +10,7 @@ signal action_started(action)
 signal action_finished(action)
 signal turn_finished
 signal battle_finished(victory: bool)
+signal player_phase_finished
 
 var state
 var resolver
@@ -17,8 +18,10 @@ var enemy_planner
 var player_plan: Array = []
 var presentation_controller = null
 var action_trace_recorder = ActionTraceRecorderScript.new()
+var auto_advance_delay: float = 0.0
 var _next_plan_chain_id: int = 0
 var _active_plan_chain_id: int = -1
+var _waiting_for_enemy_phase := false
 
 ## Each battle starts with a fresh trace history.
 ## The trace is battle-scoped, not run-scoped, because movement/attack history
@@ -27,6 +30,7 @@ func start_battle(new_state) -> void:
 	state = new_state
 	_next_plan_chain_id = 0
 	_active_plan_chain_id = -1
+	_waiting_for_enemy_phase = false
 	if state != null and state.action_trace == null:
 		state.action_trace = ActionTraceScript.new()
 	if state != null and state.action_trace != null:
@@ -35,7 +39,7 @@ func start_battle(new_state) -> void:
 	planning_started.emit()
 
 func submit_player_plan(plan: Array) -> void:
-	if state == null or state.phase != "planning" or state.battle_finished:
+	if state == null or state.phase != "planning" or state.battle_finished or _waiting_for_enemy_phase:
 		return
 
 	player_plan = plan
@@ -43,21 +47,20 @@ func submit_player_plan(plan: Array) -> void:
 	_next_plan_chain_id += 1
 	_prepare_action_chain(player_plan)
 	if _should_wait_for_presentation():
-		_execute_turn_async()
+		_execute_player_phase_async_then_continue()
 	else:
-		execute_turn()
+		_execute_player_phase_sync()
+		_continue_after_player_phase()
 
-func execute_turn() -> void:
+
+func _execute_player_phase_sync() -> void:
 	state.phase = "executing"
-
 	for action in player_plan:
 		if action.actor.is_dead():
 			continue
 
 		action_started.emit(action)
 		_present_action_started_non_blocking(action)
-		# Capture pre-action state so ActionTrace records what this step meant
-		# relative to the actor's state when it was issued.
 		var actor_before_cell: Vector2i = action.actor.grid_pos
 		var actor_before_facing: Vector2i = action.actor.facing
 		resolver.resolve(action, state)
@@ -68,37 +71,88 @@ func execute_turn() -> void:
 		if _check_battle_end():
 			return
 
+
+func _execute_player_phase_async_then_continue() -> void:
+	state.phase = "executing"
+	var player_interrupted: bool = await _execute_action_sequence_with_presentation(player_plan)
+	if player_interrupted:
+		return
+	_continue_after_player_phase()
+
+
+func _continue_after_player_phase() -> void:
+	if state == null or state.battle_finished:
+		return
 	_resolve_action_chain_finished(player_plan)
 	if _check_battle_end():
 		return
 	if _should_pause_for_interaction():
 		_abort_turn_cycle_for_interaction()
 		return
+	if auto_advance_delay > 0.0:
+		_waiting_for_enemy_phase = true
+		player_phase_finished.emit()
+		var timer := get_tree().create_timer(auto_advance_delay)
+		timer.timeout.connect(_on_enemy_phase_timer_timeout, CONNECT_ONE_SHOT)
+		return
+	_execute_enemy_phase()
 
-	if enemy_planner != null:
-		var enemy_plan = enemy_planner.make_enemy_actions(state)
-		_active_plan_chain_id = _next_plan_chain_id
-		_next_plan_chain_id += 1
-		_prepare_action_chain(enemy_plan)
-		for action in enemy_plan:
-			if action.actor.is_dead():
-				continue
 
-			action_started.emit(action)
-			_present_action_started_non_blocking(action)
-			var actor_before_cell: Vector2i = action.actor.grid_pos
-			var actor_before_facing: Vector2i = action.actor.facing
-			resolver.resolve(action, state)
-			_record_action_trace(action, actor_before_cell, actor_before_facing)
-			_present_pending_frames_non_blocking()
-			action_finished.emit(action)
+func _on_enemy_phase_timer_timeout() -> void:
+	if state == null or state.battle_finished or not _waiting_for_enemy_phase:
+		return
+	_waiting_for_enemy_phase = false
+	_execute_enemy_phase()
 
-			if _check_battle_end():
-				return
 
-		_resolve_action_chain_finished(enemy_plan)
+func _execute_enemy_phase() -> void:
+	if enemy_planner == null:
+		_finish_turn_cycle()
+		return
 
+	var enemy_plan = enemy_planner.make_enemy_actions(state)
+	_active_plan_chain_id = _next_plan_chain_id
+	_next_plan_chain_id += 1
+	_prepare_action_chain(enemy_plan)
+	if _should_wait_for_presentation():
+		_execute_enemy_phase_async_then_finish(enemy_plan)
+		return
+
+	for action in enemy_plan:
+		if action.actor.is_dead():
+			continue
+
+		action_started.emit(action)
+		_present_action_started_non_blocking(action)
+		var actor_before_cell: Vector2i = action.actor.grid_pos
+		var actor_before_facing: Vector2i = action.actor.facing
+		resolver.resolve(action, state)
+		_record_action_trace(action, actor_before_cell, actor_before_facing)
+		_present_pending_frames_non_blocking()
+		action_finished.emit(action)
+
+		if _check_battle_end():
+			return
+
+	_resolve_action_chain_finished(enemy_plan)
+	if state.battle_finished:
+		return
 	_finish_turn_cycle()
+
+
+func _execute_enemy_phase_async_then_finish(enemy_plan: Array) -> void:
+	var enemy_interrupted: bool = await _execute_action_sequence_with_presentation(enemy_plan)
+	if enemy_interrupted:
+		return
+	_resolve_action_chain_finished(enemy_plan)
+	if state == null or state.battle_finished:
+		return
+	_finish_turn_cycle()
+
+
+func execute_turn() -> void:
+	_execute_player_phase_sync()
+	_continue_after_player_phase()
 
 func _check_battle_end() -> bool:
 	if not state.battle_finished:
@@ -191,36 +245,6 @@ func _should_wait_for_presentation() -> bool:
 	return presentation_controller != null \
 		and presentation_controller.has_method("should_wait_for_presentation") \
 		and bool(presentation_controller.should_wait_for_presentation())
-
-func _execute_turn_async() -> void:
-	await _run_turn_with_presentation()
-
-func _run_turn_with_presentation() -> void:
-	state.phase = "executing"
-
-	var player_interrupted: bool = await _execute_action_sequence_with_presentation(player_plan)
-	if player_interrupted:
-		return
-
-	_resolve_action_chain_finished(player_plan)
-	if _check_battle_end():
-		return
-	if _should_pause_for_interaction():
-		_abort_turn_cycle_for_interaction()
-		return
-
-	if enemy_planner != null:
-		var enemy_plan: Array = enemy_planner.make_enemy_actions(state)
-		_active_plan_chain_id = _next_plan_chain_id
-		_next_plan_chain_id += 1
-		_prepare_action_chain(enemy_plan)
-		var enemy_interrupted: bool = await _execute_action_sequence_with_presentation(enemy_plan)
-		if enemy_interrupted:
-			return
-
-		_resolve_action_chain_finished(enemy_plan)
-
-	_finish_turn_cycle()
 
 func _execute_action_sequence_with_presentation(actions: Array) -> bool:
 	for action in actions:
