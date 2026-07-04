@@ -10,10 +10,16 @@ const AmplifyKnockbackModifierScript := preload("res://scripts/tests/AmplifyKnoc
 const OnHitBonusDamageModifierScript := preload("res://scripts/tests/OnHitBonusDamageModifierDef.gd")
 const OnMoveZapAheadModifierScript := preload("res://scripts/tests/OnMoveZapAheadModifierDef.gd")
 const WorldSliceControllerScript := preload("res://scripts/core/WorldSliceController.gd")
+const TokenDropTableScript := preload("res://scripts/core/TokenDropTable.gd")
+const RandomServiceScript := preload("res://scripts/core/RandomService.gd")
 const SLIME_DEF := preload("res://data/actors/monster.tres")
 const TALKATIVE_SLIME_DEF := preload("res://data/actors/talkative_slime.tres")
 const LINE_WARDEN_DEF := preload("res://data/actors/line_warden.tres")
 const WISP_DEF := preload("res://data/actors/wisp.tres")
+const GOBLIN_SCOUT_DEF := preload("res://data/actors/goblin_scout.tres")
+const GOBLIN_SLINGER_DEF := preload("res://data/actors/goblin_slinger.tres")
+const AOE_SLIME_DEF := preload("res://data/actors/aoe_slime.tres")
+const SPLIT_SLIME_DEF := preload("res://data/actors/split_slime.tres")
 
 func _init() -> void:
 	var game = GameScene.instantiate()
@@ -74,9 +80,9 @@ func _init() -> void:
 	starter_program.reset_starter_slots("relative")
 	var relative_slots := starter_program.get_key_slots()
 	_require(_array_equals(relative_slots["W"], ["F"]), "relative starter preset puts F in W")
-	_require(_array_equals(relative_slots["S"], ["TR", "TR", "F"]), "relative starter preset puts TR/TR/F in S")
-	_require(_array_equals(relative_slots["A"], ["TL", "F"]), "relative starter preset puts TL/F in A")
-	_require(_array_equals(relative_slots["D"], ["TR", "F"]), "relative starter preset puts TR/F in D")
+	_require(_array_equals(relative_slots["S"], ["B"]), "relative starter preset puts B in S")
+	_require(_array_equals(relative_slots["A"], ["SL"]), "relative starter preset puts SL in A")
+	_require(_array_equals(relative_slots["D"], ["SR"]), "relative starter preset puts SR in D")
 	_require(_array_equals(relative_slots["F"], ["I"]), "starter preset now reserves physical F for the interact token")
 	_require(_array_equals(starter_program.get_token_drop_pool(), ["U", "D", "L", "R", "F", "B", "SL", "SR", "DS", "HK", "SB", "HM", "RA", "PI", "TH", "SW", "BW", "CA", "TL", "TR", "A", "I", "G", "W", "J"]), "token drop pool includes all current program tokens")
 	_require(starter_program.is_program_token("F"), "F is a legal program token")
@@ -93,9 +99,28 @@ func _init() -> void:
 	_require(starter_program.is_program_token("BW"), "BW is a legal program token")
 	_require(starter_program.is_program_token("TL"), "TL is a legal program token")
 	_require(starter_program.is_program_token("TR"), "TR is a legal program token")
-	_require(_array_equals(game._build_key_slot_plan(relative_slots["A"]).map(func(action): return action.def.id), ["turn_left", "move_forward"]), "relative starter A slot builds turn_left + move_forward")
-	_require(_array_equals(game._build_key_slot_plan(relative_slots["D"]).map(func(action): return action.def.id), ["turn_right", "move_forward"]), "relative starter D slot builds turn_right + move_forward")
-	_require(_array_equals(game._build_key_slot_plan(relative_slots["S"]).map(func(action): return action.def.id), ["turn_right", "turn_right", "move_forward"]), "relative starter S slot builds turn_right + turn_right + move_forward")
+	_require(TokenDropTableScript.token_tier("U") == 1, "token drop table classifies basic direction tokens as tier 1")
+	_require(TokenDropTableScript.token_tier("BW") == 2, "token drop table classifies bow shot as tier 2")
+	_require(TokenDropTableScript.token_tier("CA") == 3, "token drop table classifies cross attack as tier 3")
+	var low_tier_rng = RandomServiceScript.new()
+	low_tier_rng.set_seed("tier1-drop-bias")
+	var low_counts := {1: 0, 2: 0, 3: 0}
+	for _roll in range(240):
+		var low_drop := String(TokenDropTableScript.pick_drop_key(1, low_tier_rng))
+		low_counts[TokenDropTableScript.token_tier(low_drop)] = int(low_counts.get(TokenDropTableScript.token_tier(low_drop), 0)) + 1
+	low_tier_rng.free()
+	_require(int(low_counts[1]) > int(low_counts[2]) and int(low_counts[2]) > int(low_counts[3]), "tier 1 monsters favor lower-tier tokens in the shared drop pool")
+	var high_tier_rng = RandomServiceScript.new()
+	high_tier_rng.set_seed("tier3-drop-bias")
+	var high_counts := {1: 0, 2: 0, 3: 0}
+	for _roll in range(240):
+		var high_drop := String(TokenDropTableScript.pick_drop_key(3, high_tier_rng))
+		high_counts[TokenDropTableScript.token_tier(high_drop)] = int(high_counts.get(TokenDropTableScript.token_tier(high_drop), 0)) + 1
+	high_tier_rng.free()
+	_require(int(high_counts[3]) > int(high_counts[2]) and int(high_counts[2]) > int(high_counts[1]), "tier 3 monsters favor higher-tier tokens in the shared drop pool")
+	_require(_array_equals(game._build_key_slot_plan(relative_slots["A"]).map(func(action): return action.def.id), ["step_left"]), "relative starter A slot builds step_left")
+	_require(_array_equals(game._build_key_slot_plan(relative_slots["D"]).map(func(action): return action.def.id), ["step_right"]), "relative starter D slot builds step_right")
+	_require(_array_equals(game._build_key_slot_plan(relative_slots["S"]).map(func(action): return action.def.id), ["move_back"]), "relative starter S slot builds move_back")
 
 	game.start_seeded_run("absolute")
 	await process_frame
@@ -112,9 +137,9 @@ func _init() -> void:
 	_require(game.state.map_node_kind == "rest", "relative seeded run also starts at camp")
 	var relative_starter_slots: Dictionary = game.get_key_program_slots()
 	_require(_array_equals(relative_starter_slots["W"], ["F"]), "relative seeded run puts F in W")
-	_require(_array_equals(relative_starter_slots["S"], ["TR", "TR", "F"]), "relative seeded run puts TR/TR/F in S")
-	_require(_array_equals(relative_starter_slots["A"], ["TL", "F"]), "relative seeded run puts TL/F in A")
-	_require(_array_equals(relative_starter_slots["D"], ["TR", "F"]), "relative seeded run puts TR/F in D")
+	_require(_array_equals(relative_starter_slots["S"], ["B"]), "relative seeded run puts B in S")
+	_require(_array_equals(relative_starter_slots["A"], ["SL"]), "relative seeded run puts SL in A")
+	_require(_array_equals(relative_starter_slots["D"], ["SR"]), "relative seeded run puts SR in D")
 	_require(_array_equals(relative_starter_slots["F"], ["I"]), "relative seeded run reserves physical F for interact by default")
 	game.start_seeded_run("absolute")
 	await process_frame
@@ -149,24 +174,29 @@ func _init() -> void:
 	_require(sweep_plan.size() == 1 and sweep_plan[0].def.id == "great_sweep", "SW token maps to great_sweep action")
 	var bow_plan: Array = game._build_key_slot_plan(["BW"])
 	_require(bow_plan.size() == 1 and bow_plan[0].def.id == "bow_shot", "BW token maps to bow_shot action")
+	_require(game._enemy_def("goblin_scout") == GOBLIN_SCOUT_DEF, "game exposes goblin scout through the enemy lookup")
+	_require(game._enemy_def("goblin_slinger") == GOBLIN_SLINGER_DEF, "game exposes goblin slinger through the enemy lookup")
+	_require(game._enemy_def("aoe_slime") == AOE_SLIME_DEF, "game exposes the aoe slime through the enemy lookup")
+	_require(game._enemy_def("split_slime") == SPLIT_SLIME_DEF, "game exposes the split slime through the enemy lookup")
 	var tl_plan: Array = game._build_key_slot_plan(["TL"])
 	_require(tl_plan.size() == 1 and tl_plan[0].def.id == "turn_left", "TL token maps to turn_left action")
 	var tr_plan: Array = game._build_key_slot_plan(["TR"])
 	_require(tr_plan.size() == 1 and tr_plan[0].def.id == "turn_right", "TR token maps to turn_right action")
 
+	game._on_key_token_move_requested("W", 0, "POOL")
 	game._on_key_token_move_requested("D", 0, "W")
 	await process_frame
 	_require(game.get_key_program_slots()["D"].is_empty(), "camp editing can empty D key slot")
-	_require(_array_equals(game.get_key_program_slots()["W"], ["U", "R"]), "camp editing can chain W slot to up then right")
+	_require(_array_equals(game.get_key_program_slots()["W"], ["R"]), "camp editing can replace the W key with a single token when one slot was freed")
 	_move_player_to(game, Vector2i(3, 3))
 	game._submit_key_chain("D")
 	await process_frame
 	_require(game.state.player.grid_pos == Vector2i(3, 3), "empty D key slot has no mapped movement in camp")
 	game._submit_key_chain("W")
 	await process_frame
-	_require(game.state.player.grid_pos == Vector2i(4, 2), "camp sandbox can test chained W-slot up then right movement")
-	_require(_string_name_array_equals(game.get_player_action_trace_symbols(2), [&"SL", &"SR"]), "absolute input chain is recorded as relative action trace symbols")
-	_require(game.get_player_action_trace_debug_string(2) == "SL -> SR", "player trace debug string reports recent relative symbols")
+	_require(game.state.player.grid_pos == Vector2i(4, 3), "camp sandbox can test the remapped single-token W slot")
+	_require(_string_name_array_equals(game.get_player_action_trace_symbols(1), [&"F"]), "single absolute input is recorded as one relative trace symbol")
+	_require(game.get_player_action_trace_debug_string(1) == "F", "player trace debug string reports the recent single relative symbol")
 
 	var input_service = root.get_node_or_null("/root/PlayerInputService")
 	_require(input_service != null, "player input service autoload exists")
@@ -177,10 +207,10 @@ func _init() -> void:
 	await process_frame
 	_require(game.state.map_node_kind == "combat", "camp continues to first combat")
 	_require(not game._key_program_editable, "combat locks key slot editing")
-	game._on_key_token_move_requested("W", 1, "D")
+	game._on_key_token_move_requested("W", 0, "D")
 	await process_frame
 	_require(game.get_key_program_slots()["D"].is_empty(), "combat keeps D key slot unchanged")
-	_require(_array_equals(game.get_key_program_slots()["W"], ["U", "R"]), "combat keeps W key slot unchanged")
+	_require(_array_equals(game.get_key_program_slots()["W"], ["R"]), "combat keeps W key slot unchanged")
 
 	game.start_seeded_run("absolute")
 	await process_frame
@@ -189,10 +219,11 @@ func _init() -> void:
 	_require(game.state.map_node_kind == "rest", "route has a rest node")
 	_require(game._key_program_editable, "rest node unlocks key slot editing")
 
+	game._on_key_token_move_requested("W", 0, "POOL")
 	game._on_key_token_move_requested("D", 0, "W")
 	await process_frame
 	_require(game.get_key_program_slots()["D"].is_empty(), "rest editing can empty D key slot")
-	_require(_array_equals(game.get_key_program_slots()["W"], ["U", "R"]), "rest editing can chain W slot to up then right")
+	_require(_array_equals(game.get_key_program_slots()["W"], ["R"]), "rest editing can replace W with a single token when one slot was freed")
 
 	game._on_rest_continue_requested()
 	await process_frame
@@ -207,8 +238,8 @@ func _init() -> void:
 
 	game._submit_key_chain("W")
 	await process_frame
-	_require(game.state.player.grid_pos == Vector2i(4, 1), "pressing W key executes chained up then right movement")
-	_require(_string_name_array_equals(game.get_player_action_trace_symbols(2), [&"SL", &"SR"]), "combat key-program execution records recent relative trace symbols")
+	_require(game.state.player.grid_pos == Vector2i(4, 2), "pressing W key executes the remapped single-token movement")
+	_require(_string_name_array_equals(game.get_player_action_trace_symbols(1), [&"F"]), "combat key-program execution records the recent single relative trace symbol")
 
 	await _start_seeded_combat_run(game, "action-trace-turn")
 	_disable_enemies(game)
@@ -405,6 +436,24 @@ func _init() -> void:
 	var line_action = game.enemy_planner.decide_enemy_action(line_enemy, game.state)
 	_require(line_action != null and line_action.def != null and line_action.def.id == "move_forward", "line keeper advances along the player's line when out of range")
 	_require(line_action.chosen_dir == Vector2i.UP, "line keeper moves straight along the same column toward the player")
+	var aoe_slime = game._add_actor(game.state, AOE_SLIME_DEF, Vector2i(4, 4))
+	aoe_slime.team = "enemy"
+	_move_player_to(game, Vector2i(3, 4))
+	var aoe_action = game.enemy_planner.decide_enemy_action(aoe_slime, game.state)
+	_require(aoe_action != null and aoe_action.def != null and aoe_action.def.id == "spin_axe", "aoe slime attacks when the player enters its surrounding 3x3 ring")
+	_require(game.enemy_planner.describe_action(aoe_action).contains("周围一圈"), "aoe slime preview text describes the surrounding slam")
+	var goblin_scout = game._add_actor(game.state, GOBLIN_SCOUT_DEF, Vector2i(4, 2))
+	goblin_scout.team = "enemy"
+	_move_player_to(game, Vector2i(2, 2))
+	game.state.player.facing = Vector2i.RIGHT
+	var goblin_scout_action = game.enemy_planner.decide_enemy_action(goblin_scout, game.state)
+	_require(goblin_scout_action != null and goblin_scout_action.def != null and goblin_scout_action.def.id == "move_forward", "goblin scout closes distance as a light melee enemy")
+	_require(goblin_scout_action.chosen_dir == Vector2i.LEFT, "goblin scout moves toward the player")
+	var goblin_slinger = game._add_actor(game.state, GOBLIN_SLINGER_DEF, Vector2i(5, 2))
+	goblin_slinger.team = "enemy"
+	var goblin_slinger_action = game.enemy_planner.decide_enemy_action(goblin_slinger, game.state)
+	_require(goblin_slinger_action != null and goblin_slinger_action.def != null and goblin_slinger_action.def.id == "bow_shot", "goblin slinger uses its ranged attack action")
+	_require(goblin_slinger_action.chosen_dir == Vector2i.LEFT, "goblin slinger aims toward the player across the line")
 
 	game.start_seeded_run("absolute")
 	await process_frame
@@ -426,14 +475,23 @@ func _init() -> void:
 	_require(dropped_tr == "TR", "TR can be picked up from a dropped key")
 	game._on_key_picked(game.state.player, dropped_tr, Vector2i(2, 4))
 	_require(game.get_key_program_pool_tokens().has("F") and game.get_key_program_pool_tokens().has("TL") and game.get_key_program_pool_tokens().has("TR"), "mixed tokens enter the spare-token pool")
+	var pool_f_before_duplicate: int = game.get_key_program_pool_tokens().count("F")
+	game._on_key_picked(game.state.player, "F", Vector2i(2, 5))
+	_require(game.get_key_program_pool_tokens().count("F") == pool_f_before_duplicate + 1, "picking an already-owned token increases the pool stack count")
 	game._on_key_token_move_requested("W", 0, "POOL")
 	_require(game.get_key_program_slots()["W"].is_empty(), "starter token can be moved out to make room for pooled tokens")
 	_move_pool_token_to_slot(game, "F", "W")
-	_move_pool_token_to_slot(game, "TL", "W")
+	_require(_array_equals(game.get_key_program_slots()["W"], ["F"]), "a freed key slot accepts the first pooled token")
+	_require(game.get_key_program_pool_tokens().count("F") == pool_f_before_duplicate, "dragging F from the pool into W consumes one stacked copy")
+	game._on_key_token_move_requested("POOL", game.get_key_program_pool_tokens().find("TL"), "W")
+	await process_frame
+	_require(_array_equals(game.get_key_program_slots()["W"], ["F", "TL"]), "a key slot can now hold two one-token cells")
 	_move_pool_token_to_slot(game, "TR", "W")
-	_require(_array_equals(game.get_key_program_slots()["W"], ["F", "TL", "TR"]), "pooled F/TL/TR tokens can be dragged into one physical slot")
+	await process_frame
+	_require(_array_equals(game.get_key_program_slots()["W"], ["F", "TL"]), "dropping a third token onto a full two-slot key is rejected")
+	_move_pool_token_to_slot(game, "TR", "D")
 	var mixed_plan: Array = game._build_key_slot_plan(game.get_key_program_slots()["W"])
-	_require(mixed_plan.size() == 3 and mixed_plan[0].def.id == "move_forward" and mixed_plan[1].def.id == "turn_left" and mixed_plan[2].def.id == "turn_right", "mixed F/TL/TR slot builds the expected action plan")
+	_require(mixed_plan.size() == 2 and mixed_plan[0].def.id == "move_forward" and mixed_plan[1].def.id == "turn_left", "two-slot key now builds a two-action plan")
 
 	var world_game = GameScene.instantiate()
 	root.add_child(world_game)
@@ -451,6 +509,7 @@ func _init() -> void:
 	_require(visible_plain_texture != null and explored_plain_texture != null, "board view can build visible and explored tile variants")
 	_require(visible_plain_texture != explored_plain_texture, "explored fog uses a darkened tile variant instead of reusing the visible texture")
 	_require(world_game.state.map_node_kind == "world_slice", "world slice entry creates the world slice state")
+	_require(String(world_game.state.world_enemy_spawn_profile) == "calm", "world slice starts in the calm enemy spawn profile")
 	_require(not world_game._battle_presentation.debug_wait_for_presentation_completion(), "world slice defaults to non-blocking layered presentation")
 	_require(world_game._battle_presentation.debug_current_timing_profile_name() == "world_slice_fast", "world slice defaults to the fast timing profile")
 	_require(world_game.state.grid.width >= 256 and world_game.state.grid.height >= 256, "world slice defaults to a 256x256 grid")
@@ -604,6 +663,12 @@ func _init() -> void:
 		world_game._refresh_world_visibility("cleanup_autopath_test_enemy")
 		world_game._refresh_views()
 		await process_frame
+	var world_turn_before_auto: int = int(world_game.state.turn_count)
+	var world_player_before_auto: Vector2i = world_game.state.player.grid_pos
+	world_game._on_auto_advance_mode_changed(world_game.battle_ui.AUTO_FAST)
+	await process_frame
+	_require(world_game.state.turn_count == world_turn_before_auto, "world slice auto advance does not consume a turn by submitting an empty plan")
+	_require(world_game.state.player.grid_pos == world_player_before_auto, "world slice auto advance does not move or stall the player outside explicit autopath")
 	var world_snapshot_before: String = _world_slice_snapshot_key(world_game.state)
 	var world_seed_before: String = String(world_game.state.map_data.seed)
 	var explored_before_move: int = world_game.state.explored_cells.size()
@@ -650,12 +715,17 @@ func _init() -> void:
 		world_game._world_slice_controller.on_player_moved(world_game.state, outside_rest_cell, ruin_interaction_cell)
 	world_game._refresh_views()
 	await process_frame
-	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/RuinPoiHint").text.contains("附近可调查"), "sidebar upgrades the ruin hint once the player gets close enough to investigate")
+	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/PoiHintTitle").text == "自动导航", "world slice sidebar now labels the left panel as auto navigation")
+	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/SafeZonePoiHint").text == "前往最近安全区", "world slice sidebar keeps the safe-zone entry as an auto navigation action")
+	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/BossPoiHint").text == "前往 Boss遗迹", "world slice sidebar keeps the boss entry as an auto navigation action")
+	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/RuinPoiHint").text == "前往最近小遗迹", "world slice sidebar keeps the ruin entry as an auto navigation action")
 	var pool_count_before_ruin: int = world_game.get_key_program_pool_tokens().size()
 	_require(world_game._submit_world_interact_action(), "world slice can investigate a ruin via interact action")
 	_require(world_game.get_key_program_pool_tokens().has("SL") and world_game.get_key_program_pool_tokens().has("SR"), "ruin investigation adds side-step tokens to the spare pool")
 	_require(world_game.get_key_program_pool_tokens().size() >= pool_count_before_ruin + 2, "ruin investigation grows the spare token pool")
 	var ruin_message_after_claim: String = String(world_game.state.messages[0])
+	_require(String(world_game.state.world_enemy_spawn_profile) == "event_alert", "ruin investigation switches the world enemy spawn profile into event alert mode")
+	_require(String(world_game.state.world_enemy_stream_last_reason) == "ruin_event_alert", "ruin investigation triggers an event-alert enemy stream refresh")
 	_require(ruin_message_after_claim.contains("小遗迹"), "ruin investigation reports a reward message")
 	_require(world_game._submit_world_interact_action(), "already-claimed ruin still resolves interact input")
 	_require(String(world_game.state.messages[0]).contains("已经调查过"), "revisiting a claimed ruin reports that it was already investigated")
@@ -854,6 +924,46 @@ func _init() -> void:
 	_require(on_move_zap.triggered_count == 1, "effect event modifier reacts to actor moved")
 	_require(game.state.player.grid_pos == Vector2i(3, 2), "on-move event keeps normal movement result")
 	_require(on_move_enemy.hp == 9, "on-move event can generate a follow-up damage packet")
+
+	await _start_seeded_combat_run(game, "enemy-drop-token")
+	game.enemy_planner.enemies_are_static = true
+	_move_player_to(game, Vector2i(2, 2))
+	var drop_enemy = _prepare_single_enemy_room(game, Vector2i(3, 2), 1, Vector2i(2, 2))
+	drop_enemy.drop_key = "TL"
+	var drop_action = _make_player_action(game, "attack")
+	drop_action.chosen_dir = Vector2i.RIGHT
+	game.turn_controller.submit_player_plan([drop_action])
+	await process_frame
+	_require(drop_enemy.is_dead(), "killing the prepared enemy defeats it")
+	_require(String(game.state.items_at.get(Vector2i(3, 2), "")) == "TL", "dead enemy drops its configured token on the death cell")
+	var drop_token_pool_before: int = game.get_key_program_pool_tokens().size()
+	_move_player_to(game, Vector2i(3, 2))
+	game.resolver.on_actor_entered_cell(game.state.player, game.state)
+	_require(game.state.player.grid_pos == Vector2i(3, 2), "player can step onto the dropped token cell")
+	_require(not game.state.items_at.has(Vector2i(3, 2)), "stepping onto the death cell picks up the dropped token")
+	_require(game.get_key_program_pool_tokens().size() == drop_token_pool_before + 1, "picking up a monster drop adds the token to the spare pool")
+	_require(game.get_key_program_pool_tokens().has("TL"), "picked-up monster drop token enters the pool by id")
+
+	await _start_seeded_combat_run(game, "split-slime")
+	game.enemy_planner.enemies_are_static = true
+	_move_player_to(game, Vector2i(2, 2))
+	var split_enemy = _prepare_single_enemy_room(game, Vector2i(3, 2), 1, Vector2i(2, 2))
+	split_enemy.def = SPLIT_SLIME_DEF
+	split_enemy.display_name = SPLIT_SLIME_DEF.display_name
+	split_enemy.max_hp = 1
+	split_enemy.hp = 1
+	split_enemy.atk = SPLIT_SLIME_DEF.atk
+	split_enemy.drop_tier = SPLIT_SLIME_DEF.drop_tier
+	split_enemy.drop_key = ""
+	var split_attack = _make_player_action(game, "attack")
+	split_attack.chosen_dir = Vector2i.RIGHT
+	game.turn_controller.submit_player_plan([split_attack])
+	await process_frame
+	var small_slime_count := 0
+	for split_spawn_enemy in game.state.get_alive_enemies():
+		if split_spawn_enemy != null and split_spawn_enemy.def != null and String(split_spawn_enemy.def.id) == "small_slime":
+			small_slime_count += 1
+	_require(small_slime_count == 2, "split slime spawns two small slimes when defeated")
 
 	await _start_seeded_combat_run(game, "turn-regen")
 	game.enemy_planner.enemies_are_static = true
@@ -1120,6 +1230,7 @@ func _move_player_to(game, cell: Vector2i) -> void:
 func _prepare_single_enemy_room(game, enemy_cell: Vector2i, enemy_hp: int, player_cell: Vector2i = Vector2i(1, 1)):
 	game.enemy_planner.enemies_are_static = true
 	_move_player_to(game, player_cell)
+	game.state.items_at.clear()
 
 	var enemies: Array = game.state.get_alive_enemies()
 	_require(not enemies.is_empty(), "test room has an enemy")

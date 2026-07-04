@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="ActorDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActorDef.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "goblin_scout"
+display_name = "哥布林斥候"
+max_hp = 2
+max_san = 0
+atk = 1
+move_range = 1
+map_char = "g"
+team = "enemy"
+ai_type = "melee_chaser"
+attack_action_id = "attack"
+default_drop_key = ""
+drop_tier = 1
+default_effect_modifiers = []
+view_offset = Vector2(0, 0)
+view_scale = Vector2(1, 1)
+color = Color(0.52549, 0.780392, 0.34902, 1)
+interaction_enabled = false
+interaction_title = ""
+interaction_prompt = "交互"
+interaction_range = 1
+interaction_lines = PackedStringArray()
+dialogue_resource_path = ""
+dialogue_cue = ""

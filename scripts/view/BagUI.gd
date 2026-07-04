@@ -64,7 +64,7 @@ var _hint_label: Label = null
 var _close_button: Button = null
 
 var _slot_chains: Dictionary = {}
-var _pool_tokens: Array[String] = []
+var _pool_entries: Array[Dictionary] = []
 var _editable := false
 var _permanent_buffs: Array[Dictionary] = []
 var _slot_panels: Dictionary = {}
@@ -150,16 +150,16 @@ func _apply_layout_settings() -> void:
 		_buffs_scroll.custom_minimum_size = Vector2(0, buffs_panel_height)
 
 
-func setup(slot_chains: Dictionary, pool_tokens: Array, editable: bool, buffs: Array[Dictionary]) -> void:
+func setup(slot_chains: Dictionary, pool_entries: Array, editable: bool, buffs: Array[Dictionary]) -> void:
 	_slot_chains.clear()
 	for key_id in SLOT_ORDER:
 		_slot_chains[key_id] = []
 		for token_id in slot_chains.get(key_id, []):
 			_slot_chains[key_id].append(String(token_id))
 
-	_pool_tokens.clear()
-	for token_id in pool_tokens:
-		_pool_tokens.append(String(token_id))
+	_pool_entries.clear()
+	for entry in pool_entries:
+		_pool_entries.append(Dictionary(entry).duplicate(true))
 
 	_editable = editable
 	_permanent_buffs = buffs.duplicate(true)
@@ -187,7 +187,7 @@ func _refresh() -> void:
 	if _editable_label:
 		_editable_label.text = "可编辑 · 拖拽调整按键绑定" if _editable else "已锁定 · 查看不可编辑"
 	if _hint_label:
-		_hint_label.text = "同一键位会按从左到右顺序触发；Tab / Esc 关闭；休息区可拖拽编辑" if _editable else "同一键位会按从左到右顺序触发；Tab / Esc 关闭；战斗中只可查看顺序"
+		_hint_label.text = "每个键位当前有 2 个栏位，每个栏位只能放 1 个动作；从右侧拖入会消耗 1 个库存" if _editable else "当前只读；每个键位显示 2 个独立栏位"
 	if _buffs_title:
 		_buffs_title.text = "永久增益（悬停查看详情）"
 	if _pool_title:
@@ -232,7 +232,7 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 	var token_ids: Array = _slot_chains.get(key_id, [])
 	var binding := _get_binding_label(key_id)
 	var suffix := "可调整" if _editable else "锁定"
-	var meta_text := "绑定：%s · %d格 · %s" % [binding, maxi(1, key_slot_visible_capacity), suffix]
+	var meta_text := "绑定：%s · 2格 · %s" % [binding, suffix]
 
 	var panel = UiKeySlotScript.new()
 	panel.setup(key_id, _editable)
@@ -278,7 +278,7 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 	var visible_slots := maxi(maxi(1, key_slot_visible_capacity), token_ids.size())
 	for index in range(visible_slots):
 		if index < token_ids.size():
-			token_grid.add_child(_make_token_button(String(token_ids[index]), key_id, index))
+			token_grid.add_child(_make_slot_token_button(String(token_ids[index]), key_id, index))
 		else:
 			token_grid.add_child(_make_key_slot_empty_cell())
 
@@ -291,15 +291,20 @@ func _refresh_pool_grid() -> void:
 	if _pool_container.has_method("setup"):
 		_pool_container.setup(_editable)
 	_pool_container.columns = maxi(1, token_pool_columns)
-	var visible_slots := maxi(maxi(1, token_pool_visible_capacity), _pool_tokens.size())
+	var visible_slots := maxi(maxi(1, token_pool_visible_capacity), _pool_entries.size())
 	for index in range(visible_slots):
-		if index < _pool_tokens.size():
-			_pool_container.add_child(_make_token_button(String(_pool_tokens[index]), KEY_POOL_ID, index))
+		if index < _pool_entries.size():
+			var entry := Dictionary(_pool_entries[index])
+			_pool_container.add_child(_make_pool_token_button(
+				String(entry.get("token_id", "")),
+				int(entry.get("source_index", index)),
+				int(entry.get("count", 1))
+			))
 		else:
 			_pool_container.add_child(_make_pool_empty_token_cell())
 
 
-func _make_token_button(token_id: String, source_slot_id: String, source_index: int) -> Control:
+func _make_slot_token_button(token_id: String, source_slot_id: String, source_index: int) -> Control:
 	var token = UiKeyTokenScript.new()
 	token.setup(
 		token_id,
@@ -307,7 +312,25 @@ func _make_token_button(token_id: String, source_slot_id: String, source_index: 
 		source_index,
 		_token_label(token_id),
 		_editable,
-		_token_tooltip(token_id),
+		_token_tooltip(token_id, 1, false),
+		token_cell_size
+	)
+	if not token.drop_requested.is_connected(_on_key_dropped):
+		token.drop_requested.connect(_on_key_dropped)
+	if not token.interaction_blocked.is_connected(_on_locked_slot_interaction):
+		token.interaction_blocked.connect(_on_locked_slot_interaction)
+	return token
+
+
+func _make_pool_token_button(token_id: String, source_index: int, stack_count: int) -> Control:
+	var token = UiKeyTokenScript.new()
+	token.setup(
+		token_id,
+		KEY_POOL_ID,
+		source_index,
+		_token_label(token_id, stack_count),
+		_editable,
+		_token_tooltip(token_id, stack_count, true),
 		token_cell_size
 	)
 	if not token.drop_requested.is_connected(_on_key_dropped):
@@ -354,11 +377,12 @@ func _key_grid_min_size() -> Vector2:
 	return Vector2(width, height)
 
 
-func _token_tooltip(token_id: String) -> String:
-	var title := _token_label(token_id)
+func _token_tooltip(token_id: String, stack_count: int, show_stack: bool) -> String:
+	var title := _token_label(token_id, stack_count if show_stack else 1)
 	var description := String(TOKEN_DESCRIPTIONS.get(token_id, "TODO：当前动作简介尚未接到统一的 ActionDef.description API。"))
-	var drag_hint := "可拖拽到键位槽，按链顺序执行。" if _editable else "当前只读，可在休息区调整。"
-	return "%s\n%s\n%s" % [title, description, drag_hint]
+	var stack_hint := "当前数量：%d" % stack_count if show_stack else "已装配到该键位"
+	var drag_hint := "可拖拽到键位槽，拖入后库存 -1。" if _editable and show_stack else ("可拖回右侧库存池。" if _editable else "当前只读，可在休息区调整。")
+	return "%s\n%s\n%s\n%s" % [title, stack_hint, description, drag_hint]
 
 func _make_key_badge(key_id: String) -> Control:
 	var badge := PanelContainer.new()
@@ -429,54 +453,57 @@ func _get_binding_label(key_id: String) -> String:
 	return input_service.get_binding_label(action_name)
 
 
-func _token_label(token_id: String) -> String:
+func _token_label(token_id: String, stack_count: int = 1) -> String:
+	var base_label := token_id
 	match token_id:
 		"F":
-			return "前进"
+			base_label = "前进"
 		"B":
-			return "后退"
+			base_label = "后退"
 		"SL":
-			return "左侧移"
+			base_label = "左侧移"
 		"SR":
-			return "右侧移"
+			base_label = "右侧移"
 		"DS":
-			return "冲刺"
+			base_label = "冲刺"
 		"HK":
-			return "钩拽"
+			base_label = "钩拽"
 		"SB":
-			return "盾击"
+			base_label = "盾击"
 		"HM":
-			return "锤击"
+			base_label = "锤击"
 		"RA":
-			return "旋斧"
+			base_label = "旋斧"
 		"PI":
-			return "穿刺"
+			base_label = "穿刺"
 		"TH":
-			return "贯刺"
+			base_label = "贯刺"
 		"SW":
-			return "横扫"
+			base_label = "横扫"
 		"BW":
-			return "弓射"
+			base_label = "弓射"
 		"CA":
-			return "十字刃"
+			base_label = "十字刃"
 		"TL":
-			return "左转"
+			base_label = "左转"
 		"TR":
-			return "右转"
+			base_label = "右转"
 		"A":
-			return "攻击"
+			base_label = "攻击"
 		"G":
-			return "防御"
+			base_label = "防御"
 		"W":
-			return "等待"
+			base_label = "等待"
 		"J":
-			return "跳跃"
+			base_label = "跳跃"
 		"U":
-			return "上"
+			base_label = "上"
 		"D":
-			return "下"
+			base_label = "下"
 		"L":
-			return "左"
+			base_label = "左"
 		"R":
-			return "右"
-	return token_id
+			base_label = "右"
+	if stack_count <= 1:
+		return base_label
+	return "%s x%d" % [base_label, stack_count]

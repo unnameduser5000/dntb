@@ -14,6 +14,7 @@ map_char = "S"
 team = "enemy"
 ai_type = "melee_chaser"
 default_drop_key = ""
+drop_tier = 1
 view_scene = ExtResource("2_view")
 view_offset = Vector2(0, -2)
 color = Color(0.72, 0.96, 0.55, 1)

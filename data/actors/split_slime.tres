@@ -5,15 +5,20 @@
 
 [resource]
 script = ExtResource("1_actor")
-id = "wisp"
-display_name = "游光（无害）"
-max_hp = 1
-atk = 0
+id = "split_slime"
+display_name = "裂殖史莱姆"
+max_hp = 3
+atk = 1
 move_range = 1
-map_char = "w"
+map_char = "Q"
 team = "enemy"
 ai_type = "melee_chaser"
 default_drop_key = ""
-drop_tier = 1
+drop_tier = 2
+split_on_death = true
+split_spawn_actor_id = "small_slime"
+split_spawn_count = 2
 view_scene = ExtResource("2_view")
-color = Color(0.7, 0.92, 1, 1)
+view_offset = Vector2(0, -2)
+view_scale = Vector2(1.1, 1.1)
+color = Color(0.66, 0.9, 0.46, 1)

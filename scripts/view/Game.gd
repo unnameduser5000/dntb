@@ -21,6 +21,11 @@ const WISP_DEF := preload("res://data/actors/wisp.tres")
 const BRUTE_DEF := preload("res://data/actors/brute.tres")
 const BOSS_DEF := preload("res://data/actors/boss.tres")
 const LINE_WARDEN_DEF := preload("res://data/actors/line_warden.tres")
+const GOBLIN_SCOUT_DEF := preload("res://data/actors/goblin_scout.tres")
+const GOBLIN_SLINGER_DEF := preload("res://data/actors/goblin_slinger.tres")
+const AOE_SLIME_DEF := preload("res://data/actors/aoe_slime.tres")
+const SPLIT_SLIME_DEF := preload("res://data/actors/split_slime.tres")
+const SMALL_SLIME_DEF := preload("res://data/actors/small_slime.tres")
 
 const ACTION_MOVE_FORWARD := preload("res://data/actions/move_forward.tres")
 const ACTION_MOVE_BACK := preload("res://data/actions/move_back.tres")
@@ -261,9 +266,10 @@ func _ready() -> void:
 	enemy_planner.enemies_are_static = false
 	enemy_planner.move_action = ACTION_MOVE_FORWARD
 	enemy_planner.attack_action = ACTION_ATTACK
+	enemy_planner.attack_actions_by_id = _action_by_id
 	var enemy_spawn_service = get_node_or_null("/root/EnemySpawnService")
 	if enemy_spawn_service != null:
-		enemy_spawn_service.register_enemy_defs([SLIME_DEF, WISP_DEF, BRUTE_DEF, BOSS_DEF, LINE_WARDEN_DEF])
+		enemy_spawn_service.register_enemy_defs([SLIME_DEF, WISP_DEF, BRUTE_DEF, BOSS_DEF, LINE_WARDEN_DEF, GOBLIN_SCOUT_DEF, GOBLIN_SLINGER_DEF, AOE_SLIME_DEF, SPLIT_SLIME_DEF, SMALL_SLIME_DEF])
 
 	_connect_signals()
 	_register_save_provider()
@@ -877,6 +883,16 @@ func _try_interact_with_world_ruin() -> bool:
 		state.add_message("你翻找了这处小遗迹，但这里只剩下已经学会的旧套路。")
 	else:
 		state.add_message("你调查了这处小遗迹，获得了 %s，并已放入备用行动池。" % "/".join(granted))
+	if _world_slice_controller != null and state != null:
+		state.world_enemy_spawn_profile = "event_alert"
+		_world_slice_controller.refresh_streamed_enemies(state, "ruin_event_alert")
+		var existing_messages: Array[String] = state.messages.duplicate()
+		state.messages.clear()
+		for existing_message in existing_messages:
+			state.messages.append(existing_message)
+		state.messages.append("遗迹的动静惊动了周围更危险的怪物。")
+		if state.messages.size() > 9:
+			state.messages.resize(9)
 	_refresh_key_program_ui()
 	_refresh_views()
 	return true
@@ -1148,6 +1164,7 @@ func _on_actor_died(actor) -> void:
 		return
 	if String(actor.team) != "enemy":
 		return
+	_try_spawn_split_children(actor)
 	state.player_xp += 1
 	state.add_message("击杀敌人，获得 1 点经验。当前经验：%d。" % int(state.player_xp))
 	_ensure_action_helpers()
@@ -1387,8 +1404,47 @@ func _enemy_def(id: String):
 			return BOSS_DEF
 		"line_warden":
 			return LINE_WARDEN_DEF
+		"goblin_scout":
+			return GOBLIN_SCOUT_DEF
+		"goblin_slinger":
+			return GOBLIN_SLINGER_DEF
+		"aoe_slime":
+			return AOE_SLIME_DEF
+		"split_slime":
+			return SPLIT_SLIME_DEF
+		"small_slime":
+			return SMALL_SLIME_DEF
 		_:
 			return SLIME_DEF
+
+func _try_spawn_split_children(actor) -> void:
+	if actor == null or actor.def == null or state == null or state.grid == null:
+		return
+	if not bool(actor.def.split_on_death):
+		return
+	var spawn_actor_id := String(actor.def.split_spawn_actor_id)
+	var spawn_count := int(actor.def.split_spawn_count)
+	if spawn_actor_id.is_empty() or spawn_count <= 0:
+		return
+	var spawn_def = _enemy_def(spawn_actor_id)
+	if spawn_def == null:
+		return
+	var spawned := 0
+	for offset in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		if spawned >= spawn_count:
+			break
+		var spawn_cell: Vector2i = actor.grid_pos + offset
+		if not state.grid.is_inside(spawn_cell):
+			continue
+		if not state.grid.can_enter(spawn_cell):
+			continue
+		var spawned_actor = _add_actor(state, spawn_def, spawn_cell)
+		if spawned_actor == null:
+			continue
+		spawned_actor.facing = offset
+		spawned += 1
+	if spawned > 0:
+		state.add_message("%s 裂成了 %d 只小史莱姆。" % [actor.def.display_name, spawned])
 
 func _build_rewards() -> Array:
 	if _current_room_index == 0:
@@ -1626,6 +1682,9 @@ func _on_key_token_move_requested(source_slot_id: String, source_index: int, tar
 	_ensure_action_helpers()
 	var result: Dictionary = _action_program.move_token(source_slot_id, source_index, target_slot_id)
 	if not bool(result.get("moved", false)):
+		if state != null and target_slot_id != KEY_TOKEN_POOL_SLOT_ID:
+			state.add_message("%s键槽已经放满了；当前每个键位只有 2 个栏位，且每栏只能放 1 个 token。" % state.key_name(target_slot_id))
+			_refresh_views()
 		return
 
 	var token_id := String(result.get("token_id", ""))
@@ -1693,7 +1752,7 @@ func _refresh_key_program_ui() -> void:
 	if not is_instance_valid(battle_ui):
 		return
 	battle_ui.set_permanent_buffs(_build_permanent_buffs())
-	battle_ui.set_key_program(_action_program.get_key_slots(), _action_program.get_pool_tokens())
+	battle_ui.set_key_program(_action_program.get_key_slots(), _action_program.get_pool_token_stacks())
 
 
 func _toggle_bag() -> void:
@@ -1734,6 +1793,8 @@ func _update_auto_advance_state() -> void:
 	if turn_controller.auto_advance_delay <= 0.0:
 		return
 	if state == null or state.battle_finished:
+		return
+	if bool(state.is_world_slice):
 		return
 	if state.phase != "planning":
 		return

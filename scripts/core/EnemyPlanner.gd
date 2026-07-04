@@ -7,6 +7,8 @@ const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 @export var move_action: Resource
 @export var attack_action: Resource
 
+var attack_actions_by_id: Dictionary = {}
+
 const CARDINAL_DIRECTIONS := [
 	Vector2i.UP,
 	Vector2i.DOWN,
@@ -61,6 +63,8 @@ func decide_enemy_action(enemy, state):
 
 
 func _decide_static_attack(enemy, state):
+	if _can_use_surrounding_attack(enemy, state):
+		return _make_attack(enemy, Vector2i.UP)
 	var attack_dir := _get_attack_dir_to_player(enemy, state)
 	if attack_dir == Vector2i.ZERO:
 		return null
@@ -69,6 +73,8 @@ func _decide_static_attack(enemy, state):
 
 
 func _decide_melee_chaser(enemy, state):
+	if _can_use_surrounding_attack(enemy, state):
+		return _make_attack(enemy, Vector2i.UP)
 	var attack_dir := _get_attack_dir_to_player(enemy, state)
 	if attack_dir != Vector2i.ZERO:
 		return _make_attack(enemy, attack_dir)
@@ -124,14 +130,29 @@ func _can_enemy_enter_cell(state, cell: Vector2i) -> bool:
 	return state.grid.can_enter(cell)
 
 
+func _can_use_surrounding_attack(enemy, state) -> bool:
+	if enemy == null or state == null or state.player == null:
+		return false
+	var enemy_attack = _attack_action_for_enemy(enemy)
+	if enemy_attack == null or String(enemy_attack.id) != "spin_axe":
+		return false
+	return _get_attack_cells(enemy.grid_pos, Vector2i.UP, enemy_attack, state.grid).has(state.player.grid_pos)
+
+
 func _get_attack_dir_to_player(enemy, state) -> Vector2i:
-	if attack_action == null:
+	var enemy_attack = _attack_action_for_enemy(enemy)
+	if enemy_attack == null:
+		return Vector2i.ZERO
+	if String(enemy_attack.id) == "spin_axe":
+		var surrounding_cells := _get_attack_cells(enemy.grid_pos, Vector2i.UP, enemy_attack, state.grid)
+		if surrounding_cells.has(state.player.grid_pos):
+			return Vector2i.UP
 		return Vector2i.ZERO
 
 	var player = state.player
 	for raw_direction in CARDINAL_DIRECTIONS:
 		var direction: Vector2i = raw_direction
-		var cells := _get_attack_cells(enemy.grid_pos, direction, attack_action, state.grid)
+		var cells := _get_attack_cells(enemy.grid_pos, direction, enemy_attack, state.grid)
 		if cells.has(player.grid_pos):
 			return direction
 
@@ -139,11 +160,22 @@ func _get_attack_dir_to_player(enemy, state) -> Vector2i:
 
 
 func _make_attack(enemy, direction: Vector2i):
+	var enemy_attack = _attack_action_for_enemy(enemy)
+	if enemy_attack == null:
+		return null
 	var attack = ActionInstanceScript.new()
 	attack.actor = enemy
-	attack.def = attack_action
+	attack.def = enemy_attack
 	attack.chosen_dir = direction
 	return attack
+
+func _attack_action_for_enemy(enemy):
+	if enemy == null or enemy.def == null:
+		return attack_action
+	var action_id := String(enemy.def.attack_action_id)
+	if action_id.is_empty():
+		return attack_action
+	return attack_actions_by_id.get(action_id, attack_action)
 
 func describe_action(action) -> String:
 	if action == null:
@@ -154,6 +186,8 @@ func describe_action(action) -> String:
 
 	if action.def.id == "attack":
 		return "%s 准备向%s攻击" % [action.actor.def.display_name, _dir_name(action.chosen_dir)]
+	if action.def.id == "spin_axe":
+		return "%s 准备拍打周围一圈。" % action.actor.def.display_name
 
 	var dir_name := _dir_name(action.chosen_dir)
 	return "%s 准备向%s移动" % [action.actor.def.display_name, dir_name]
@@ -199,12 +233,13 @@ func _is_enemy_active_for_state(enemy, state) -> bool:
 
 func get_enemy_threat_cells(enemy, state) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
-	if enemy == null or attack_action == null:
+	var enemy_attack = _attack_action_for_enemy(enemy)
+	if enemy == null or enemy_attack == null:
 		return result
 
 	for raw_direction in CARDINAL_DIRECTIONS:
 		var direction: Vector2i = raw_direction
-		for cell in _get_attack_cells(enemy.grid_pos, direction, attack_action, state.grid):
+		for cell in _get_attack_cells(enemy.grid_pos, direction, enemy_attack, state.grid):
 			if not result.has(cell):
 				result.append(cell)
 
