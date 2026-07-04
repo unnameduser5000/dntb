@@ -51,6 +51,8 @@ const MAP_NODE_COMBAT := "combat"
 const MAP_NODE_REST := "rest"
 const MAP_NODE_BOSS := "boss"
 const KEY_TOKEN_POOL_SLOT_ID := "POOL"
+const AUTO_PLAY_DELAY := 2.0
+const AUTO_FAST_DELAY := 1.0
 
 const ROOMS := [
 	{
@@ -369,6 +371,7 @@ func _connect_signals() -> void:
 	battle_ui.rest_continue_requested.connect(_on_rest_continue_requested)
 	battle_ui.bag_toggle_requested.connect(_toggle_bag)
 	battle_ui.pause_menu_requested.connect(_on_pause_menu_requested)
+	battle_ui.auto_advance_mode_changed.connect(_on_auto_advance_mode_changed)
 	battle_ui.get_node("RunSidebar").boss_poi_requested.connect(_on_boss_poi_requested)
 	battle_ui.get_node("RunSidebar").safe_zone_poi_requested.connect(_on_safe_zone_poi_requested)
 	battle_ui.get_node("RunSidebar").ruin_poi_requested.connect(_on_ruin_poi_requested)
@@ -1649,6 +1652,16 @@ func _close_bag_if_open() -> void:
 		battle_ui.toggle_bag()
 		_bag_open = false
 		get_tree().paused = false
+
+
+func _on_auto_advance_mode_changed(mode: int) -> void:
+	match mode:
+		BattleUI.AUTO_PAUSE:
+			turn_controller.auto_advance_delay = 0.0
+		BattleUI.AUTO_PLAY:
+			turn_controller.auto_advance_delay = AUTO_PLAY_DELAY
+		BattleUI.AUTO_FAST:
+			turn_controller.auto_advance_delay = AUTO_FAST_DELAY
 
 
 func _on_pause_menu_requested() -> void:

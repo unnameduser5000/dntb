@@ -10,6 +10,13 @@ signal key_slot_preview_cleared(slot_id: String)
 signal rest_continue_requested
 signal bag_toggle_requested
 signal pause_menu_requested
+signal auto_advance_mode_changed(mode: int)
+
+const AUTO_PAUSE := 0
+const AUTO_PLAY := 1
+const AUTO_FAST := 2
+const AUTO_ADVANCE_ICONS := ["⏸", "▶", "⏩"]
+const AUTO_ADVANCE_HINTS := ["手动", "2秒自动", "1秒自动"]
 
 const UiActionCardScene := preload("res://scenes/ui/components/UiActionCard.tscn")
 const UiRewardCardScene := preload("res://scenes/ui/components/UiRewardCard.tscn")
@@ -30,21 +37,25 @@ const BagUIScript = preload("res://scripts/view/BagUI.gd")
 @onready var _npc_dialogue_title: Label = %NpcDialogueTitle
 @onready var _npc_dialogue_body: Label = %NpcDialogueBody
 @onready var _npc_dialogue_hint: Label = %NpcDialogueHint
+@onready var _auto_advance_button: Button = %AutoAdvanceButton
 
 var _key_program_editable := false
 var _permanent_buffs: Array[Dictionary] = []
 var _cached_slot_chains: Dictionary = {}
 var _cached_pool_tokens: Array[String] = []
+var _auto_advance_mode := AUTO_PAUSE
 
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_rest_continue_button.pressed.connect(func() -> void: rest_continue_requested.emit())
+	_auto_advance_button.pressed.connect(_on_auto_advance_button_pressed)
 	_panel.visible = false
 	show_title()
 	_connect_bag_ui_signals()
 	_refresh_bag_ui()
+	_update_auto_advance_button()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -191,6 +202,7 @@ func show_title() -> void:
 	_hud.visible = false
 	_run_sidebar.visible = false
 	_rest_continue_button.visible = false
+	_auto_advance_button.visible = false
 	_show_overlay("别按那个键", "Tab 键打开背包调整按键编排，进战斗后按键执行，真实结果再驱动武器连招。", [
 		{"text": "开始游戏", "callback": func() -> void: start_requested.emit()},
 	])
@@ -202,6 +214,7 @@ func show_battle() -> void:
 	_hud.visible = true
 	_run_sidebar.visible = true
 	_rest_continue_button.visible = false
+	_auto_advance_button.visible = true
 
 
 func show_rest_site(title: String, body: String = "") -> void:
@@ -210,6 +223,7 @@ func show_rest_site(title: String, body: String = "") -> void:
 	_hud.visible = true
 	_run_sidebar.visible = true
 	_rest_continue_button.visible = true
+	_auto_advance_button.visible = true
 	if not body.is_empty():
 		_run_sidebar.set_debug_messages([body])
 
@@ -296,6 +310,17 @@ func _on_run_sidebar_bag_requested() -> void:
 
 func _on_run_sidebar_menu_requested() -> void:
 	pause_menu_requested.emit()
+
+
+func _on_auto_advance_button_pressed() -> void:
+	_auto_advance_mode = (_auto_advance_mode + 1) % 3
+	_update_auto_advance_button()
+	auto_advance_mode_changed.emit(_auto_advance_mode)
+
+
+func _update_auto_advance_button() -> void:
+	_auto_advance_button.text = AUTO_ADVANCE_ICONS[_auto_advance_mode]
+	_auto_advance_button.tooltip_text = AUTO_ADVANCE_HINTS[_auto_advance_mode]
 
 
 func _emit_reward_chosen(index: int) -> void:
