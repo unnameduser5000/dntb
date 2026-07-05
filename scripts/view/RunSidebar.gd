@@ -129,7 +129,7 @@ func _refresh_debug() -> void:
 func _refresh_poi_hints(state) -> void:
 	if not is_instance_valid(_poi_hint_panel):
 		return
-	if state == null or not bool(state.is_world_slice) or state.map_data == null:
+	if state == null or not bool(state.is_world_slice) or state.map_data == null or String(state.map_node_kind) != "world_slice":
 		_poi_hint_panel.visible = false
 		return
 	_poi_hint_panel.visible = true

@@ -6,6 +6,8 @@ signal pause_menu_requested
 
 const GameStateScript := preload("res://scripts/core/GameState.gd")
 const GridModelScript := preload("res://scripts/core/GridModel.gd")
+const MapDataScript := preload("res://scripts/core/MapData.gd")
+const MapCellScript := preload("res://scripts/core/MapCell.gd")
 const ActorStateScript := preload("res://scripts/runtime/ActorState.gd")
 const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 const ActionProgramControllerScript := preload("res://scripts/core/ActionProgramController.gd")
@@ -68,6 +70,8 @@ const MAP_NODE_BOSS := "boss"
 const KEY_TOKEN_POOL_SLOT_ID := "POOL"
 const AUTO_PLAY_DELAY := 2.0
 const AUTO_FAST_DELAY := 1.0
+const BOSS_DUNGEON_MAP_SIZE := Vector2i(256, 256)
+const BOSS_DUNGEON_CHAMBER_SIZE := Vector2i(56, 56)
 
 const ROOMS := [
 	{
@@ -521,7 +525,9 @@ func _start_map_node(node_index: int) -> void:
 	match String(node.get("kind", MAP_NODE_COMBAT)):
 		MAP_NODE_REST:
 			_start_rest_node(node)
-		MAP_NODE_BOSS, MAP_NODE_COMBAT:
+		MAP_NODE_BOSS:
+			_start_boss_dungeon_node(node)
+		MAP_NODE_COMBAT:
 			_current_room_index = int(node.get("room", 0))
 			_start_room(_current_room_index)
 		_:
@@ -545,6 +551,37 @@ func _start_room(room_index: int) -> void:
 	_refresh_key_program_ui()
 	_refresh_inventory_ui()
 	battle_ui.show_battle()
+	_refresh_views()
+
+
+func _start_boss_dungeon_node(node: Dictionary) -> void:
+	_next_actor_id = 0
+	_key_program_editable = false
+	_world_npc_interaction_counts.clear()
+	_world_ruin_claims.clear()
+	_world_autopath_active = false
+	_world_autopath_target = Vector2i(-1, -1)
+	_world_autopath_steps.clear()
+	_world_autopath_last_step_msec = 0
+	_world_autopath_step_scheduled = false
+	_close_world_npc_dialogue(false)
+	state = _create_boss_dungeon_state(node)
+	_clear_key_slot_preview(false)
+	_apply_run_modifiers_to_player()
+	if _battle_presentation != null:
+		_battle_presentation.reset_for_state(state)
+		_battle_presentation.use_world_slice_fast_timing_profile()
+		_battle_presentation.set_wait_for_presentation_completion(false)
+	enemy_planner.enemies_are_static = false
+	turn_controller.start_battle(state)
+	battle_ui.set_key_program_editable(false)
+	_refresh_key_program_ui()
+	_refresh_inventory_ui()
+	if board_view != null:
+		board_view.world_slice_window_size = Vector2i(29, 29)
+		board_view.reset_camera()
+	battle_ui.show_battle()
+	_refresh_world_visibility("boss_dungeon_init")
 	_refresh_views()
 
 func _start_rest_node(node: Dictionary) -> void:
@@ -667,12 +704,23 @@ func _is_current_rest_node() -> bool:
 func _is_current_boss_node() -> bool:
 	return String(_current_map_node().get("kind", "")) == MAP_NODE_BOSS
 
+
+func _find_first_map_node_index_by_kind(kind: String, fallback_index: int = 0) -> int:
+	for index in range(MAP_NODES.size()):
+		if String(MAP_NODES[index].get("kind", "")) == kind:
+			return index
+	return clampi(fallback_index, 0, max(0, MAP_NODES.size() - 1))
+
 func _is_safe_training_state() -> bool:
 	return state != null and state.is_safe_training
 
 
 func _is_world_slice_state() -> bool:
 	return state != null and bool(state.is_world_slice)
+
+
+func _is_boss_dungeon_state() -> bool:
+	return state != null and bool(state.is_world_slice) and String(state.map_node_kind) == MAP_NODE_BOSS
 
 func _advance_to_next_map_node(choice_index: int = 0) -> void:
 	var next_nodes := _current_map_next_nodes()
@@ -746,6 +794,10 @@ func _on_actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i) -> void:
 		return
 	if not bool(state.is_world_slice):
 		return
+	if _is_boss_dungeon_state():
+		_world_slice_controller.recompute_visibility(state, "player_moved" if actor == state.player else "actor_moved")
+		_refresh_views()
+		return
 	_world_slice_controller.on_actor_moved(state, actor, from_cell, to_cell)
 	_refresh_views()
 
@@ -760,6 +812,12 @@ func _refresh_world_visibility(reason: String) -> void:
 
 func _update_world_slice_editability(force_refresh: bool = false) -> void:
 	if state == null or not bool(state.is_world_slice):
+		return
+	if _is_boss_dungeon_state():
+		_key_program_editable = false
+		if is_instance_valid(battle_ui):
+			battle_ui.set_key_program_editable(false)
+		_world_slice_last_rest_area_state = false
 		return
 	var editable_now: bool = _is_player_in_world_slice_rest_area()
 	if not force_refresh and editable_now == _key_program_editable:
@@ -841,6 +899,8 @@ func _submit_world_interact_action() -> bool:
 		return false
 	var has_target: bool = _actor_interaction_service.find_interactable_actor(state) != null
 	if not has_target:
+		if _try_interact_with_world_boss_entrance():
+			return true
 		if _try_interact_with_world_ruin():
 			return true
 		if _world_npc_dialogue_active:
@@ -856,6 +916,18 @@ func _submit_world_interact_action() -> bool:
 	if interact_action == null:
 		return false
 	turn_controller.submit_player_plan([interact_action])
+	return true
+
+
+func _try_interact_with_world_boss_entrance() -> bool:
+	if state == null or not bool(state.is_world_slice) or state.player == null or state.map_data == null:
+		return false
+	var challenge_record: Dictionary = _find_challenge_record_at_player()
+	if challenge_record.is_empty():
+		return false
+	state.add_message("你站在 Boss遗迹入口前，推门进入深处。")
+	_refresh_views()
+	_start_map_node(_find_first_map_node_index_by_kind(MAP_NODE_BOSS, _current_map_node_index))
 	return true
 
 
@@ -1244,6 +1316,17 @@ func _find_ruin_record_at_player() -> Dictionary:
 	return {}
 
 
+func _find_challenge_record_at_player() -> Dictionary:
+	if state == null or state.player == null or state.map_data == null:
+		return {}
+	for record in state.map_data.get_poi_records():
+		if String(record.get("type", "")) != "challenge_entrance":
+			continue
+		if Vector2i(record.get("interaction_cell", Vector2i(-1, -1))) == state.player.grid_pos:
+			return record
+	return {}
+
+
 func _build_world_interact_action():
 	if state == null or state.player == null:
 		return null
@@ -1326,6 +1409,90 @@ func _create_room_state(room_index: int):
 
 	new_state.add_message("路线：%s。进入%s，行动编码已锁定。" % [_map_summary(), new_state.room_name])
 	return new_state
+
+
+func _create_boss_dungeon_state(node: Dictionary):
+	var new_state = GameStateScript.new()
+	new_state.grid = GridModelScript.new()
+	new_state.grid.setup(BOSS_DUNGEON_MAP_SIZE.x, BOSS_DUNGEON_MAP_SIZE.y)
+	new_state.room_index = int(node.get("room", 0))
+	new_state.room_name = "Boss地牢"
+	new_state.map_node_index = _current_map_node_index
+	new_state.map_node_kind = MAP_NODE_BOSS
+	new_state.map_node_label = String(node.get("label", new_state.room_name))
+	new_state.exit_cell = Vector2i(-99, -99)
+	new_state.is_world_slice = true
+	new_state.is_safe_training = false
+	new_state.fov_radius = 10
+	new_state.map_data = _build_boss_dungeon_map_data()
+	_sync_boss_dungeon_grid_from_map_data(new_state)
+
+	var chamber_origin := Vector2i(
+		int((BOSS_DUNGEON_MAP_SIZE.x - BOSS_DUNGEON_CHAMBER_SIZE.x) / 2),
+		int((BOSS_DUNGEON_MAP_SIZE.y - BOSS_DUNGEON_CHAMBER_SIZE.y) / 2)
+	)
+	var chamber_center := chamber_origin + Vector2i(int(BOSS_DUNGEON_CHAMBER_SIZE.x / 2), int(BOSS_DUNGEON_CHAMBER_SIZE.y / 2))
+	var player_cell := chamber_center + Vector2i(0, 18)
+	var boss_cell := chamber_center + Vector2i(0, -18)
+
+	var player = _add_actor(new_state, PLAYER_DEF, player_cell)
+	player.facing = Vector2i.UP
+	player.max_hp = _run_player_max_hp
+	player.hp = min(_run_player_hp, _run_player_max_hp)
+	player.max_san = _run_player_max_san
+	player.san = min(_run_player_san, _run_player_max_san)
+	player.atk = _run_player_atk
+
+	var boss = _add_actor(new_state, BOSS_DEF, boss_cell)
+	if boss != null:
+		boss.facing = Vector2i.DOWN
+
+	new_state.add_message("路线：%s。你进入了Boss地牢，整层扩展成与外部世界同级的大地图墓室；行动编码已锁定。" % _map_summary())
+	return new_state
+
+
+func _build_boss_dungeon_map_data():
+	var map_data = MapDataScript.new()
+	map_data.setup(BOSS_DUNGEON_MAP_SIZE.x, BOSS_DUNGEON_MAP_SIZE.y)
+	map_data.seed = "%s_boss_dungeon" % _run_seed
+	for cell in map_data.get_all_cells():
+		map_data.set_terrain(cell, MapCellScript.TerrainType.STRUCTURE_WALL)
+
+	var chamber_origin := Vector2i(
+		int((BOSS_DUNGEON_MAP_SIZE.x - BOSS_DUNGEON_CHAMBER_SIZE.x) / 2),
+		int((BOSS_DUNGEON_MAP_SIZE.y - BOSS_DUNGEON_CHAMBER_SIZE.y) / 2)
+	)
+	_carve_boss_dungeon_rect(map_data, Rect2i(chamber_origin, BOSS_DUNGEON_CHAMBER_SIZE))
+	_carve_boss_dungeon_rect(map_data, Rect2i(chamber_origin + Vector2i(8, 8), BOSS_DUNGEON_CHAMBER_SIZE - Vector2i(16, 16)))
+	_carve_boss_dungeon_rect(map_data, Rect2i(chamber_origin + Vector2i(25, 0), Vector2i(6, 14)))
+	_carve_boss_dungeon_rect(map_data, Rect2i(chamber_origin + Vector2i(25, 42), Vector2i(6, 14)))
+
+	for pillar_offset in [Vector2i(10, 10), Vector2i(42, 10), Vector2i(10, 42), Vector2i(42, 42), Vector2i(26, 18), Vector2i(26, 34)]:
+		_fill_boss_dungeon_wall_rect(map_data, Rect2i(chamber_origin + pillar_offset, Vector2i(4, 4)))
+
+	var player_spawn := chamber_origin + Vector2i(int(BOSS_DUNGEON_CHAMBER_SIZE.x / 2), 46)
+	map_data.set_player_spawn(player_spawn)
+	return map_data
+
+
+func _carve_boss_dungeon_rect(map_data, rect: Rect2i) -> void:
+	for y in range(rect.position.y, rect.position.y + rect.size.y):
+		for x in range(rect.position.x, rect.position.x + rect.size.x):
+			map_data.set_terrain(Vector2i(x, y), MapCellScript.TerrainType.PLAIN)
+
+
+func _fill_boss_dungeon_wall_rect(map_data, rect: Rect2i) -> void:
+	for y in range(rect.position.y, rect.position.y + rect.size.y):
+		for x in range(rect.position.x, rect.position.x + rect.size.x):
+			map_data.set_terrain(Vector2i(x, y), MapCellScript.TerrainType.STRUCTURE_WALL)
+
+
+func _sync_boss_dungeon_grid_from_map_data(new_state) -> void:
+	if new_state == null or new_state.grid == null or new_state.map_data == null:
+		return
+	for cell in new_state.map_data.get_all_cells():
+		if not new_state.map_data.is_walkable(cell):
+			new_state.grid.add_blocked(cell)
 
 func _create_rest_state(node: Dictionary):
 	var new_state = GameStateScript.new()
