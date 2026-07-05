@@ -18,7 +18,12 @@ jobs:
           lfs: true
 
       - name: Pull Git LFS files
-        run: git lfs pull
+        run: |
+          git lfs pull
+          echo "--- git lfs status ---"
+          git lfs status
+          echo "--- git lfs checkout ---"
+          git lfs checkout
 
       - name: Verify MP3 binaries
         run: |
