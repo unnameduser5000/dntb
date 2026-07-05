@@ -809,9 +809,13 @@ func _current_map_next_nodes() -> Array:
 	return node.get("next", [])
 
 func _is_current_rest_node() -> bool:
+	if _is_world_slice_state():
+		return state != null and String(state.map_node_kind) == MAP_NODE_REST
 	return String(_current_map_node().get("kind", "")) == MAP_NODE_REST
 
 func _is_current_boss_node() -> bool:
+	if _is_world_slice_state():
+		return state != null and String(state.map_node_kind) == MAP_NODE_BOSS
 	return String(_current_map_node().get("kind", "")) == MAP_NODE_BOSS
 
 

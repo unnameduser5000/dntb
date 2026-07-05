@@ -757,6 +757,17 @@ func _init() -> void:
 	_require(world_game.state.world_enemy_stream_spawn_total >= stream_spawn_total_before, "world slice tracks cumulative streamed enemy spawns")
 	for streamed_enemy in world_game.state.get_alive_enemies():
 		_require(not _is_world_slice_rest_area_cell(world_game.state.map_data, streamed_enemy.grid_pos), "world slice streamed enemies also stay out of the tavern safe area")
+	var audio_service = world_game.get_node_or_null("/root/AudioService")
+	_require(audio_service != null, "audio service exists in world slice smoke test")
+	_require(String(audio_service._current_music_key) == "dungeon", "world slice outside rest area plays dungeon music")
+	var visible_enemy_cell: Vector2i = _find_walkable_adjacent_world_cell(world_game.state, world_game.state.player.grid_pos)
+	_require(visible_enemy_cell != Vector2i(-1, -1), "player has a walkable adjacent cell for visible enemy music test")
+	var visible_enemy = world_game._add_actor(world_game.state, SLIME_DEF, visible_enemy_cell)
+	world_game._refresh_world_visibility("test_visible_enemy_music")
+	world_game._refresh_views()
+	await process_frame
+	_require(world_game.state.visible_cells.has(visible_enemy_cell), "placed enemy is within world slice FOV")
+	_require(String(audio_service._current_music_key) == "elite", "sighting a slime in world slice switches music to elite")
 	_require(not String(world_game.state.tracked_boss_poi_relative_hint).is_empty(), "world slice computes a boss-ruin direction hint")
 	_require(not String(world_game.state.tracked_nearest_ruin_relative_hint).is_empty(), "world slice computes a nearest small-ruin direction hint")
 	var boss_record: Dictionary = _find_world_slice_poi_record(world_game.state.map_data, "challenge_entrance")
