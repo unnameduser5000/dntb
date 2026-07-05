@@ -9,6 +9,7 @@ on:
 jobs:
   smoke-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -20,6 +21,9 @@ jobs:
           version: 4.7.0
           use-dotnet: false
           include-templates: false
+
+      - name: Import project assets
+        run: godot --headless --path . --import
 
       - name: Run smoke test
         run: godot --headless --path . --script res://scripts/tests/SmokeTest.gd

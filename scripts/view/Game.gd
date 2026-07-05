@@ -78,6 +78,9 @@ const MAP_NODE_BOSS := "boss"
 const KEY_TOKEN_POOL_SLOT_ID := "POOL"
 const AUTO_PLAY_DELAY := 2.0
 const AUTO_FAST_DELAY := 1.0
+const AUTO_ADVANCE_PAUSE := 0
+const AUTO_ADVANCE_PLAY := 1
+const AUTO_ADVANCE_FAST := 2
 const BOSS_DUNGEON_MAP_SIZE := Vector2i(256, 256)
 const BOSS_DUNGEON_CHAMBER_SIZE := Vector2i(56, 56)
 
@@ -1278,7 +1281,7 @@ func _call_world_autopath_step() -> void:
 	if _world_slice_has_visible_enemy():
 		_stop_world_autopath(false)
 		state.add_message("视野内出现敌人，自动跑图已暂停。")
-		battle_ui.set_auto_advance_mode(BattleUI.AUTO_PAUSE)
+		battle_ui.set_auto_advance_mode(AUTO_ADVANCE_PAUSE)
 		_play_music_for_state()
 		_refresh_views()
 		return
@@ -1435,7 +1438,7 @@ func _on_actor_damaged(actor, amount: int) -> void:
 	if actor != null and state != null and state.player != null and actor == state.player:
 		_stop_world_autopath(false)
 		state.add_message("受到伤害，自动跑图已停止。")
-		battle_ui.set_auto_advance_mode(BattleUI.AUTO_PAUSE)
+		battle_ui.set_auto_advance_mode(AUTO_ADVANCE_PAUSE)
 		_play_music_for_state()
 		_refresh_views()
 
@@ -2354,11 +2357,11 @@ func _close_bag_if_open() -> void:
 
 func _on_auto_advance_mode_changed(mode: int) -> void:
 	match mode:
-		BattleUI.AUTO_PAUSE:
+		AUTO_ADVANCE_PAUSE:
 			turn_controller.auto_advance_delay = 0.0
-		BattleUI.AUTO_PLAY:
+		AUTO_ADVANCE_PLAY:
 			turn_controller.auto_advance_delay = AUTO_PLAY_DELAY
-		BattleUI.AUTO_FAST:
+		AUTO_ADVANCE_FAST:
 			turn_controller.auto_advance_delay = AUTO_FAST_DELAY
 	_update_auto_advance_state()
 
