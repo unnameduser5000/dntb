@@ -129,25 +129,18 @@ func _refresh_debug() -> void:
 func _refresh_poi_hints(state) -> void:
 	if not is_instance_valid(_poi_hint_panel):
 		return
-	if state == null or not bool(state.is_world_slice) or state.map_data == null:
+	if state == null or not bool(state.is_world_slice) or state.map_data == null or String(state.map_node_kind) != "world_slice":
 		_poi_hint_panel.visible = false
 		return
 	_poi_hint_panel.visible = true
 	if is_instance_valid(_poi_hint_title):
-		_poi_hint_title.text = "方向标识"
-	var boss_hint := String(state.tracked_boss_poi_relative_hint) if state.get("tracked_boss_poi_relative_hint") != null else ""
-	var safe_hint := String(state.tracked_safe_zone_relative_hint) if state.get("tracked_safe_zone_relative_hint") != null else ""
-	var ruin_hint := String(state.tracked_nearest_ruin_relative_hint) if state.get("tracked_nearest_ruin_relative_hint") != null else ""
-	var ruin_cell: Vector2i = Vector2i(state.tracked_nearest_ruin_cell) if state.get("tracked_nearest_ruin_cell") != null else Vector2i(-1, -1)
-	var ruin_nearby := false
-	if ruin_cell != Vector2i(-1, -1) and state.player != null:
-		ruin_nearby = absi(ruin_cell.x - state.player.grid_pos.x) + absi(ruin_cell.y - state.player.grid_pos.y) <= 2
+		_poi_hint_title.text = "自动导航"
 	if is_instance_valid(_safe_zone_poi_hint):
-		_safe_zone_poi_hint.text = "最近安全区：%s" % (safe_hint if not safe_hint.is_empty() else "未定位")
+		_safe_zone_poi_hint.text = "前往最近安全区"
 	if is_instance_valid(_boss_poi_hint):
-		_boss_poi_hint.text = "Boss遗迹：%s" % (boss_hint if not boss_hint.is_empty() else "未定位")
+		_boss_poi_hint.text = "前往 Boss遗迹"
 	if is_instance_valid(_ruin_poi_hint):
-		_ruin_poi_hint.text = "最近小遗迹：附近可调查" if ruin_nearby else "最近小遗迹：%s" % (ruin_hint if not ruin_hint.is_empty() else "未定位")
+		_ruin_poi_hint.text = "前往最近小遗迹"
 
 
 func _build_debug_state_text(state) -> String:

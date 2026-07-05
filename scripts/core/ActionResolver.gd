@@ -7,6 +7,7 @@ const EffectPacketScript := preload("res://scripts/runtime/EffectPacket.gd")
 const EffectPipelineScript := preload("res://scripts/runtime/EffectPipeline.gd")
 const AttackResultScript := preload("res://scripts/runtime/AttackResult.gd")
 const MovementResultScript := preload("res://scripts/runtime/MovementResult.gd")
+const TokenDropTableScript := preload("res://scripts/core/TokenDropTable.gd")
 
 signal actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i)
 signal actor_damaged(actor, amount: int)
@@ -616,13 +617,28 @@ func emit_combat_event(event) -> void:
 	combat_event_emitted.emit(event)
 
 func _kill_actor(actor, state) -> void:
+	var death_cell: Vector2i = actor.grid_pos
+	var dropped_key := _resolve_drop_key_for_actor(actor)
 	state.grid.remove_actor(actor)
+	if not dropped_key.is_empty() and String(actor.team) == "enemy":
+		key_picked.emit(state.player, dropped_key, death_cell)
 	actor_died.emit(actor)
 	_append_presentation_frame("actor_died", {
 		"actor": actor,
 	})
+	if not dropped_key.is_empty():
+		_add_message(state, "%s 掉落了%s按键，并直接放入备用行动池。" % [actor.def.display_name, state.key_name(dropped_key)])
 	_add_message(state, "%s 倒下。" % actor.def.display_name)
 	_check_battle_end(state)
+
+
+func _resolve_drop_key_for_actor(actor) -> String:
+	if actor == null or String(actor.team) != "enemy":
+		return ""
+	if not String(actor.drop_key).is_empty():
+		return String(actor.drop_key)
+	var random_service = get_node_or_null("/root/RandomService")
+	return String(TokenDropTableScript.pick_drop_key(int(actor.drop_tier), random_service))
 
 func _check_battle_end(state) -> void:
 	if state.is_safe_training:

@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ActorDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActorDef.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/actors/EnemyActorView.tscn" id="2_view"]
+
+[resource]
+script = ExtResource("1")
+id = "goblin_slinger"
+display_name = "投手史莱姆"
+max_hp = 2
+max_san = 0
+atk = 1
+move_range = 1
+map_char = "h"
+team = "enemy"
+ai_type = "static"
+attack_action_id = "bow_shot"
+default_drop_key = ""
+drop_tier = 2
+default_effect_modifiers = []
+view_scene = ExtResource("2_view")
+view_offset = Vector2(0, 0)
+view_scale = Vector2(0.76, 0.76)
+color = Color(0.780392, 0.694118, 0.364706, 1)
+interaction_enabled = false
+interaction_title = ""
+interaction_prompt = "交互"
+interaction_range = 1
+interaction_lines = PackedStringArray()
+dialogue_resource_path = ""
+dialogue_cue = ""

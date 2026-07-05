@@ -1,7 +1,7 @@
 class_name BattleEffect
 extends Node2D
 
-@export_enum("action_started", "actor_damaged", "attack_missed", "move_collision", "actor_died", "combo_triggered", "teleport", "swap") var effect_kind := "actor_damaged"
+@export_enum("action_started", "actor_damaged", "attack_missed", "move_collision", "actor_died", "combo_triggered", "teleport", "swap", "slime_burst") var effect_kind := "actor_damaged"
 @export var duration: float = 0.2
 @export var radius: float = 18.0
 @export var line_width: float = 2.0
@@ -18,6 +18,7 @@ var _intensity: float = 1.0
 var _tint: Color = Color.WHITE
 var _particle_burst: GPUParticles2D = null
 var duration_scale: float = 1.0
+static var _slime_effect_texture: Texture2D = null
 
 
 func _ready() -> void:
@@ -71,6 +72,8 @@ func _draw() -> void:
 			_draw_teleport(main, accent, scale_factor)
 		"swap":
 			_draw_swap(main, accent, scale_factor)
+		"slime_burst":
+			_draw_slime_burst(main, accent, scale_factor)
 		_:
 			_draw_actor_damaged(main, accent, scale_factor)
 
@@ -238,6 +241,22 @@ func _draw_swap(main: Color, accent: Color, scale_factor: float) -> void:
 	draw_line(lower_tip + Vector2(0, -local_radius * 0.15), lower_tip, accent, line_width)
 
 
+func _draw_slime_burst(main: Color, accent: Color, scale_factor: float) -> void:
+	var local_radius: float = radius * scale_factor * lerpf(0.5, 1.2, _progress)
+	var texture := _load_slime_effect_texture()
+	if texture != null:
+		var size: Vector2 = texture.get_size()
+		var draw_scale: float = (local_radius * 2.0) / maxf(1.0, maxf(size.x, size.y))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE * draw_scale)
+		draw_texture(texture, -size * 0.5, _with_alpha(Color.WHITE, 1.0 - _progress * 0.15))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	draw_arc(Vector2.ZERO, local_radius * 0.82, 0.0, TAU, 20, _with_alpha(accent, 0.75 - _progress * 0.3), line_width)
+	for index in range(5):
+		var angle := TAU * float(index) / 5.0 + _progress * 0.45
+		var direction := Vector2.from_angle(angle)
+		draw_line(direction * (local_radius * 0.2), direction * local_radius, _with_alpha(main, 0.92 - float(index) * 0.1), line_width)
+
+
 func _extract_direction(raw_direction) -> Vector2:
 	if raw_direction is Vector2:
 		var direction_2d: Vector2 = raw_direction
@@ -256,3 +275,16 @@ func _tinted(base_color: Color, alpha_scale: float) -> Color:
 
 func _with_alpha(color_value: Color, alpha_value: float) -> Color:
 	return Color(color_value.r, color_value.g, color_value.b, clampf(alpha_value, 0.0, 1.0))
+
+
+func _load_slime_effect_texture() -> Texture2D:
+	if _slime_effect_texture != null:
+		return _slime_effect_texture
+	var resource_path := "res://art/imported/characters/enemies/enemy_slime_effect.png"
+	if not FileAccess.file_exists(resource_path):
+		return null
+	var image: Image = Image.load_from_file(ProjectSettings.globalize_path(resource_path))
+	if image == null or image.is_empty():
+		return null
+	_slime_effect_texture = ImageTexture.create_from_image(image)
+	return _slime_effect_texture

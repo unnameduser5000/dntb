@@ -6,6 +6,8 @@ signal pause_menu_requested
 
 const GameStateScript := preload("res://scripts/core/GameState.gd")
 const GridModelScript := preload("res://scripts/core/GridModel.gd")
+const MapDataScript := preload("res://scripts/core/MapData.gd")
+const MapCellScript := preload("res://scripts/core/MapCell.gd")
 const ActorStateScript := preload("res://scripts/runtime/ActorState.gd")
 const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 const ActionProgramControllerScript := preload("res://scripts/core/ActionProgramController.gd")
@@ -21,6 +23,12 @@ const WISP_DEF := preload("res://data/actors/wisp.tres")
 const BRUTE_DEF := preload("res://data/actors/brute.tres")
 const BOSS_DEF := preload("res://data/actors/boss.tres")
 const LINE_WARDEN_DEF := preload("res://data/actors/line_warden.tres")
+const GOBLIN_SCOUT_DEF := preload("res://data/actors/goblin_scout.tres")
+const GOBLIN_SLINGER_DEF := preload("res://data/actors/goblin_slinger.tres")
+const AOE_SLIME_DEF := preload("res://data/actors/aoe_slime.tres")
+const SPLIT_SLIME_DEF := preload("res://data/actors/split_slime.tres")
+const SMALL_SLIME_DEF := preload("res://data/actors/small_slime.tres")
+const SLIME_GOD_DEF := preload("res://data/actors/slime_god.tres")
 
 const ACTION_MOVE_FORWARD := preload("res://data/actions/move_forward.tres")
 const ACTION_MOVE_BACK := preload("res://data/actions/move_back.tres")
@@ -63,6 +71,8 @@ const MAP_NODE_BOSS := "boss"
 const KEY_TOKEN_POOL_SLOT_ID := "POOL"
 const AUTO_PLAY_DELAY := 2.0
 const AUTO_FAST_DELAY := 1.0
+const BOSS_DUNGEON_MAP_SIZE := Vector2i(256, 256)
+const BOSS_DUNGEON_CHAMBER_SIZE := Vector2i(56, 56)
 
 const ROOMS := [
 	{
@@ -204,6 +214,10 @@ var _player_input_locked := false
 var _bag_open := false
 var _shell_overlay_active := false
 var _auto_submitting_plan := false
+var _boss_adhesive_key_id := ""
+var _boss_hidden_layer_triggered := false
+var _boss_hidden_layer_active := false
+var _hidden_boss_locked_keys: Array[String] = []
 
 func _ready() -> void:
 	_action_by_id = {
@@ -261,9 +275,10 @@ func _ready() -> void:
 	enemy_planner.enemies_are_static = false
 	enemy_planner.move_action = ACTION_MOVE_FORWARD
 	enemy_planner.attack_action = ACTION_ATTACK
+	enemy_planner.attack_actions_by_id = _action_by_id
 	var enemy_spawn_service = get_node_or_null("/root/EnemySpawnService")
 	if enemy_spawn_service != null:
-		enemy_spawn_service.register_enemy_defs([SLIME_DEF, WISP_DEF, BRUTE_DEF, BOSS_DEF, LINE_WARDEN_DEF])
+		enemy_spawn_service.register_enemy_defs([SLIME_DEF, WISP_DEF, BRUTE_DEF, BOSS_DEF, LINE_WARDEN_DEF, GOBLIN_SCOUT_DEF, GOBLIN_SLINGER_DEF, AOE_SLIME_DEF, SPLIT_SLIME_DEF, SMALL_SLIME_DEF, SLIME_GOD_DEF])
 
 	_connect_signals()
 	_register_save_provider()
@@ -335,6 +350,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				if board_view != null:
 					board_view.reset_camera()
 					_refresh_views()
+				get_viewport().set_input_as_handled()
+				return
+			if OS.is_debug_build() and event.keycode == KEY_SEMICOLON:
+				_kill_all_enemies_debug()
 				get_viewport().set_input_as_handled()
 				return
 
@@ -439,6 +458,10 @@ func start_world_slice_debug() -> void:
 	_world_autopath_steps.clear()
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
+	_boss_adhesive_key_id = ""
+	_boss_hidden_layer_triggered = false
+	_boss_hidden_layer_active = false
+	_hidden_boss_locked_keys.clear()
 	_close_world_npc_dialogue(false)
 	state = await _world_slice_controller.create_demo_state_with_progress("", Callable(self, "_on_world_generation_progress")) if _world_slice_controller != null else null
 	if state == null:
@@ -483,6 +506,10 @@ func _start_new_run(seed_value) -> void:
 	_world_autopath_steps.clear()
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
+	_boss_adhesive_key_id = ""
+	_boss_hidden_layer_triggered = false
+	_boss_hidden_layer_active = false
+	_hidden_boss_locked_keys.clear()
 	_pending_level_reward = false
 	_player_input_locked = false
 	_current_room_index = 0
@@ -515,7 +542,9 @@ func _start_map_node(node_index: int) -> void:
 	match String(node.get("kind", MAP_NODE_COMBAT)):
 		MAP_NODE_REST:
 			_start_rest_node(node)
-		MAP_NODE_BOSS, MAP_NODE_COMBAT:
+		MAP_NODE_BOSS:
+			_start_boss_dungeon_node(node)
+		MAP_NODE_COMBAT:
 			_current_room_index = int(node.get("room", 0))
 			_start_room(_current_room_index)
 		_:
@@ -539,6 +568,38 @@ func _start_room(room_index: int) -> void:
 	_refresh_key_program_ui()
 	_refresh_inventory_ui()
 	battle_ui.show_battle()
+	_refresh_views()
+
+
+func _start_boss_dungeon_node(node: Dictionary) -> void:
+	_next_actor_id = 0
+	_key_program_editable = false
+	_world_npc_interaction_counts.clear()
+	_world_ruin_claims.clear()
+	_world_autopath_active = false
+	_world_autopath_target = Vector2i(-1, -1)
+	_world_autopath_steps.clear()
+	_world_autopath_last_step_msec = 0
+	_world_autopath_step_scheduled = false
+	_close_world_npc_dialogue(false)
+	state = _create_boss_dungeon_state(node)
+	_clear_key_slot_preview(false)
+	_apply_run_modifiers_to_player()
+	if _battle_presentation != null:
+		_battle_presentation.reset_for_state(state)
+		_battle_presentation.use_world_slice_fast_timing_profile()
+		_battle_presentation.set_wait_for_presentation_completion(false)
+	enemy_planner.enemies_are_static = false
+	turn_controller.start_battle(state)
+	battle_ui.set_key_program_editable(false)
+	_refresh_key_program_ui()
+	_refresh_inventory_ui()
+	if board_view != null:
+		board_view.world_slice_window_size = Vector2i(29, 29)
+		board_view.reset_camera()
+	_setup_boss_adhesive_key()
+	battle_ui.show_battle()
+	_refresh_world_visibility("boss_dungeon_init")
 	_refresh_views()
 
 func _start_rest_node(node: Dictionary) -> void:
@@ -568,6 +629,29 @@ func _submit_key_chain(key_id: String) -> void:
 		return
 	_clear_key_slot_preview(false)
 	var curse_service = get_node_or_null("/root/CurseService")
+	if _is_boss_dungeon_state() and key_id == _boss_adhesive_key_id:
+		if curse_service != null:
+			curse_service.ban_key(key_id, "adhesive", -1)
+			var adhesive_allowed: bool = curse_service.register_key_pressed(key_id, {
+				"room_index": state.room_index,
+				"turn_count": state.turn_count,
+				"reason": "adhesive",
+			})
+			if not adhesive_allowed:
+				state.player.san = max(0, state.player.san - 8)
+				_run_player_san = state.player.san
+				_play_slime_adhesive_effect()
+				state.add_message("黏附触发：%s键被Boss黏住了。SAN -8。" % state.key_name(key_id))
+				if state.player.san <= 10:
+					_try_force_hidden_boss_transition()
+					return
+				_refresh_views()
+				return
+	if _is_boss_dungeon_state() and _hidden_boss_locked_keys.has(key_id):
+		state.add_message("黏神压制：%s键已经被彻底封死，无法再用。" % state.key_name(key_id))
+		_play_slime_adhesive_effect()
+		_refresh_views()
+		return
 	if curse_service != null and not _is_safe_training_state() and not _is_world_slice_state():
 		var allowed: bool = curse_service.register_key_pressed(key_id, {
 			"room_index": state.room_index,
@@ -661,12 +745,23 @@ func _is_current_rest_node() -> bool:
 func _is_current_boss_node() -> bool:
 	return String(_current_map_node().get("kind", "")) == MAP_NODE_BOSS
 
+
+func _find_first_map_node_index_by_kind(kind: String, fallback_index: int = 0) -> int:
+	for index in range(MAP_NODES.size()):
+		if String(MAP_NODES[index].get("kind", "")) == kind:
+			return index
+	return clampi(fallback_index, 0, max(0, MAP_NODES.size() - 1))
+
 func _is_safe_training_state() -> bool:
 	return state != null and state.is_safe_training
 
 
 func _is_world_slice_state() -> bool:
 	return state != null and bool(state.is_world_slice)
+
+
+func _is_boss_dungeon_state() -> bool:
+	return state != null and bool(state.is_world_slice) and String(state.map_node_kind) == MAP_NODE_BOSS
 
 func _advance_to_next_map_node(choice_index: int = 0) -> void:
 	var next_nodes := _current_map_next_nodes()
@@ -740,6 +835,10 @@ func _on_actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i) -> void:
 		return
 	if not bool(state.is_world_slice):
 		return
+	if _is_boss_dungeon_state():
+		_world_slice_controller.recompute_visibility(state, "player_moved" if actor == state.player else "actor_moved")
+		_refresh_views()
+		return
 	_world_slice_controller.on_actor_moved(state, actor, from_cell, to_cell)
 	_refresh_views()
 
@@ -754,6 +853,12 @@ func _refresh_world_visibility(reason: String) -> void:
 
 func _update_world_slice_editability(force_refresh: bool = false) -> void:
 	if state == null or not bool(state.is_world_slice):
+		return
+	if _is_boss_dungeon_state():
+		_key_program_editable = false
+		if is_instance_valid(battle_ui):
+			battle_ui.set_key_program_editable(false)
+		_world_slice_last_rest_area_state = false
 		return
 	var editable_now: bool = _is_player_in_world_slice_rest_area()
 	if not force_refresh and editable_now == _key_program_editable:
@@ -835,6 +940,8 @@ func _submit_world_interact_action() -> bool:
 		return false
 	var has_target: bool = _actor_interaction_service.find_interactable_actor(state) != null
 	if not has_target:
+		if _try_interact_with_world_boss_entrance():
+			return true
 		if _try_interact_with_world_ruin():
 			return true
 		if _world_npc_dialogue_active:
@@ -850,6 +957,18 @@ func _submit_world_interact_action() -> bool:
 	if interact_action == null:
 		return false
 	turn_controller.submit_player_plan([interact_action])
+	return true
+
+
+func _try_interact_with_world_boss_entrance() -> bool:
+	if state == null or not bool(state.is_world_slice) or state.player == null or state.map_data == null:
+		return false
+	var challenge_record: Dictionary = _find_challenge_record_at_player()
+	if challenge_record.is_empty():
+		return false
+	state.add_message("你站在 Boss遗迹入口前，推门进入深处。")
+	_refresh_views()
+	_start_map_node(_find_first_map_node_index_by_kind(MAP_NODE_BOSS, _current_map_node_index))
 	return true
 
 
@@ -877,6 +996,16 @@ func _try_interact_with_world_ruin() -> bool:
 		state.add_message("你翻找了这处小遗迹，但这里只剩下已经学会的旧套路。")
 	else:
 		state.add_message("你调查了这处小遗迹，获得了 %s，并已放入备用行动池。" % "/".join(granted))
+	if _world_slice_controller != null and state != null:
+		state.world_enemy_spawn_profile = "event_alert"
+		_world_slice_controller.refresh_streamed_enemies(state, "ruin_event_alert")
+		var existing_messages: Array[String] = state.messages.duplicate()
+		state.messages.clear()
+		for existing_message in existing_messages:
+			state.messages.append(existing_message)
+		state.messages.append("遗迹的动静惊动了周围更危险的怪物。")
+		if state.messages.size() > 9:
+			state.messages.resize(9)
 	_refresh_key_program_ui()
 	_refresh_views()
 	return true
@@ -946,6 +1075,7 @@ func _stop_world_autopath(show_message: bool = true) -> void:
 
 func _on_turn_finished() -> void:
 	_apply_turn_regen()
+	_maybe_apply_hidden_boss_key_lock()
 	_refresh_views()
 	_update_auto_advance_state()
 
@@ -1148,6 +1278,7 @@ func _on_actor_died(actor) -> void:
 		return
 	if String(actor.team) != "enemy":
 		return
+	_try_spawn_split_children(actor)
 	state.player_xp += 1
 	state.add_message("击杀敌人，获得 1 点经验。当前经验：%d。" % int(state.player_xp))
 	_ensure_action_helpers()
@@ -1221,6 +1352,17 @@ func _find_ruin_record_at_player() -> Dictionary:
 		return {}
 	for record in state.map_data.get_poi_records():
 		if String(record.get("type", "")) != "ruin":
+			continue
+		if Vector2i(record.get("interaction_cell", Vector2i(-1, -1))) == state.player.grid_pos:
+			return record
+	return {}
+
+
+func _find_challenge_record_at_player() -> Dictionary:
+	if state == null or state.player == null or state.map_data == null:
+		return {}
+	for record in state.map_data.get_poi_records():
+		if String(record.get("type", "")) != "challenge_entrance":
 			continue
 		if Vector2i(record.get("interaction_cell", Vector2i(-1, -1))) == state.player.grid_pos:
 			return record
@@ -1310,6 +1452,107 @@ func _create_room_state(room_index: int):
 	new_state.add_message("路线：%s。进入%s，行动编码已锁定。" % [_map_summary(), new_state.room_name])
 	return new_state
 
+
+func _create_boss_dungeon_state(node: Dictionary):
+	var new_state = GameStateScript.new()
+	new_state.grid = GridModelScript.new()
+	new_state.grid.setup(BOSS_DUNGEON_MAP_SIZE.x, BOSS_DUNGEON_MAP_SIZE.y)
+	new_state.room_index = int(node.get("room", 0))
+	new_state.room_name = "Boss地牢"
+	new_state.map_node_index = _current_map_node_index
+	new_state.map_node_kind = MAP_NODE_BOSS
+	new_state.map_node_label = String(node.get("label", new_state.room_name))
+	new_state.exit_cell = Vector2i(-99, -99)
+	new_state.is_world_slice = true
+	new_state.is_safe_training = false
+	new_state.fov_radius = 10
+	new_state.map_data = _build_boss_dungeon_map_data()
+	_sync_boss_dungeon_grid_from_map_data(new_state)
+
+	var chamber_origin := Vector2i(
+		int((BOSS_DUNGEON_MAP_SIZE.x - BOSS_DUNGEON_CHAMBER_SIZE.x) / 2),
+		int((BOSS_DUNGEON_MAP_SIZE.y - BOSS_DUNGEON_CHAMBER_SIZE.y) / 2)
+	)
+	var chamber_center := chamber_origin + Vector2i(int(BOSS_DUNGEON_CHAMBER_SIZE.x / 2), int(BOSS_DUNGEON_CHAMBER_SIZE.y / 2))
+	var player_cell := chamber_center + Vector2i(0, 18)
+	var boss_cell := chamber_center + Vector2i(0, -18)
+
+	var player = _add_actor(new_state, PLAYER_DEF, player_cell)
+	player.facing = Vector2i.UP
+	player.max_hp = _run_player_max_hp
+	player.hp = min(_run_player_hp, _run_player_max_hp)
+	player.max_san = _run_player_max_san
+	player.san = min(_run_player_san, _run_player_max_san)
+	player.atk = _run_player_atk
+
+	var boss_def = SLIME_GOD_DEF if _boss_hidden_layer_active else BOSS_DEF
+	var boss = _add_actor(new_state, boss_def, boss_cell)
+	if boss != null:
+		boss.facing = Vector2i.DOWN
+
+	if _boss_hidden_layer_active:
+		new_state.room_name = "隐藏黏神层"
+		new_state.add_message("路线：%s。SAN 崩塌后你被强制拖入隐藏Boss层，黏神正在深处等待。" % _map_summary())
+	else:
+		new_state.add_message("路线：%s。你进入了Boss地牢，整层扩展成与外部世界同级的大地图墓室；行动编码已锁定。" % _map_summary())
+	return new_state
+
+
+func _build_boss_dungeon_map_data():
+	var map_data = MapDataScript.new()
+	map_data.setup(BOSS_DUNGEON_MAP_SIZE.x, BOSS_DUNGEON_MAP_SIZE.y)
+	map_data.seed = "%s_boss_dungeon" % _run_seed
+	for cell in map_data.get_all_cells():
+		map_data.set_terrain(cell, MapCellScript.TerrainType.STRUCTURE_WALL)
+
+	var chamber_origin := Vector2i(
+		int((BOSS_DUNGEON_MAP_SIZE.x - BOSS_DUNGEON_CHAMBER_SIZE.x) / 2),
+		int((BOSS_DUNGEON_MAP_SIZE.y - BOSS_DUNGEON_CHAMBER_SIZE.y) / 2)
+	)
+	_carve_boss_dungeon_rect(map_data, Rect2i(chamber_origin, BOSS_DUNGEON_CHAMBER_SIZE))
+	_carve_boss_dungeon_rect(map_data, Rect2i(chamber_origin + Vector2i(8, 8), BOSS_DUNGEON_CHAMBER_SIZE - Vector2i(16, 16)))
+	_carve_boss_dungeon_rect(map_data, Rect2i(chamber_origin + Vector2i(25, 0), Vector2i(6, 14)))
+	_carve_boss_dungeon_rect(map_data, Rect2i(chamber_origin + Vector2i(25, 42), Vector2i(6, 14)))
+
+	for pillar_offset in [Vector2i(10, 10), Vector2i(42, 10), Vector2i(10, 42), Vector2i(42, 42), Vector2i(26, 18), Vector2i(26, 34)]:
+		_fill_boss_dungeon_wall_rect(map_data, Rect2i(chamber_origin + pillar_offset, Vector2i(4, 4)))
+	_fill_boss_dungeon_wall_rect(map_data, Rect2i(chamber_origin + Vector2i(24, 0), Vector2i(8, 3)))
+	_mark_boss_dungeon_gate(map_data, Rect2i(chamber_origin + Vector2i(24, 0), Vector2i(8, 3)))
+
+	var player_spawn := chamber_origin + Vector2i(int(BOSS_DUNGEON_CHAMBER_SIZE.x / 2), 46)
+	map_data.set_player_spawn(player_spawn)
+	return map_data
+
+
+func _carve_boss_dungeon_rect(map_data, rect: Rect2i) -> void:
+	for y in range(rect.position.y, rect.position.y + rect.size.y):
+		for x in range(rect.position.x, rect.position.x + rect.size.x):
+			map_data.set_terrain(Vector2i(x, y), MapCellScript.TerrainType.PLAIN)
+
+
+func _fill_boss_dungeon_wall_rect(map_data, rect: Rect2i) -> void:
+	for y in range(rect.position.y, rect.position.y + rect.size.y):
+		for x in range(rect.position.x, rect.position.x + rect.size.x):
+			map_data.set_terrain(Vector2i(x, y), MapCellScript.TerrainType.STRUCTURE_WALL)
+
+
+func _mark_boss_dungeon_gate(map_data, rect: Rect2i) -> void:
+	for y in range(rect.position.y, rect.position.y + rect.size.y):
+		for x in range(rect.position.x, rect.position.x + rect.size.x):
+			var map_cell = map_data.get_or_create_cell(Vector2i(x, y))
+			if map_cell == null:
+				continue
+			if not map_cell.tags.has("boss_locked_door"):
+				map_cell.tags.append("boss_locked_door")
+
+
+func _sync_boss_dungeon_grid_from_map_data(new_state) -> void:
+	if new_state == null or new_state.grid == null or new_state.map_data == null:
+		return
+	for cell in new_state.map_data.get_all_cells():
+		if not new_state.map_data.is_walkable(cell):
+			new_state.grid.add_blocked(cell)
+
 func _create_rest_state(node: Dictionary):
 	var new_state = GameStateScript.new()
 	new_state.grid = GridModelScript.new()
@@ -1387,8 +1630,112 @@ func _enemy_def(id: String):
 			return BOSS_DEF
 		"line_warden":
 			return LINE_WARDEN_DEF
+		"goblin_scout":
+			return GOBLIN_SCOUT_DEF
+		"goblin_slinger":
+			return GOBLIN_SLINGER_DEF
+		"aoe_slime":
+			return AOE_SLIME_DEF
+		"split_slime":
+			return SPLIT_SLIME_DEF
+		"small_slime":
+			return SMALL_SLIME_DEF
+		"slime_god":
+			return SLIME_GOD_DEF
 		_:
 			return SLIME_DEF
+
+
+func _setup_boss_adhesive_key() -> void:
+	_boss_adhesive_key_id = ""
+	if state == null or not _is_boss_dungeon_state() or _boss_hidden_layer_active:
+		return
+	_ensure_action_helpers()
+	var available_keys: Array[String] = []
+	for key_id in ["W", "A", "S", "D", "Q", "E", "R", "F", "Z", "X", "C", "V"]:
+		if _action_program.has_slot(key_id) and not _action_program.get_slot(key_id).is_empty():
+			available_keys.append(key_id)
+	if available_keys.is_empty():
+		return
+	available_keys.sort()
+	var random_service = get_node_or_null("/root/RandomService")
+	var chosen_index := 0
+	if random_service != null and random_service.has_method("randi_range_value"):
+		chosen_index = int(random_service.randi_range_value(0, available_keys.size() - 1))
+	_boss_adhesive_key_id = available_keys[chosen_index]
+	var curse_service = get_node_or_null("/root/CurseService")
+	if curse_service != null:
+		curse_service.ban_key(_boss_adhesive_key_id, "adhesive", -1)
+	if state != null:
+		state.add_message("Boss 战开始：%s键被“黏附”锁住了，误按会持续掉 SAN。" % state.key_name(_boss_adhesive_key_id))
+
+
+func _maybe_apply_hidden_boss_key_lock() -> void:
+	if not _boss_hidden_layer_active or state == null or not _is_boss_dungeon_state():
+		return
+	if state.turn_count <= 0 or state.turn_count % 10 != 0:
+		return
+	_ensure_action_helpers()
+	var candidates: Array[String] = []
+	for key_id in ["W", "A", "S", "D", "Q", "E", "R", "F", "Z", "X", "C", "V"]:
+		if _hidden_boss_locked_keys.has(key_id):
+			continue
+		if not _action_program.has_slot(key_id):
+			continue
+		if _action_program.get_slot(key_id).is_empty():
+			continue
+		candidates.append(key_id)
+	if candidates.is_empty():
+		return
+	candidates.sort()
+	var random_service = get_node_or_null("/root/RandomService")
+	var chosen_index := 0
+	if random_service != null and random_service.has_method("randi_range_value"):
+		chosen_index = int(random_service.randi_range_value(0, candidates.size() - 1))
+	var locked_key_id: String = candidates[chosen_index]
+	_hidden_boss_locked_keys.append(locked_key_id)
+	state.add_message("黏神扩张：%s键的权限被彻底剥夺了。" % state.key_name(locked_key_id))
+	_play_slime_adhesive_effect()
+
+
+func _try_force_hidden_boss_transition() -> void:
+	if state == null or not _is_boss_dungeon_state() or _boss_hidden_layer_triggered or _boss_hidden_layer_active:
+		return
+	_boss_hidden_layer_triggered = true
+	_boss_hidden_layer_active = true
+	_boss_adhesive_key_id = ""
+	state.add_message("SAN 已跌到 10 以下。你被强制拖入隐藏Boss层。")
+	_refresh_views()
+	_start_boss_dungeon_node(_current_map_node())
+
+func _try_spawn_split_children(actor) -> void:
+	if actor == null or actor.def == null or state == null or state.grid == null:
+		return
+	if not bool(actor.def.split_on_death):
+		return
+	var spawn_actor_id := String(actor.def.split_spawn_actor_id)
+	var spawn_count := int(actor.def.split_spawn_count)
+	if spawn_actor_id.is_empty() or spawn_count <= 0:
+		return
+	var spawn_def = _enemy_def(spawn_actor_id)
+	if spawn_def == null:
+		return
+	var spawned := 0
+	for offset in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		if spawned >= spawn_count:
+			break
+		var spawn_cell: Vector2i = actor.grid_pos + offset
+		if not state.grid.is_inside(spawn_cell):
+			continue
+		if not state.grid.can_enter(spawn_cell):
+			continue
+		var spawned_actor = _add_actor(state, spawn_def, spawn_cell)
+		if spawned_actor == null:
+			continue
+		spawned_actor.facing = offset
+		spawned += 1
+	if spawned > 0:
+		state.add_message("%s 裂成了 %d 只小史莱姆。" % [actor.def.display_name, spawned])
 
 func _build_rewards() -> Array:
 	if _current_room_index == 0:
@@ -1626,6 +1973,9 @@ func _on_key_token_move_requested(source_slot_id: String, source_index: int, tar
 	_ensure_action_helpers()
 	var result: Dictionary = _action_program.move_token(source_slot_id, source_index, target_slot_id)
 	if not bool(result.get("moved", false)):
+		if state != null and target_slot_id != KEY_TOKEN_POOL_SLOT_ID:
+			state.add_message("%s键槽已经放满了；当前每个键位只有 2 个栏位，且每栏只能放 1 个 token。" % state.key_name(target_slot_id))
+			_refresh_views()
 		return
 
 	var token_id := String(result.get("token_id", ""))
@@ -1693,7 +2043,38 @@ func _refresh_key_program_ui() -> void:
 	if not is_instance_valid(battle_ui):
 		return
 	battle_ui.set_permanent_buffs(_build_permanent_buffs())
-	battle_ui.set_key_program(_action_program.get_key_slots(), _action_program.get_pool_tokens())
+	battle_ui.set_key_program(_action_program.get_key_slots(), _action_program.get_pool_token_stacks())
+	battle_ui.set_adhesive_slot(_boss_adhesive_key_id if _is_boss_dungeon_state() and not _boss_hidden_layer_active else "")
+	battle_ui.set_disabled_slots(_hidden_boss_locked_keys)
+
+
+func _play_slime_adhesive_effect() -> void:
+	if _battle_presentation == null or state == null or state.player == null:
+		return
+	var effect_controller = _battle_presentation.effect_controller if _battle_presentation.get("effect_controller") != null else null
+	if effect_controller == null or not effect_controller.has_method("spawn_effect_world"):
+		return
+	effect_controller.spawn_effect_world("slime_burst", board_view.grid_to_world(state.player.grid_pos) + Vector2(board_view.cell_size * 0.5, board_view.cell_size * 0.5), {
+		"intensity": 1.15,
+		"tint": Color(0.68, 0.34, 0.86, 1.0),
+	})
+
+
+func _kill_all_enemies_debug() -> void:
+	if state == null:
+		return
+	var enemies: Array = state.get_alive_enemies().duplicate()
+	for enemy in enemies:
+		if enemy == null:
+			continue
+		enemy.hp = 0
+		if state.grid != null:
+			state.grid.remove_actor(enemy)
+		state.actors.erase(enemy)
+		if _battle_presentation != null:
+			_battle_presentation.handle_actor_died(enemy)
+	state.add_message("[debug] 已清除当前层的所有怪物。")
+	_refresh_views()
 
 
 func _toggle_bag() -> void:
@@ -1734,6 +2115,8 @@ func _update_auto_advance_state() -> void:
 	if turn_controller.auto_advance_delay <= 0.0:
 		return
 	if state == null or state.battle_finished:
+		return
+	if bool(state.is_world_slice):
 		return
 	if state.phase != "planning":
 		return

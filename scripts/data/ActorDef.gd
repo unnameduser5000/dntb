@@ -10,7 +10,12 @@ extends Resource
 @export var map_char: String = "?"
 @export var team: String = "enemy"
 @export var ai_type: String = "static"
+@export var attack_action_id: String = ""
 @export var default_drop_key: String = ""
+@export_range(1, 3, 1) var drop_tier: int = 1
+@export var split_on_death: bool = false
+@export var split_spawn_actor_id: String = ""
+@export_range(0, 4, 1) var split_spawn_count: int = 0
 @export var default_effect_modifiers: Array[Resource] = []
 # Optional battle presentation scene override. If empty, the default ActorView is used.
 @export var view_scene: PackedScene

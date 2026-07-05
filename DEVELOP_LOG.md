@@ -1,5 +1,130 @@
 # Develop Log
 
+## 2026-07-05 Monster drops now go straight to the spare pool
+
+- Updated the enemy-death token flow so monster drops no longer land on the map
+  as pickup items.
+- When an enemy resolves a token drop, it now enters the player's spare action
+  pool immediately on death.
+- Kept map/world token pickup intact for ordinary world items; this change only
+  affects the monster-death drop path.
+- Updated the smoke test to assert that:
+  - no token is left on the death cell
+  - the dropped token is immediately present in the spare pool
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-05 Boss node upgraded into a large dungeon layer
+
+- Reworked the Boss node from a small `8x8` combat room into a large dungeon
+  layer that matches the world-slice map scale.
+- The Boss layer now:
+  - still enters through `challenge_entrance` interaction in the overworld
+  - still resolves as `MAP_NODE_BOSS` in run progression
+  - but internally uses a large `MapData + FOV + BoardView` state instead of the
+    old small-room setup
+- Current first pass content is intentionally simple:
+  - a centered dungeon chamber carved out of a `256x256` map
+  - structure-wall perimeter and a few pillars
+  - one Boss as the main encounter target
+- Kept overworld-only features out of the Boss layer:
+  - no tavern edit zone
+  - no POI hint sidebar
+  - no streamed enemy refresh on actor movement inside the Boss dungeon
+- Updated SmokeTest to verify that:
+  - the Boss node now builds a large map
+  - overworld interaction still enters the Boss node correctly
+  - key editing remains locked
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-05 Boss entrance POI interaction
+
+- Added a direct world-slice Boss入口交互:
+  - when the player stands on a `challenge_entrance` `interaction_cell`
+  - pressing confirm now enters the existing Boss node immediately
+  - the transition reuses the current `MAP_NODE_BOSS` room setup instead of
+    creating a separate world-boss runtime path
+- Kept ruin interaction on the same POI-interaction pattern, but separated the
+  test flow so Boss入口 and ruin调查 are both covered explicitly.
+- Documented the current Boss-related asset placement convention:
+  - enemy defs in `data/actors/`
+  - boss actions in `data/actions/`
+  - room layout in the existing `ROOMS` run config until a stronger need for
+    standalone room data appears
+  - world entrance remains the existing `challenge_entrance` POI type
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-04 Token stack pool and single-slot key mapping
+
+- Replaced the short-lived shared-use experiment with a more direct inventory model:
+  - each left-side key slot now holds at most one token
+  - the right-side pool now shows stacked counts for duplicate tokens
+  - dragging a token from the pool into a key slot consumes exactly one copy
+- Updated the relative starter preset so it stays compatible with single-slot keys:
+  - `W -> F`
+  - `S -> B`
+  - `A -> SL`
+  - `D -> SR`
+- Restored map token acquisition and first-kill reward language back to token pickup / pool semantics.
+- Kept enemy-specific goblin attack actions, but removed the temporary enemy-death token-learning hook.
+- Extended `SmokeTest.gd` to cover:
+  - single-token-per-key behavior
+  - duplicate token stacking in the pool
+  - dragging from the pool decreasing stack count
+
+## 2026-07-04 Token pickup dedupe and event goblins
+
+- Clarified the current drop architecture:
+  - `ActorDef.default_drop_key` / `ActorState.drop_key` already exist as data fields
+  - but there is still no unified "enemy death -> actor-configured token drop" runtime module
+  - live token acquisition still comes from map pickups and scripted rewards
+- Tightened programmable token pickup semantics so the player's key-program inventory
+  now treats token ids as unique unlocks:
+  - duplicate map pickup of an already-owned token no longer appends another copy
+  - existing tavern / ruin / first-kill rewards already align with this model
+- Extended `ActorDef` with `attack_action_id` and updated `EnemyPlanner` so enemies
+  can use per-definition attack actions instead of sharing one global melee attack.
+- Added two low-pressure goblins for future event battles:
+  - `goblin_scout`: light melee chaser
+  - `goblin_slinger`: light ranged enemy using `bow_shot`
+- Extended `SmokeTest.gd` to cover:
+  - duplicate token pickup dedupe
+  - goblin enemy lookup
+  - goblin melee and ranged planner behavior
+
+## 2026-07-04 Learned-action library and shared token uses
+
+- Renamed player-facing token acquisition language from "pickup" toward "learn":
+  - map tokens now represent learning a move
+  - enemy-configured token drops now resolve as learning from that enemy
+- Reframed the right-side bag panel from an expendable spare pool into a learned-action library:
+  - dragging a token from the right side into a key slot no longer removes the source entry
+  - dragging from a key slot back to the right side still clears that slot position
+- Added shared per-token use limits:
+  - each token id now has a max use count
+  - counts are shared across every slot copy of the same token id
+  - counts reset when entering a new room, rest node, or fresh world-slice state
+- Added initial enemy-learning examples:
+  - `goblin_scout` teaches `SL`
+  - `goblin_slinger` teaches `BW`
+- Updated bag UI copy and token cards so remaining uses are visible in both the key slots and the learned-action library.
+- Extended `SmokeTest.gd` to cover:
+  - right-side library drag no longer removing the source token
+  - token-use consumption on execution
+  - goblin death teaching its configured token
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
 ## 2026-07-04 Expanded action tokens and level-up modifier pool
 
 - Added two new concrete action tokens:

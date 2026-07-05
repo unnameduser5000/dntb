@@ -52,3 +52,5 @@ __pycache__/
 # Keep Godot sidecar metadata tracked:
 # - *.import files describe imported source assets.
 # - *.gd.uid files keep script/resource identity stable across collaborators.
+
+素材/

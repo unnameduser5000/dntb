@@ -7,6 +7,10 @@ extends Node2D
 var actor_state
 var glyph: Label
 var sprite: AnimatedSprite2D
+var hp_bar_root: Node2D
+var hp_bar_bg: ColorRect
+var hp_bar_fill: ColorRect
+var hp_bar_label: Label
 var _rest_scale: Vector2 = Vector2.ONE
 var _rest_modulate: Color = Color.WHITE
 var _rest_pose_captured := false
@@ -40,6 +44,8 @@ func update_visual() -> void:
 	_apply_visual_layout()
 	if actor_state == null:
 		visible = false
+		if hp_bar_root != null:
+			hp_bar_root.visible = false
 		if sprite != null:
 			sprite.visible = false
 		if glyph != null:
@@ -49,6 +55,8 @@ func update_visual() -> void:
 
 	visible = bool(actor_state.revealed)
 	if not visible:
+		if hp_bar_root != null:
+			hp_bar_root.visible = false
 		if sprite != null:
 			sprite.visible = false
 		if glyph != null:
@@ -69,6 +77,7 @@ func update_visual() -> void:
 		glyph.visible = not has_sprite_visual
 		glyph.modulate = _glyph_tint(actor_color)
 		glyph.text = _display_char()
+	_update_hp_bar()
 
 func play_move(to_pos: Vector2) -> Tween:
 	_play_first_available_animation([&"move"])
@@ -140,6 +149,14 @@ func _ensure_visual_nodes() -> void:
 		sprite = _resolve_sprite()
 	if glyph == null:
 		glyph = _resolve_glyph()
+	if hp_bar_root == null:
+		hp_bar_root = _ensure_hp_bar_root()
+	if hp_bar_bg == null:
+		hp_bar_bg = _ensure_hp_bar_bg()
+	if hp_bar_fill == null:
+		hp_bar_fill = _ensure_hp_bar_fill()
+	if hp_bar_label == null:
+		hp_bar_label = _ensure_hp_bar_label()
 	_capture_visual_defaults()
 
 func _resolve_sprite() -> AnimatedSprite2D:
@@ -209,6 +226,100 @@ func _apply_visual_layout() -> void:
 	if glyph != null:
 		glyph.position = _base_glyph_position + layout_offset
 		glyph.scale = Vector2(_base_glyph_scale.x * layout_scale.x, _base_glyph_scale.y * layout_scale.y)
+	_update_hp_bar_layout(layout_offset, layout_scale)
+
+func _update_hp_bar() -> void:
+	if hp_bar_root == null or hp_bar_bg == null or hp_bar_fill == null or hp_bar_label == null:
+		return
+	if actor_state == null or actor_state.is_dead() or actor_state.team != "enemy" or not visible:
+		hp_bar_root.visible = false
+		return
+	hp_bar_root.visible = true
+	var max_hp_value: int = maxi(1, int(actor_state.max_hp))
+	var hp_ratio: float = clampf(float(actor_state.hp) / float(max_hp_value), 0.0, 1.0)
+	hp_bar_fill.size.x = hp_bar_bg.size.x * hp_ratio
+	hp_bar_fill.color = _hp_bar_fill_color(hp_ratio)
+	hp_bar_label.text = "%d/%d" % [maxi(0, int(actor_state.hp)), max_hp_value]
+
+
+func _ensure_hp_bar_root() -> Node2D:
+	var named_child = get_node_or_null("HpBarRoot")
+	if named_child is Node2D:
+		return named_child
+	var created := Node2D.new()
+	created.name = "HpBarRoot"
+	add_child(created)
+	return created
+
+
+func _ensure_hp_bar_bg() -> ColorRect:
+	if hp_bar_root == null:
+		return null
+	var named_child = hp_bar_root.get_node_or_null("HpBarBg")
+	if named_child is ColorRect:
+		return named_child
+	var created := ColorRect.new()
+	created.name = "HpBarBg"
+	created.size = Vector2(28, 5)
+	created.position = Vector2(-14, -24)
+	created.color = Color(0.08, 0.09, 0.12, 0.82)
+	created.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_bar_root.add_child(created)
+	return created
+
+
+func _ensure_hp_bar_fill() -> ColorRect:
+	if hp_bar_root == null:
+		return null
+	var named_child = hp_bar_root.get_node_or_null("HpBarFill")
+	if named_child is ColorRect:
+		return named_child
+	var created := ColorRect.new()
+	created.name = "HpBarFill"
+	created.size = Vector2(28, 5)
+	created.position = Vector2(-14, -24)
+	created.color = Color(0.84, 0.25, 0.23, 0.96)
+	created.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_bar_root.add_child(created)
+	return created
+
+
+func _ensure_hp_bar_label() -> Label:
+	if hp_bar_root == null:
+		return null
+	var named_child = hp_bar_root.get_node_or_null("HpBarLabel")
+	if named_child is Label:
+		return named_child
+	var created := Label.new()
+	created.name = "HpBarLabel"
+	created.position = Vector2(-16, -36)
+	created.size = Vector2(32, 12)
+	created.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	created.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	created.add_theme_font_size_override("font_size", 9)
+	created.add_theme_color_override("font_color", Color(1, 0.96, 0.9, 0.94))
+	created.add_theme_color_override("font_outline_color", Color(0.04, 0.05, 0.06, 0.9))
+	created.add_theme_constant_override("outline_size", 2)
+	created.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_bar_root.add_child(created)
+	return created
+
+
+func _update_hp_bar_layout(layout_offset: Vector2, layout_scale: Vector2) -> void:
+	if hp_bar_root == null:
+		return
+	hp_bar_root.position = layout_offset
+	hp_bar_root.scale = Vector2(maxf(0.85, layout_scale.x), maxf(0.85, layout_scale.y))
+
+
+func _hp_bar_fill_color(hp_ratio: float) -> Color:
+	if hp_ratio <= 0.25:
+		return Color(0.92, 0.22, 0.24, 0.98)
+	if hp_ratio <= 0.5:
+		return Color(0.95, 0.62, 0.18, 0.98)
+	if hp_ratio <= 0.75:
+		return Color(0.94, 0.8, 0.28, 0.98)
+	return Color(0.46, 0.9, 0.42, 0.98)
 
 func _actor_color() -> Color:
 	if actor_state == null or actor_state.def == null:
