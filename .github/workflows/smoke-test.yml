@@ -14,6 +14,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Verify MP3 binaries
+        run: |
+          echo "=== music/ file sizes ==="
+          wc -c music/*.mp3 || true
+          echo "=== first line of first MP3 ==="
+          head -c 80 "music/Pixel Dungeon.mp3" | xxd | head -3 || true
 
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v2
