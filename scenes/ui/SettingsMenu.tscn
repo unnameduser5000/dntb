@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/components/UiButton.tscn" id="4_button"]
 [ext_resource type="PackedScene" path="res://scenes/ui/components/UiOptionRow.tscn" id="5_option_row"]
 [ext_resource type="PackedScene" path="res://scenes/ui/components/UiToggleRow.tscn" id="6_toggle_row"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/UiSliderRow.tscn" id="7_slider_row"]
 
 [node name="SettingsMenu" type="Control"]
 layout_mode = 3
@@ -83,6 +84,16 @@ label_text = "显示模式"
 unique_name_in_owner = true
 layout_mode = 2
 label_text = "地图缩放"
+
+[node name="MusicVolumeRow" parent="Panel/Margin/Content/Scroll/ScrollContent" instance=ExtResource("7_slider_row")]
+unique_name_in_owner = true
+layout_mode = 2
+label_text = "音乐音量"
+
+[node name="SfxVolumeRow" parent="Panel/Margin/Content/Scroll/ScrollContent" instance=ExtResource("7_slider_row")]
+unique_name_in_owner = true
+layout_mode = 2
+label_text = "战斗音效音量"
 
 [node name="ControlsTitle" type="Label" parent="Panel/Margin/Content/Scroll/ScrollContent"]
 layout_mode = 2

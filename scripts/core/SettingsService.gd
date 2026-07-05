@@ -19,8 +19,12 @@ var is_fullscreen := false
 const WORLD_SLICE_ZOOM_OPTIONS := [1.0, 1.5, 2.0, 4.0]
 
 signal world_slice_zoom_changed(index: int)
+signal music_volume_changed(value: float)
+signal sfx_volume_changed(value: float)
 
 var world_slice_zoom_index := 1
+var music_volume := 1.0
+var sfx_volume := 1.0
 
 
 func _ready() -> void:
@@ -38,12 +42,17 @@ func load_settings() -> void:
 			0,
 			WORLD_SLICE_ZOOM_OPTIONS.size() - 1
 		)
+		music_volume = clampf(float(config.get_value("audio", "music_volume", 1.0)), 0.0, 1.0)
+		sfx_volume = clampf(float(config.get_value("audio", "sfx_volume", 1.0)), 0.0, 1.0)
 	else:
 		resolution_index = _closest_resolution_index(DisplayServer.window_get_size())
 		is_fullscreen = false
 		world_slice_zoom_index = 1
+		music_volume = 1.0
+		sfx_volume = 1.0
 
 	apply_display_settings()
+	apply_audio_settings()
 
 
 func set_resolution(index: int) -> void:
@@ -85,9 +94,41 @@ func save_settings() -> void:
 	config.set_value("display", "resolution_index", resolution_index)
 	config.set_value("display", "fullscreen", is_fullscreen)
 	config.set_value("gameplay", "world_slice_zoom_index", world_slice_zoom_index)
+	config.set_value("audio", "music_volume", music_volume)
+	config.set_value("audio", "sfx_volume", sfx_volume)
 	var error := config.save(SETTINGS_PATH)
 	if error != OK:
 		push_warning("Unable to save settings: %s" % error_string(error))
+
+
+func apply_audio_settings() -> void:
+	var audio_service = get_node_or_null("/root/AudioService")
+	if audio_service != null:
+		if audio_service.has_method("set_bus_volume_linear"):
+			audio_service.set_bus_volume_linear("Music", music_volume)
+			audio_service.set_bus_volume_linear("SFX", sfx_volume)
+	music_volume_changed.emit(music_volume)
+	sfx_volume_changed.emit(sfx_volume)
+
+
+func set_music_volume(value: float) -> void:
+	music_volume = clampf(value, 0.0, 1.0)
+	save_settings()
+	apply_audio_settings()
+
+
+func set_sfx_volume(value: float) -> void:
+	sfx_volume = clampf(value, 0.0, 1.0)
+	save_settings()
+	apply_audio_settings()
+
+
+func get_music_volume() -> float:
+	return music_volume
+
+
+func get_sfx_volume() -> float:
+	return sfx_volume
 
 
 func _center_window(window_size: Vector2i) -> void:
