@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://bpnpgi2xtfod4"
+path="res://.godot/imported/Restroom Breeze (1).mp3-123cd521d3d560f5ba9dd05e5958e254.mp3str"
+
+[deps]
+
+source_file="res://music/Restroom Breeze (1).mp3"
+dest_files=["res://.godot/imported/Restroom Breeze (1).mp3-123cd521d3d560f5ba9dd05e5958e254.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4
