@@ -1,5 +1,27 @@
 # Develop Log
 
+## 2026-07-06 CI smoke-test timeout fix
+
+- Symptom: every GitHub Actions `Smoke Test` run on `main` hung until manually
+  cancelled after ~6 hours.
+- Root cause: `scripts/view/Game.gd` referenced `BattleUI.AUTO_PAUSE`,
+  `BattleUI.AUTO_PLAY`, and `BattleUI.AUTO_FAST` through the `class_name`
+  global identifier. In CI the `.godot/` cache is absent, so `Game.gd` (the
+  root script of `Game.tscn`) was parsed before `BattleUI.gd` was loaded and
+  the `BattleUI` class name was not registered, producing a parse error. The
+  smoke test then failed to call `quit()`, leaving the headless Godot process
+  running forever.
+- Fix:
+  - Replaced the `BattleUI.*` references with local constants
+    (`AUTO_ADVANCE_PAUSE`, `AUTO_ADVANCE_PLAY`, `AUTO_ADVANCE_FAST`) in
+    `Game.gd`.
+  - Added `godot --headless --path . --import` to `.github/workflows/smoke-test.yml`
+    before the smoke-test step so CI has imported textures/audio available.
+  - Added `timeout-minutes: 15` to the workflow job so any future hang fails
+    fast instead of consuming the full runner quota.
+- Verification: new run `28754609501` on `main` completed successfully in under
+  two minutes; cancelled the backlog of stuck pre-fix runs.
+
 ## 2026-07-06 World-slice tile texture import optimization
 
 - Follow-up to the enemy-spawn and walking stutter fixes: board renders in
