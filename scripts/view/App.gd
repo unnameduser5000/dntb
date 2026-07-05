@@ -59,7 +59,10 @@ func _start_new_game() -> void:
 func _show_main_menu() -> void:
 	_game_is_active = false
 	_settings_return_to_pause = false
-	game.set_game_visible(false)
+	var audio_service = get_node_or_null("/root/AudioService")
+	if audio_service != null:
+		audio_service.set_duck_active(false)
+	game.return_to_title()
 	game.set_shell_overlay_active(true)
 	_hide_all_shell_panels()
 	main_menu.visible = true
@@ -67,6 +70,9 @@ func _show_main_menu() -> void:
 
 func _show_settings() -> void:
 	_settings_return_to_pause = false
+	var audio_service = get_node_or_null("/root/AudioService")
+	if audio_service != null:
+		audio_service.set_duck_active(true)
 	_hide_all_shell_panels()
 	game.set_shell_overlay_active(true)
 	settings_menu.set_continue_button_visible(false)
@@ -75,6 +81,9 @@ func _show_settings() -> void:
 
 
 func _show_pause_menu() -> void:
+	var audio_service = get_node_or_null("/root/AudioService")
+	if audio_service != null:
+		audio_service.set_duck_active(true)
 	_hide_all_shell_panels()
 	game.set_game_visible(true)
 	game.set_shell_overlay_active(true)
@@ -83,12 +92,18 @@ func _show_pause_menu() -> void:
 
 func _resume_game() -> void:
 	_settings_return_to_pause = false
+	var audio_service = get_node_or_null("/root/AudioService")
+	if audio_service != null:
+		audio_service.set_duck_active(false)
 	_hide_all_shell_panels()
 	game.set_shell_overlay_active(false)
 
 
 func _show_settings_from_pause() -> void:
 	_settings_return_to_pause = true
+	var audio_service = get_node_or_null("/root/AudioService")
+	if audio_service != null:
+		audio_service.set_duck_active(true)
 	_hide_all_shell_panels()
 	game.set_game_visible(true)
 	game.set_shell_overlay_active(true)
