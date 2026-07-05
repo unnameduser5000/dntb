@@ -9,6 +9,7 @@ const ActorDiedEffectScene := preload("res://scenes/effects/BattleDeathEffect.ts
 const ComboTriggeredEffectScene := preload("res://scenes/effects/BattleComboEffect.tscn")
 const TeleportEffectScene := preload("res://scenes/effects/BattleTeleportEffect.tscn")
 const SwapEffectScene := preload("res://scenes/effects/BattleSwapEffect.tscn")
+const SlimeBurstEffectScene := preload("res://scenes/effects/BattleSlimeBurstEffect.tscn")
 
 var board_view = null
 var effect_root: Node = null
@@ -22,6 +23,7 @@ var effect_scenes: Dictionary = {
 	"combo_triggered": ComboTriggeredEffectScene,
 	"teleport": TeleportEffectScene,
 	"swap": SwapEffectScene,
+	"slime_burst": SlimeBurstEffectScene,
 }
 
 

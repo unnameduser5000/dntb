@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ActorDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ActorDef.gd" id="1_actor"]
+[ext_resource type="PackedScene" path="res://scenes/actors/EnemyActorView.tscn" id="2_view"]
+
+[resource]
+script = ExtResource("1_actor")
+id = "slime_god"
+display_name = "黏神"
+max_hp = 18
+atk = 4
+move_range = 2
+map_char = "G"
+team = "enemy"
+ai_type = "melee_chaser"
+attack_action_id = "spin_axe"
+default_drop_key = ""
+drop_tier = 3
+view_scene = ExtResource("2_view")
+view_offset = Vector2(0, -8)
+view_scale = Vector2(1.25, 1.25)
+color = Color(0.58, 0.22, 0.72, 1)

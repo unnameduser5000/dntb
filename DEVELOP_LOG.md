@@ -1,5 +1,21 @@
 # Develop Log
 
+## 2026-07-05 Monster drops now go straight to the spare pool
+
+- Updated the enemy-death token flow so monster drops no longer land on the map
+  as pickup items.
+- When an enemy resolves a token drop, it now enters the player's spare action
+  pool immediately on death.
+- Kept map/world token pickup intact for ordinary world items; this change only
+  affects the monster-death drop path.
+- Updated the smoke test to assert that:
+  - no token is left on the death cell
+  - the dropped token is immediately present in the spare pool
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
 ## 2026-07-05 Boss node upgraded into a large dungeon layer
 
 - Reworked the Boss node from a small `8x8` combat room into a large dungeon

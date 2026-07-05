@@ -68,6 +68,8 @@ var _pool_entries: Array[Dictionary] = []
 var _editable := false
 var _permanent_buffs: Array[Dictionary] = []
 var _slot_panels: Dictionary = {}
+var _adhesive_slot_id: String = ""
+var _disabled_slot_ids: Array[String] = []
 
 
 func _ready() -> void:
@@ -150,7 +152,7 @@ func _apply_layout_settings() -> void:
 		_buffs_scroll.custom_minimum_size = Vector2(0, buffs_panel_height)
 
 
-func setup(slot_chains: Dictionary, pool_entries: Array, editable: bool, buffs: Array[Dictionary]) -> void:
+func setup(slot_chains: Dictionary, pool_entries: Array, editable: bool, buffs: Array[Dictionary], adhesive_slot_id: String = "", disabled_slot_ids: Array[String] = []) -> void:
 	_slot_chains.clear()
 	for key_id in SLOT_ORDER:
 		_slot_chains[key_id] = []
@@ -163,6 +165,10 @@ func setup(slot_chains: Dictionary, pool_entries: Array, editable: bool, buffs: 
 
 	_editable = editable
 	_permanent_buffs = buffs.duplicate(true)
+	_adhesive_slot_id = adhesive_slot_id
+	_disabled_slot_ids.clear()
+	for slot_id in disabled_slot_ids:
+		_disabled_slot_ids.append(String(slot_id))
 	_refresh()
 
 
@@ -242,6 +248,10 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 	panel.interaction_blocked.connect(_on_locked_slot_interaction)
 	panel.custom_minimum_size = Vector2(key_slot_panel_min_width, _key_slot_panel_min_height())
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if _disabled_slot_ids.has(key_id):
+		panel.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.22, 0.08, 0.12, 0.98), Color(0.96, 0.28, 0.44, 0.98)))
+	elif key_id == _adhesive_slot_id:
+		panel.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.28, 0.18, 0.36, 0.96), Color(0.82, 0.42, 0.96, 0.98)))
 	_slot_panels[key_id] = panel
 
 	var margin := MarginContainer.new()
@@ -259,7 +269,7 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 	header_row.add_theme_constant_override("separation", 8)
 	content.add_child(header_row)
 
-	header_row.add_child(_make_key_badge(key_id))
+	header_row.add_child(_make_key_badge(key_id, key_id == _adhesive_slot_id, _disabled_slot_ids.has(key_id)))
 
 	var meta_label := Label.new()
 	meta_label.text = meta_text
@@ -313,7 +323,9 @@ func _make_slot_token_button(token_id: String, source_slot_id: String, source_in
 		_token_label(token_id),
 		_editable,
 		_token_tooltip(token_id, 1, false),
-		token_cell_size
+		token_cell_size,
+		source_slot_id == _adhesive_slot_id,
+		_disabled_slot_ids.has(source_slot_id)
 	)
 	if not token.drop_requested.is_connected(_on_key_dropped):
 		token.drop_requested.connect(_on_key_dropped)
@@ -331,7 +343,8 @@ func _make_pool_token_button(token_id: String, source_index: int, stack_count: i
 		_token_label(token_id, stack_count),
 		_editable,
 		_token_tooltip(token_id, stack_count, true),
-		token_cell_size
+		token_cell_size,
+		false
 	)
 	if not token.drop_requested.is_connected(_on_key_dropped):
 		token.drop_requested.connect(_on_key_dropped)
@@ -384,11 +397,11 @@ func _token_tooltip(token_id: String, stack_count: int, show_stack: bool) -> Str
 	var drag_hint := "可拖拽到键位槽，拖入后库存 -1。" if _editable and show_stack else ("可拖回右侧库存池。" if _editable else "当前只读，可在休息区调整。")
 	return "%s\n%s\n%s\n%s" % [title, stack_hint, description, drag_hint]
 
-func _make_key_badge(key_id: String) -> Control:
+func _make_key_badge(key_id: String, is_adhesive: bool = false, is_disabled: bool = false) -> Control:
 	var badge := PanelContainer.new()
 	badge.custom_minimum_size = Vector2(42, 30)
 	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	badge.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.21, 0.24, 0.3, 1.0), Color(0.78, 0.82, 0.88, 0.92)))
+	badge.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.26, 0.08, 0.12, 1.0), Color(1.0, 0.34, 0.48, 0.98)) if is_disabled else (_make_square_stylebox(Color(0.35, 0.16, 0.42, 1.0), Color(0.96, 0.52, 1.0, 0.98)) if is_adhesive else _make_square_stylebox(Color(0.21, 0.24, 0.3, 1.0), Color(0.78, 0.82, 0.88, 0.92))))
 
 	var label := Label.new()
 	label.text = key_id
@@ -397,6 +410,19 @@ func _make_key_badge(key_id: String) -> Control:
 	label.theme_type_variation = &"ScreenTitle"
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(label)
+	if is_disabled:
+		var lock_label := Label.new()
+		lock_label.text = "锁"
+		lock_label.position = Vector2(24, -2)
+		lock_label.custom_minimum_size = Vector2(14, 14)
+		lock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lock_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lock_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lock_label.add_theme_font_size_override("font_size", 10)
+		lock_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.96, 1.0))
+		lock_label.add_theme_color_override("font_outline_color", Color(0.12, 0.02, 0.05, 0.96))
+		lock_label.add_theme_constant_override("outline_size", 2)
+		badge.add_child(lock_label)
 	return badge
 
 

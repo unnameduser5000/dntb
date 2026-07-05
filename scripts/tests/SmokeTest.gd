@@ -231,6 +231,11 @@ func _init() -> void:
 	_require(not game._key_program_editable, "boss node locks key slot editing")
 	_require(game.state.is_world_slice, "boss node now uses the large-map rendering/state path")
 	_require(game.state.grid.width >= 256 and game.state.grid.height >= 256, "boss node now generates a large dungeon map")
+	_require(not String(game._boss_adhesive_key_id).is_empty(), "boss dungeon selects one adhesive locked key")
+	var boss_san_before_adhesive: int = int(game.state.player.san)
+	game._submit_key_chain(String(game._boss_adhesive_key_id))
+	await process_frame
+	_require(game.state.player.san == boss_san_before_adhesive - 8, "pressing the adhesive locked key drains SAN")
 
 	_disable_enemies(game)
 	game.state.player.facing = Vector2i.RIGHT
@@ -243,6 +248,15 @@ func _init() -> void:
 	await process_frame
 	_require(game.state.player.grid_pos == boss_player_before_move + Vector2i.RIGHT, "pressing W key executes the remapped single-token movement")
 	_require(_string_name_array_equals(game.get_player_action_trace_symbols(1), [&"F"]), "combat key-program execution records the recent single relative trace symbol")
+	game.state.player.san = 10
+	game._submit_key_chain(String(game._boss_adhesive_key_id))
+	await process_frame
+	_require(game._boss_hidden_layer_active, "adhesive SAN collapse switches the run into the hidden boss layer")
+	_require(game.state.room_name == "隐藏黏神层", "hidden boss layer updates the room name")
+	_require(game.state.get_alive_enemies().any(func(actor): return actor != null and String(actor.def.id) == "slime_god"), "hidden boss layer spawns slime_god")
+	game.state.turn_count = 10
+	game._on_turn_finished()
+	_require(game._hidden_boss_locked_keys.size() == 1, "hidden boss layer permanently revokes one key every 10 turns")
 
 	await _start_seeded_combat_run(game, "action-trace-turn")
 	_disable_enemies(game)
@@ -737,7 +751,7 @@ func _init() -> void:
 	_require(world_game.state.is_world_slice, "boss poi interaction switches into the large-map state path")
 	_require(world_game.state.grid.width >= 256 and world_game.state.grid.height >= 256, "boss poi interaction enters a large boss dungeon map")
 	_require(not world_game._key_program_editable, "boss poi interaction keeps key slot editing locked")
-	_require(String(world_game.state.messages[0]).contains("进入"), "boss poi interaction reports that the player entered the boss room")
+	_require(world_game.state.messages.any(func(message): return String(message).contains("进入") or String(message).contains("黏附")), "boss poi interaction reports entry and boss-layer status messages")
 	world_game.queue_free()
 	await process_frame
 
@@ -971,17 +985,13 @@ func _init() -> void:
 	drop_enemy.drop_key = "TL"
 	var drop_action = _make_player_action(game, "attack")
 	drop_action.chosen_dir = Vector2i.RIGHT
+	var drop_token_pool_before: int = game.get_key_program_pool_tokens().size()
 	game.turn_controller.submit_player_plan([drop_action])
 	await process_frame
 	_require(drop_enemy.is_dead(), "killing the prepared enemy defeats it")
-	_require(String(game.state.items_at.get(Vector2i(3, 2), "")) == "TL", "dead enemy drops its configured token on the death cell")
-	var drop_token_pool_before: int = game.get_key_program_pool_tokens().size()
-	_move_player_to(game, Vector2i(3, 2))
-	game.resolver.on_actor_entered_cell(game.state.player, game.state)
-	_require(game.state.player.grid_pos == Vector2i(3, 2), "player can step onto the dropped token cell")
-	_require(not game.state.items_at.has(Vector2i(3, 2)), "stepping onto the death cell picks up the dropped token")
-	_require(game.get_key_program_pool_tokens().size() == drop_token_pool_before + 1, "picking up a monster drop adds the token to the spare pool")
-	_require(game.get_key_program_pool_tokens().has("TL"), "picked-up monster drop token enters the pool by id")
+	_require(not game.state.items_at.has(Vector2i(3, 2)), "dead enemy no longer leaves a pickup token on the ground")
+	_require(game.get_key_program_pool_tokens().size() >= drop_token_pool_before + 1, "monster drop now goes directly into the spare pool")
+	_require(game.get_key_program_pool_tokens().has("TL"), "monster drop token enters the pool by id without manual pickup")
 
 	await _start_seeded_combat_run(game, "split-slime")
 	game.enemy_planner.enemies_are_static = true
