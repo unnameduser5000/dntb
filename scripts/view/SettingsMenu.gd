@@ -11,6 +11,8 @@ const UiButtonScene := preload("res://scenes/ui/components/UiButton.tscn")
 @onready var resolution_option: OptionButton = %ResolutionRow.get_node("Option")
 @onready var fullscreen_toggle: CheckButton = %FullscreenRow.get_node("Toggle")
 @onready var zoom_option: OptionButton = %ZoomRow.get_node("Option")
+@onready var music_volume_slider: HSlider = %MusicVolumeRow.get_slider()
+@onready var sfx_volume_slider: HSlider = %SfxVolumeRow.get_slider()
 @onready var controls_hint: Label = %ControlsHint
 @onready var key_bindings_container: VBoxContainer = %KeyBindingsContainer
 @onready var reset_bindings_button: Button = %ResetBindingsButton
@@ -32,6 +34,8 @@ func _ready() -> void:
 
 	zoom_option.item_selected.connect(_on_zoom_selected)
 	fullscreen_toggle.toggled.connect(_on_fullscreen_toggled)
+	music_volume_slider.value_changed.connect(_on_music_volume_changed)
+	sfx_volume_slider.value_changed.connect(_on_sfx_volume_changed)
 	reset_bindings_button.pressed.connect(_reset_bindings)
 	continue_button.pressed.connect(continue_requested.emit)
 	back_button.pressed.connect(back_requested.emit)
@@ -79,6 +83,8 @@ func refresh_controls(scroll_to_top: bool = true) -> void:
 	resolution_option.select(SettingsService.resolution_index)
 	fullscreen_toggle.set_pressed_no_signal(SettingsService.is_fullscreen)
 	zoom_option.select(SettingsService.world_slice_zoom_index)
+	music_volume_slider.value = SettingsService.get_music_volume()
+	sfx_volume_slider.value = SettingsService.get_sfx_volume()
 	_refresh_key_binding_rows()
 	if scroll_to_top:
 		scroll.scroll_vertical = 0
@@ -100,6 +106,14 @@ func _on_zoom_selected(index: int) -> void:
 	SettingsService.set_world_slice_zoom_index(index)
 
 
+func _on_music_volume_changed(value: float) -> void:
+	SettingsService.set_music_volume(value)
+
+
+func _on_sfx_volume_changed(value: float) -> void:
+	SettingsService.set_sfx_volume(value)
+
+
 func _build_key_binding_rows() -> void:
 	for child in key_bindings_container.get_children():
 		child.queue_free()
@@ -118,10 +132,10 @@ func _build_key_binding_rows() -> void:
 		PlayerInputService.ACTION_X: "X 键 / Key X",
 		PlayerInputService.ACTION_C: "C 键 / Key C",
 		PlayerInputService.ACTION_V: "V 键 / Key V",
-		PlayerInputService.ACTION_UP: "上方向键 / Arrow Up",
-		PlayerInputService.ACTION_DOWN: "下方向键 / Arrow Down",
-		PlayerInputService.ACTION_LEFT: "左方向键 / Arrow Left",
-		PlayerInputService.ACTION_RIGHT: "右方向键 / Arrow Right",
+		PlayerInputService.ACTION_UP: "上 / Move Up",
+		PlayerInputService.ACTION_DOWN: "下 / Move Down",
+		PlayerInputService.ACTION_LEFT: "左 / Move Left",
+		PlayerInputService.ACTION_RIGHT: "右 / Move Right",
 	}
 
 	for action_name in PlayerInputService.get_program_actions():

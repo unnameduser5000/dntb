@@ -1,6 +1,194 @@
 # Develop Log
 
-## 2026-07-05 Monster drops now go straight to the spare pool
+## 2026-07-06 World-slice tile texture import optimization
+
+- Follow-up to the enemy-spawn and walking stutter fixes: board renders in
+  camera-follow world-slice mode still produced occasional multi-hundred
+  millisecond spikes.
+- Root cause: the imported world tile textures were configured with
+  `process/size_limit=0`, so Godot kept them at full source resolution (up to
+  2048×2048). `BoardView` scaled and cropped them at runtime, but the initial
+  load/decode cost and the per-pixel POI cropping still showed up as large
+  `board` spikes in `_refresh_views()`.
+- Set `process/size_limit=128` in the `.import` files for all world-slice tile
+  sources:
+  - `art/imported/world/biomes/*.png.import` (6 files)
+  - `art/imported/world/poi/*.png.import` (5 files)
+  - `art/imported/world/biomes/tall_grass_generated.png.import`
+  - `art/imported/world/dungeon/dungeon_concept.jpg.import`
+- Deleted the old cached `.ctex` files and reimported the project with
+  `godot --headless --path . --import`; the regenerated `.ctex` files are now
+  ~20–35 KB each instead of several megabytes.
+- Kept the runtime scaling, POI cropping cache, and render-window cap
+  (`MAX_RENDER_WINDOW_CELLS_PER_AXIS = 40`) in `BoardView.gd` as a defensive
+  fallback for any future large textures.
+- Removed the temporary profiling prints from `BoardView._apply_cell_visual()`
+  and `Game._refresh_views()`.
+- Result: the remaining board-render spikes are gone; steady-state world-slice
+  refreshes stay well under the frame budget and `SmokeTest` passes cleanly.
+
+Validation:
+
+- `godot --headless --path . --import`
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-06 Enemy-spawn stutter fix: lazy enemy texture loading
+
+- Investigated the stutter that occurred when enemies first became visible in
+  world-slice mode.
+- Root cause: `EnemyActorView._build_debug_enemy_frames()` synchronously loaded
+  and processed eight large imported PNG textures for every new enemy view, even
+  though only one texture was needed for the actor type. The per-pixel alpha
+  boost was also applied to full-resolution images before resizing, making the
+  cost proportional to the source PNG size.
+- Added static texture and `SpriteFrames` caches in `EnemyActorView.gd` so each
+  imported texture is loaded and fitted once per session.
+- Rewrote `_texture_fitted_to_box()` to resize to the target box size before the
+  per-pixel alpha pass, reducing pixel work by two orders of magnitude.
+- Refactored `_build_debug_enemy_frames()` to load only the texture(s) required
+  for the specific `actor_def_id`, falling back to the generic slime body only
+  when necessary.
+- Result: the first-time `sync_views` spike when enemies appear dropped from
+  ~13 s to ~230 ms; steady-state refresh stayed around ~150 ms.
+- Removed the temporary `scripts/tests/EnemyPerfProbe.gd` probe script.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-06 Hold-to-repeat movement
+
+- Added `_process` polling in `Game.gd` so directional keys (`W/A/S/D` and
+  arrow keys) repeat while held.
+- Non-movement key slots still trigger only once per physical press, preserving
+  the deliberate action cadence for attacks/skills.
+- Uses an initial delay of 0.28 s and a repeat interval of 0.12 s, matching the
+  existing world-slice fast timing feel. The repeat stops automatically when
+  the key is released, the phase leaves `planning`, or UI overlays open.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-06 Walking stutter fix: board cell visual caching
+
+- Investigated walking stutter in world-slice mode by adding timing probes to
+  `Game._refresh_views()` and `BoardView.render()`.
+- Root cause: every player step re-applied theme/style overrides to every
+  visible board cell. In a dense camera-follow window this dominated frame time
+  (hundreds of milliseconds per step).
+- Added a lightweight per-Label content key in `BoardView._apply_cell_visual()`.
+  If the cell's style, character, colors, and texture have not changed, the
+  expensive theme override calls are skipped.
+- Result: repeated refreshes dropped from ~300-400 ms to ~60 ms in the headless
+  probe, with the board render portion dropping from ~250 ms to ~20 ms.
+- Removed the temporary probe prints and script; kept basic timing fields on
+  `GameState` for future diagnostics.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-05 Arrow-key binding migration
+
+- Root cause of arrow keys not working: the local `user://input_bindings.cfg`
+  still stored the directional actions (`player_key_up/down/left/right`) as WASD
+  keycodes, overriding the new defaults every launch.
+- Added `DIRECTION_ACTIONS` constant and a migration check in `load_bindings()`:
+  if any directional action is bound to `KEY_W`, all four are reset to arrow keys
+  and the file is resaved.
+- Kept `DEFAULT_EXTRA_EVENTS` so WASD stays bound as secondary inputs for the
+  directional actions.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-05 Settings menu volume sliders
+
+- Added two volume sliders to the settings menu:
+  - `音乐音量` (Music volume) controlling the `Music` audio bus.
+  - `战斗音效音量` (SFX volume) controlling the `SFX` audio bus.
+- Created a reusable `UiSliderRow` component (`scenes/ui/components/UiSliderRow.tscn`
+  + `scripts/view/UiSliderRow.gd`) for labeled HSlider rows.
+- `SettingsService` now persists `audio/music_volume` and `audio/sfx_volume` in
+  `user://settings.cfg` and applies them to the audio buses on load.
+- Added `music_volume_changed` and `sfx_volume_changed` signals for future UI
+  reactions.
+- Updated `SettingsMenu.gd` to initialize sliders from saved values and write
+  changes back to `SettingsService`.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-05 Menu/backpack music ducking
+
+- Added `AudioService.set_duck_active(active)` and `menu_duck_volume_db` export
+  (default -12 dB, roughly half perceived volume) to lower music while menus or
+  the backpack are open.
+- Ducking is applied with the existing 1-second crossfade duration, and new
+  music starts at the ducked level when ducking is active.
+- Wired ducking into `App.gd`:
+  - `_show_pause_menu()` / `_show_settings()` / `_show_settings_from_pause()`
+    activate ducking.
+  - `_resume_game()` and `_show_main_menu()` restore normal volume.
+- Wired ducking into `Game.gd`:
+  - `_toggle_bag()` activates ducking when the bag opens, restores when closed.
+  - `_close_bag_if_open()` restores volume when closing the bag.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-05 AudioService keeps music alive during pause
+
+- Set `AudioService.process_mode = PROCESS_MODE_ALWAYS` so music playback and
+  crossfade tweens continue when the game tree is paused (e.g. backpack open).
+- Pause menu itself intentionally does not stop music; only returning to the
+  main menu switches to the title track.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-05 Directional keys default to WASD
+
+- Changed the default keycodes for the independent directional actions:
+  - `player_key_up`    → `KEY_W`
+  - `player_key_down`  → `KEY_S`
+  - `player_key_left`  → `KEY_A`
+  - `player_key_right` → `KEY_D`
+- Added `DEFAULT_EXTRA_EVENTS` so the original arrow keys remain bound as
+  secondary inputs for the same directional actions, keeping both WASD and
+  arrow keys functional.
+- Updated the settings-menu labels for the directional actions to remove the
+  arrow-key implication.
+- Existing saved bindings in `user://input_bindings.cfg` are preserved; the new
+  defaults apply to fresh installs or after resetting bindings.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-05 Title/main menu music
+
+- Added `Pixel Dungeon` as the title/main menu music track.
+- `AudioService` now exposes a `title` music key mapped to
+  `res://music/Pixel Dungeon.mp3`.
+- `Game._play_music_for_state()` plays the title track when the title overlay is
+  visible instead of stopping music.
+- `Game.return_to_title()` now crossfades to the title track so music continues
+  (and loops) when returning to the main menu from in-game pause/settings.
+- Updated `music/info.txt` to document the title track usage.
+- Hardened `AudioService` against early calls before `_ready()` initializes the
+  music players.
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+- `godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd`
+- `godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd`
 
 - Updated the enemy-death token flow so monster drops no longer land on the map
   as pickup items.

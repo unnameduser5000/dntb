@@ -3,6 +3,7 @@ extends "res://scripts/view/ActorView.gd"
 
 var _installed_actor_def_id := ""
 static var _debug_enemy_frames_cache: Dictionary = {}
+static var _debug_texture_cache: Dictionary = {}
 
 const IMPORTED_ENEMY_KING_PATH := "res://art/imported/characters/enemies/enemy_king.png"
 const IMPORTED_ENEMY_SLIME_BODY_PATH := "res://art/imported/characters/enemies/enemy_slime_body.png"
@@ -52,82 +53,91 @@ func _install_frames_for_state(state) -> void:
 
 func _build_debug_enemy_frames(actor_def_id: String) -> SpriteFrames:
 	var frames := SpriteFrames.new()
-	var imported_enemy_king := _load_imported_texture(IMPORTED_ENEMY_KING_PATH)
-	var imported_enemy_slime_body := _load_imported_texture(IMPORTED_ENEMY_SLIME_BODY_PATH)
-	var imported_enemy_deity := _load_imported_texture(IMPORTED_ENEMY_DEITY_PATH)
-	var imported_enemy_slime_spear := _load_imported_texture(IMPORTED_ENEMY_SLIME_SPEAR_TAG_PATH)
-	var imported_enemy_slime_hammer := _load_imported_texture(IMPORTED_ENEMY_SLIME_HAMMER_TAG_PATH)
-	var imported_enemy_slime_bow := _load_imported_texture(IMPORTED_ENEMY_SLIME_BOW_TAG_PATH)
-	var imported_enemy_slime_split := _load_imported_texture(IMPORTED_ENEMY_SLIME_SPLIT_PATH)
-	var imported_enemy_slime_shield := _load_imported_texture(IMPORTED_ENEMY_SLIME_SHIELD_TAG_PATH)
-	var imported_npc_front := _load_imported_texture(IMPORTED_NPC_FRONT_PATH)
-	var imported_npc_back := _load_imported_texture(IMPORTED_NPC_BACK_PATH)
-	var imported_npc_side_left := _load_imported_texture(IMPORTED_NPC_SIDE_LEFT_PATH)
+	var slime_body := _load_imported_texture_cached(IMPORTED_ENEMY_SLIME_BODY_PATH)
 
 	match actor_def_id:
 		"tavern_keeper":
-			_add_animation(frames, &"idle_down", [imported_npc_front], true, 4.0)
-			_add_animation(frames, &"move_down", [imported_npc_front], true, 6.0)
-			_add_animation(frames, &"action_start_down", [imported_npc_front], false, 8.0)
-			_add_animation(frames, &"hit_down", [imported_npc_front], false, 8.0)
-			_add_animation(frames, &"die_down", [imported_npc_front], false, 8.0)
-			_add_animation(frames, &"idle_up", [imported_npc_back], true, 4.0)
-			_add_animation(frames, &"move_up", [imported_npc_back], true, 6.0)
-			_add_animation(frames, &"action_start_up", [imported_npc_back], false, 8.0)
-			_add_animation(frames, &"hit_up", [imported_npc_back], false, 8.0)
-			_add_animation(frames, &"die_up", [imported_npc_back], false, 8.0)
-			_add_animation(frames, &"idle_left", [imported_npc_side_left], true, 4.0)
-			_add_animation(frames, &"move_left", [imported_npc_side_left], true, 6.0)
-			_add_animation(frames, &"action_start_left", [imported_npc_side_left], false, 8.0)
-			_add_animation(frames, &"hit_left", [imported_npc_side_left], false, 8.0)
-			_add_animation(frames, &"die_left", [imported_npc_side_left], false, 8.0)
-			_add_animation(frames, &"idle_right", [imported_npc_side_left], true, 4.0)
-			_add_animation(frames, &"move_right", [imported_npc_side_left], true, 6.0)
-			_add_animation(frames, &"action_start_right", [imported_npc_side_left], false, 8.0)
-			_add_animation(frames, &"hit_right", [imported_npc_side_left], false, 8.0)
-			_add_animation(frames, &"die_right", [imported_npc_side_left], false, 8.0)
+			var npc_front := _load_imported_texture_cached(IMPORTED_NPC_FRONT_PATH)
+			var npc_back := _load_imported_texture_cached(IMPORTED_NPC_BACK_PATH)
+			var npc_side_left := _load_imported_texture_cached(IMPORTED_NPC_SIDE_LEFT_PATH)
+			_add_animation(frames, &"idle_down", [npc_front], true, 4.0)
+			_add_animation(frames, &"move_down", [npc_front], true, 6.0)
+			_add_animation(frames, &"action_start_down", [npc_front], false, 8.0)
+			_add_animation(frames, &"hit_down", [npc_front], false, 8.0)
+			_add_animation(frames, &"die_down", [npc_front], false, 8.0)
+			_add_animation(frames, &"idle_up", [npc_back], true, 4.0)
+			_add_animation(frames, &"move_up", [npc_back], true, 6.0)
+			_add_animation(frames, &"action_start_up", [npc_back], false, 8.0)
+			_add_animation(frames, &"hit_up", [npc_back], false, 8.0)
+			_add_animation(frames, &"die_up", [npc_back], false, 8.0)
+			_add_animation(frames, &"idle_left", [npc_side_left], true, 4.0)
+			_add_animation(frames, &"move_left", [npc_side_left], true, 6.0)
+			_add_animation(frames, &"action_start_left", [npc_side_left], false, 8.0)
+			_add_animation(frames, &"hit_left", [npc_side_left], false, 8.0)
+			_add_animation(frames, &"die_left", [npc_side_left], false, 8.0)
+			_add_animation(frames, &"idle_right", [npc_side_left], true, 4.0)
+			_add_animation(frames, &"move_right", [npc_side_left], true, 6.0)
+			_add_animation(frames, &"action_start_right", [npc_side_left], false, 8.0)
+			_add_animation(frames, &"hit_right", [npc_side_left], false, 8.0)
+			_add_animation(frames, &"die_right", [npc_side_left], false, 8.0)
 		"slime_god":
-			_add_animation(frames, &"idle", [imported_enemy_deity], true, 4.0)
-			_add_animation(frames, &"move", [imported_enemy_deity], true, 6.0)
-			_add_animation(frames, &"action_start", [imported_enemy_deity], false, 8.0)
-			_add_animation(frames, &"hit", [imported_enemy_deity], false, 10.0)
-			_add_animation(frames, &"die", [imported_enemy_deity], false, 8.0)
+			var texture := _load_imported_texture_cached(IMPORTED_ENEMY_DEITY_PATH)
+			_add_animation(frames, &"idle", [texture], true, 4.0)
+			_add_animation(frames, &"move", [texture], true, 6.0)
+			_add_animation(frames, &"action_start", [texture], false, 8.0)
+			_add_animation(frames, &"hit", [texture], false, 10.0)
+			_add_animation(frames, &"die", [texture], false, 8.0)
 		"boss":
-			_add_animation(frames, &"idle", [imported_enemy_slime_shield if imported_enemy_slime_shield != null else imported_enemy_king], true, 4.0)
-			_add_animation(frames, &"move", [imported_enemy_slime_shield if imported_enemy_slime_shield != null else imported_enemy_king], true, 6.0)
-			_add_animation(frames, &"action_start", [imported_enemy_slime_shield if imported_enemy_slime_shield != null else imported_enemy_king], false, 8.0)
-			_add_animation(frames, &"hit", [imported_enemy_slime_shield if imported_enemy_slime_shield != null else imported_enemy_king], false, 10.0)
-			_add_animation(frames, &"die", [imported_enemy_slime_shield if imported_enemy_slime_shield != null else imported_enemy_king], false, 8.0)
+			var texture := _load_imported_texture_cached(IMPORTED_ENEMY_SLIME_SHIELD_TAG_PATH)
+			if texture == null:
+				texture = _load_imported_texture_cached(IMPORTED_ENEMY_KING_PATH)
+			_add_animation(frames, &"idle", [texture], true, 4.0)
+			_add_animation(frames, &"move", [texture], true, 6.0)
+			_add_animation(frames, &"action_start", [texture], false, 8.0)
+			_add_animation(frames, &"hit", [texture], false, 10.0)
+			_add_animation(frames, &"die", [texture], false, 8.0)
 		"split_slime":
-			_add_animation(frames, &"idle", [imported_enemy_slime_split if imported_enemy_slime_split != null else imported_enemy_slime_body], true, 5.0)
-			_add_animation(frames, &"move", [imported_enemy_slime_split if imported_enemy_slime_split != null else imported_enemy_slime_body], true, 8.0)
-			_add_animation(frames, &"action_start", [imported_enemy_slime_split if imported_enemy_slime_split != null else imported_enemy_slime_body], false, 10.0)
-			_add_animation(frames, &"hit", [imported_enemy_slime_split if imported_enemy_slime_split != null else imported_enemy_slime_body], false, 12.0)
-			_add_animation(frames, &"die", [imported_enemy_slime_split if imported_enemy_slime_split != null else imported_enemy_slime_body], false, 8.0)
+			var texture := _load_imported_texture_cached(IMPORTED_ENEMY_SLIME_SPLIT_PATH)
+			if texture == null:
+				texture = slime_body
+			_add_animation(frames, &"idle", [texture], true, 5.0)
+			_add_animation(frames, &"move", [texture], true, 8.0)
+			_add_animation(frames, &"action_start", [texture], false, 10.0)
+			_add_animation(frames, &"hit", [texture], false, 12.0)
+			_add_animation(frames, &"die", [texture], false, 8.0)
 		"brute":
-			_add_animation(frames, &"idle", [imported_enemy_slime_hammer if imported_enemy_slime_hammer != null else imported_enemy_slime_body], true, 5.0)
-			_add_animation(frames, &"move", [imported_enemy_slime_hammer if imported_enemy_slime_hammer != null else imported_enemy_slime_body], true, 8.0)
-			_add_animation(frames, &"action_start", [imported_enemy_slime_hammer if imported_enemy_slime_hammer != null else imported_enemy_slime_body], false, 10.0)
-			_add_animation(frames, &"hit", [imported_enemy_slime_hammer if imported_enemy_slime_hammer != null else imported_enemy_slime_body], false, 12.0)
-			_add_animation(frames, &"die", [imported_enemy_slime_hammer if imported_enemy_slime_hammer != null else imported_enemy_slime_body], false, 8.0)
+			var texture := _load_imported_texture_cached(IMPORTED_ENEMY_SLIME_HAMMER_TAG_PATH)
+			if texture == null:
+				texture = slime_body
+			_add_animation(frames, &"idle", [texture], true, 5.0)
+			_add_animation(frames, &"move", [texture], true, 8.0)
+			_add_animation(frames, &"action_start", [texture], false, 10.0)
+			_add_animation(frames, &"hit", [texture], false, 12.0)
+			_add_animation(frames, &"die", [texture], false, 8.0)
 		"line_warden":
-			_add_animation(frames, &"idle", [imported_enemy_slime_spear if imported_enemy_slime_spear != null else imported_enemy_slime_body], true, 5.0)
-			_add_animation(frames, &"move", [imported_enemy_slime_spear if imported_enemy_slime_spear != null else imported_enemy_slime_body], true, 8.0)
-			_add_animation(frames, &"action_start", [imported_enemy_slime_spear if imported_enemy_slime_spear != null else imported_enemy_slime_body], false, 10.0)
-			_add_animation(frames, &"hit", [imported_enemy_slime_spear if imported_enemy_slime_spear != null else imported_enemy_slime_body], false, 12.0)
-			_add_animation(frames, &"die", [imported_enemy_slime_spear if imported_enemy_slime_spear != null else imported_enemy_slime_body], false, 8.0)
+			var texture := _load_imported_texture_cached(IMPORTED_ENEMY_SLIME_SPEAR_TAG_PATH)
+			if texture == null:
+				texture = slime_body
+			_add_animation(frames, &"idle", [texture], true, 5.0)
+			_add_animation(frames, &"move", [texture], true, 8.0)
+			_add_animation(frames, &"action_start", [texture], false, 10.0)
+			_add_animation(frames, &"hit", [texture], false, 12.0)
+			_add_animation(frames, &"die", [texture], false, 8.0)
 		"goblin_slinger":
-			_add_animation(frames, &"idle", [imported_enemy_slime_bow if imported_enemy_slime_bow != null else imported_enemy_slime_body], true, 5.0)
-			_add_animation(frames, &"move", [imported_enemy_slime_bow if imported_enemy_slime_bow != null else imported_enemy_slime_body], true, 8.0)
-			_add_animation(frames, &"action_start", [imported_enemy_slime_bow if imported_enemy_slime_bow != null else imported_enemy_slime_body], false, 10.0)
-			_add_animation(frames, &"hit", [imported_enemy_slime_bow if imported_enemy_slime_bow != null else imported_enemy_slime_body], false, 12.0)
-			_add_animation(frames, &"die", [imported_enemy_slime_bow if imported_enemy_slime_bow != null else imported_enemy_slime_body], false, 8.0)
+			var texture := _load_imported_texture_cached(IMPORTED_ENEMY_SLIME_BOW_TAG_PATH)
+			if texture == null:
+				texture = slime_body
+			_add_animation(frames, &"idle", [texture], true, 5.0)
+			_add_animation(frames, &"move", [texture], true, 8.0)
+			_add_animation(frames, &"action_start", [texture], false, 10.0)
+			_add_animation(frames, &"hit", [texture], false, 12.0)
+			_add_animation(frames, &"die", [texture], false, 8.0)
 		"monster", "small_slime", "aoe_slime", "talkative_slime", "wisp", "goblin_scout":
-			_add_animation(frames, &"idle", [imported_enemy_slime_body], true, 5.0)
-			_add_animation(frames, &"move", [imported_enemy_slime_body], true, 8.0)
-			_add_animation(frames, &"action_start", [imported_enemy_slime_body], false, 10.0)
-			_add_animation(frames, &"hit", [imported_enemy_slime_body], false, 12.0)
-			_add_animation(frames, &"die", [imported_enemy_slime_body], false, 8.0)
+			_add_animation(frames, &"idle", [slime_body], true, 5.0)
+			_add_animation(frames, &"move", [slime_body], true, 8.0)
+			_add_animation(frames, &"action_start", [slime_body], false, 10.0)
+			_add_animation(frames, &"hit", [slime_body], false, 12.0)
+			_add_animation(frames, &"die", [slime_body], false, 8.0)
 		_:
 			_add_animation(frames, &"idle", [
 				_make_slime_frame(0),
@@ -330,10 +340,31 @@ func _create_canvas() -> Image:
 	return image
 
 
+func _load_imported_texture_cached(resource_path: String) -> Texture2D:
+	if resource_path.is_empty() or not FileAccess.file_exists(resource_path):
+		return null
+	var cached: Texture2D = _debug_texture_cache.get(resource_path)
+	if cached != null:
+		return cached
+	var texture: Texture2D = ResourceLoader.load(resource_path, "Texture2D", ResourceLoader.CACHE_MODE_REUSE)
+	if texture == null:
+		return null
+	var image: Image = texture.get_image()
+	if image == null or image.is_empty():
+		return null
+	var fitted := _texture_fitted_to_box(image, IMPORTED_ENEMY_TEXTURE_BOX_SIZE)
+	if fitted != null:
+		_debug_texture_cache[resource_path] = fitted
+	return fitted
+
+
 func _load_imported_texture(resource_path: String) -> Texture2D:
 	if resource_path.is_empty() or not FileAccess.file_exists(resource_path):
 		return null
-	var image: Image = Image.load_from_file(ProjectSettings.globalize_path(resource_path))
+	var texture: Texture2D = ResourceLoader.load(resource_path, "Texture2D", ResourceLoader.CACHE_MODE_REUSE)
+	if texture == null:
+		return null
+	var image: Image = texture.get_image()
 	if image == null or image.is_empty():
 		return null
 	return _texture_fitted_to_box(image, IMPORTED_ENEMY_TEXTURE_BOX_SIZE)
@@ -342,9 +373,19 @@ func _load_imported_texture(resource_path: String) -> Texture2D:
 func _texture_fitted_to_box(source_image: Image, box_size: int) -> Texture2D:
 	if source_image == null or source_image.is_empty() or box_size <= 0:
 		return null
+	var max_dimension: int = maxi(source_image.get_width(), source_image.get_height())
+	if max_dimension <= 0:
+		return null
+	var scale_ratio: float = minf(float(box_size) / float(max_dimension), 1.0)
+	var scaled_size := Vector2i(
+		maxi(1, int(round(float(source_image.get_width()) * scale_ratio))),
+		maxi(1, int(round(float(source_image.get_height()) * scale_ratio)))
+	)
 	var working := source_image.duplicate()
 	if working.get_format() != Image.FORMAT_RGBA8:
 		working.convert(Image.FORMAT_RGBA8)
+	if scaled_size.x != working.get_width() or scaled_size.y != working.get_height():
+		working.resize(scaled_size.x, scaled_size.y, Image.INTERPOLATE_LANCZOS)
 	for y in range(working.get_height()):
 		for x in range(working.get_width()):
 			var pixel: Color = working.get_pixel(x, y)
@@ -352,16 +393,6 @@ func _texture_fitted_to_box(source_image: Image, box_size: int) -> Texture2D:
 				continue
 			pixel.a = clampf(pixel.a * 1.45, 0.0, 1.0)
 			working.set_pixel(x, y, pixel)
-	var max_dimension: int = maxi(working.get_width(), working.get_height())
-	if max_dimension <= 0:
-		return null
-	var scale_ratio: float = minf(float(box_size) / float(max_dimension), 1.0)
-	var scaled_size := Vector2i(
-		maxi(1, int(round(float(working.get_width()) * scale_ratio))),
-		maxi(1, int(round(float(working.get_height()) * scale_ratio)))
-	)
-	if scaled_size.x != working.get_width() or scaled_size.y != working.get_height():
-		working.resize(scaled_size.x, scaled_size.y)
 	var canvas := Image.create(box_size, box_size, false, Image.FORMAT_RGBA8)
 	canvas.fill(Color(0, 0, 0, 0))
 	var paste_position := Vector2i(

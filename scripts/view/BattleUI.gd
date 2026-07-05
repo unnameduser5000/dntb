@@ -282,6 +282,10 @@ func show_title() -> void:
 	])
 
 
+func is_title_visible() -> bool:
+	return _overlay.visible and _overlay_title.text == "别按那个键"
+
+
 func show_battle() -> void:
 	_overlay.visible = false
 	_panel.visible = false
@@ -413,6 +417,16 @@ func _on_auto_speed_button_pressed() -> void:
 		_auto_advance_mode = AUTO_FAST
 	else:
 		_auto_advance_mode = AUTO_FAST
+	_update_auto_advance_button()
+	auto_advance_mode_changed.emit(_auto_advance_mode)
+
+
+func set_auto_advance_mode(mode: int) -> void:
+	if mode < 0 or mode > 2:
+		return
+	if _auto_advance_mode == mode:
+		return
+	_auto_advance_mode = mode
 	_update_auto_advance_button()
 	auto_advance_mode_changed.emit(_auto_advance_mode)
 

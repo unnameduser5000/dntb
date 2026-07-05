@@ -61,6 +61,15 @@ const DEFAULT_KEYCODES := {
 	ACTION_RIGHT: KEY_RIGHT,
 }
 
+const DIRECTION_ACTIONS := [ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT]
+
+const DEFAULT_EXTRA_EVENTS := {
+	ACTION_UP: [KEY_W],
+	ACTION_DOWN: [KEY_S],
+	ACTION_LEFT: [KEY_A],
+	ACTION_RIGHT: [KEY_D],
+}
+
 const KEY_IDS := {
 	ACTION_Q: "Q",
 	ACTION_W: "W",
@@ -103,6 +112,7 @@ func load_bindings() -> void:
 	_keycodes.clear()
 	var config := ConfigFile.new()
 	var error := config.load(CONFIG_PATH)
+	var needs_migration := false
 	for action_name in PROGRAM_ACTIONS:
 		_keycodes[action_name] = int(DEFAULT_KEYCODES[action_name])
 
@@ -111,6 +121,17 @@ func load_bindings() -> void:
 
 	for action_name in PROGRAM_ACTIONS:
 		_keycodes[action_name] = int(config.get_value("bindings", action_name, _keycodes[action_name]))
+
+	for action_name in DIRECTION_ACTIONS:
+		if _keycodes[action_name] == DEFAULT_KEYCODES[ACTION_W]:
+			needs_migration = true
+			break
+
+	if needs_migration:
+		for action_name in DIRECTION_ACTIONS:
+			_keycodes[action_name] = int(DEFAULT_KEYCODES[action_name])
+		push_warning("PlayerInputService: migrated directional bindings to arrow keys.")
+		save_bindings()
 
 
 func save_bindings() -> void:
@@ -191,3 +212,9 @@ func _apply_action_binding(action_name: String, keycode: int) -> void:
 	var event := InputEventKey.new()
 	event.keycode = keycode
 	InputMap.action_add_event(action_name, event)
+
+	var extras: Array = DEFAULT_EXTRA_EVENTS.get(action_name, [])
+	for extra_keycode in extras:
+		var extra_event := InputEventKey.new()
+		extra_event.keycode = int(extra_keycode)
+		InputMap.action_add_event(action_name, extra_event)

@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://d2tgmiu44xv22"
+path="res://.godot/imported/Pixel Dungeon.mp3-4d65a93afb3c345f2575b12351dd3e9d.mp3str"
+
+[deps]
+
+source_file="res://music/Pixel Dungeon.mp3"
+dest_files=["res://.godot/imported/Pixel Dungeon.mp3-4d65a93afb3c345f2575b12351dd3e9d.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

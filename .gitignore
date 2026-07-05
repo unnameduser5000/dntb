@@ -49,6 +49,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# Isolated development worktrees
+.worktrees/
+
 # Keep Godot sidecar metadata tracked:
 # - *.import files describe imported source assets.
 # - *.gd.uid files keep script/resource identity stable across collaborators.
