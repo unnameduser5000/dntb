@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/BattleEffect.gd" id="1_effect"]
+
+[node name="BattleSlimeBindEffect" type="Node2D"]
+script = ExtResource("1_effect")
+effect_kind = "slime_bind_hit"
+duration = 0.22
+radius = 24.0
+line_width = 3.0
+primary_color = Color(0.72, 0.34, 0.92, 1)
+secondary_color = Color(0.48, 0.92, 0.62, 1)
+use_particle_burst = true
+particle_amount = 10

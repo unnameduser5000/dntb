@@ -664,7 +664,7 @@ func _relative_direction_label(from_cell: Vector2i, to_cell: Vector2i) -> String
 	elif delta.x > 0:
 		horizontal = "东"
 	var distance: int = absi(delta.x) + absi(delta.y)
-	return "%s%s（%d 格）" % [vertical, horizontal, distance]
+	return "%s%s（%d 格）" % [horizontal, vertical, distance]
 
 
 func _pick_nearest_walkable(candidates: Array[Vector2i], preferred: Vector2i, reserved: Dictionary) -> Vector2i:

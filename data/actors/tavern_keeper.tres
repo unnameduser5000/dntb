@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="NpcDef" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="NpcDef" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/NpcDef.gd" id="1_npc"]
+[ext_resource type="PackedScene" path="res://scenes/actors/EnemyActorView.tscn" id="2_view"]
 
 [resource]
 script = ExtResource("1_npc")
@@ -12,6 +13,7 @@ atk = 0
 map_char = "K"
 team = "neutral"
 ai_type = "none"
+view_scene = ExtResource("2_view")
 color = Color(0.95, 0.78, 0.42, 1)
 interaction_enabled = true
 interaction_title = "酒馆掌柜"

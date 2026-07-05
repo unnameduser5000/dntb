@@ -12,6 +12,9 @@ const IMPORTED_ENEMY_SLIME_HAMMER_TAG_PATH := "res://art/imported/characters/ene
 const IMPORTED_ENEMY_SLIME_BOW_TAG_PATH := "res://art/imported/characters/enemies/enemy_slime_bow_tag.png"
 const IMPORTED_ENEMY_SLIME_SPLIT_PATH := "res://art/imported/characters/enemies/enemy_slime_split.png"
 const IMPORTED_ENEMY_SLIME_SHIELD_TAG_PATH := "res://art/imported/characters/enemies/enemy_slime_shield_tag.png"
+const IMPORTED_NPC_FRONT_PATH := "res://art/imported/characters/npc/npc_front.png"
+const IMPORTED_NPC_BACK_PATH := "res://art/imported/characters/npc/npc_back.png"
+const IMPORTED_NPC_SIDE_LEFT_PATH := "res://art/imported/characters/npc/npc_side_left.png"
 const IMPORTED_ENEMY_TEXTURE_BOX_SIZE := 44
 
 
@@ -57,8 +60,32 @@ func _build_debug_enemy_frames(actor_def_id: String) -> SpriteFrames:
 	var imported_enemy_slime_bow := _load_imported_texture(IMPORTED_ENEMY_SLIME_BOW_TAG_PATH)
 	var imported_enemy_slime_split := _load_imported_texture(IMPORTED_ENEMY_SLIME_SPLIT_PATH)
 	var imported_enemy_slime_shield := _load_imported_texture(IMPORTED_ENEMY_SLIME_SHIELD_TAG_PATH)
+	var imported_npc_front := _load_imported_texture(IMPORTED_NPC_FRONT_PATH)
+	var imported_npc_back := _load_imported_texture(IMPORTED_NPC_BACK_PATH)
+	var imported_npc_side_left := _load_imported_texture(IMPORTED_NPC_SIDE_LEFT_PATH)
 
 	match actor_def_id:
+		"tavern_keeper":
+			_add_animation(frames, &"idle_down", [imported_npc_front], true, 4.0)
+			_add_animation(frames, &"move_down", [imported_npc_front], true, 6.0)
+			_add_animation(frames, &"action_start_down", [imported_npc_front], false, 8.0)
+			_add_animation(frames, &"hit_down", [imported_npc_front], false, 8.0)
+			_add_animation(frames, &"die_down", [imported_npc_front], false, 8.0)
+			_add_animation(frames, &"idle_up", [imported_npc_back], true, 4.0)
+			_add_animation(frames, &"move_up", [imported_npc_back], true, 6.0)
+			_add_animation(frames, &"action_start_up", [imported_npc_back], false, 8.0)
+			_add_animation(frames, &"hit_up", [imported_npc_back], false, 8.0)
+			_add_animation(frames, &"die_up", [imported_npc_back], false, 8.0)
+			_add_animation(frames, &"idle_left", [imported_npc_side_left], true, 4.0)
+			_add_animation(frames, &"move_left", [imported_npc_side_left], true, 6.0)
+			_add_animation(frames, &"action_start_left", [imported_npc_side_left], false, 8.0)
+			_add_animation(frames, &"hit_left", [imported_npc_side_left], false, 8.0)
+			_add_animation(frames, &"die_left", [imported_npc_side_left], false, 8.0)
+			_add_animation(frames, &"idle_right", [imported_npc_side_left], true, 4.0)
+			_add_animation(frames, &"move_right", [imported_npc_side_left], true, 6.0)
+			_add_animation(frames, &"action_start_right", [imported_npc_side_left], false, 8.0)
+			_add_animation(frames, &"hit_right", [imported_npc_side_left], false, 8.0)
+			_add_animation(frames, &"die_right", [imported_npc_side_left], false, 8.0)
 		"slime_god":
 			_add_animation(frames, &"idle", [imported_enemy_deity], true, 4.0)
 			_add_animation(frames, &"move", [imported_enemy_deity], true, 6.0)
@@ -343,3 +370,18 @@ func _texture_fitted_to_box(source_image: Image, box_size: int) -> Texture2D:
 	)
 	canvas.blit_rect(working, Rect2i(Vector2i.ZERO, scaled_size), paste_position)
 	return ImageTexture.create_from_image(canvas)
+
+
+func _apply_sprite_facing(animation_name: StringName) -> void:
+	super._apply_sprite_facing(animation_name)
+	if sprite == null:
+		return
+	if actor_state == null or actor_state.def == null:
+		return
+	if String(actor_state.def.id) != "tavern_keeper":
+		return
+	var animation_label := String(animation_name)
+	if animation_label.ends_with("_right"):
+		sprite.flip_h = true
+	elif animation_label.ends_with("_left"):
+		sprite.flip_h = false

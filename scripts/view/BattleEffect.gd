@@ -1,7 +1,7 @@
 class_name BattleEffect
 extends Node2D
 
-@export_enum("action_started", "actor_damaged", "attack_missed", "move_collision", "actor_died", "combo_triggered", "teleport", "swap", "slime_burst") var effect_kind := "actor_damaged"
+@export_enum("action_started", "actor_damaged", "attack_missed", "move_collision", "actor_died", "combo_triggered", "teleport", "swap", "slime_burst", "slime_bind_hit") var effect_kind := "actor_damaged"
 @export var duration: float = 0.2
 @export var radius: float = 18.0
 @export var line_width: float = 2.0
@@ -19,6 +19,7 @@ var _tint: Color = Color.WHITE
 var _particle_burst: GPUParticles2D = null
 var duration_scale: float = 1.0
 static var _slime_effect_texture: Texture2D = null
+var _source_world: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
@@ -32,6 +33,8 @@ func play(meta: Dictionary = {}) -> void:
 	_intensity = maxf(0.5, float(meta.get("intensity", 1.0)))
 	var tint_value = meta.get("tint", Color.WHITE)
 	_tint = tint_value if tint_value is Color else Color.WHITE
+	var source_world_value = meta.get("source_world", Vector2.ZERO)
+	_source_world = source_world_value if source_world_value is Vector2 else Vector2.ZERO
 	visible = true
 	scale = Vector2.ONE
 	rotation = _direction.angle() if align_to_direction else 0.0
@@ -74,6 +77,8 @@ func _draw() -> void:
 			_draw_swap(main, accent, scale_factor)
 		"slime_burst":
 			_draw_slime_burst(main, accent, scale_factor)
+		"slime_bind_hit":
+			_draw_slime_bind_hit(main, accent, scale_factor)
 		_:
 			_draw_actor_damaged(main, accent, scale_factor)
 
@@ -255,6 +260,18 @@ func _draw_slime_burst(main: Color, accent: Color, scale_factor: float) -> void:
 		var angle := TAU * float(index) / 5.0 + _progress * 0.45
 		var direction := Vector2.from_angle(angle)
 		draw_line(direction * (local_radius * 0.2), direction * local_radius, _with_alpha(main, 0.92 - float(index) * 0.1), line_width)
+
+
+func _draw_slime_bind_hit(main: Color, accent: Color, scale_factor: float) -> void:
+	var local_source: Vector2 = _source_world - global_position
+	var pull_dir: Vector2 = local_source.normalized() if local_source.length_squared() > 0.001 else Vector2.LEFT
+	var wave: float = sin(_progress * PI * 3.0) * radius * 0.12
+	var tangent := Vector2(-pull_dir.y, pull_dir.x)
+	var mid_point: Vector2 = local_source * 0.5 + tangent * wave
+	draw_polyline(PackedVector2Array([local_source, mid_point, Vector2.ZERO]), _with_alpha(accent, 0.9), line_width + 2.0, true)
+	draw_polyline(PackedVector2Array([local_source, mid_point, Vector2.ZERO]), _with_alpha(main, 0.95), line_width, true)
+	draw_circle(Vector2.ZERO, radius * 0.18 * scale_factor, _with_alpha(main, 0.75))
+	draw_circle(local_source, radius * 0.14 * scale_factor, _with_alpha(accent, 0.68))
 
 
 func _extract_direction(raw_direction) -> Vector2:

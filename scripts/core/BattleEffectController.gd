@@ -10,6 +10,7 @@ const ComboTriggeredEffectScene := preload("res://scenes/effects/BattleComboEffe
 const TeleportEffectScene := preload("res://scenes/effects/BattleTeleportEffect.tscn")
 const SwapEffectScene := preload("res://scenes/effects/BattleSwapEffect.tscn")
 const SlimeBurstEffectScene := preload("res://scenes/effects/BattleSlimeBurstEffect.tscn")
+const SlimeBindEffectScene := preload("res://scenes/effects/BattleSlimeBindEffect.tscn")
 
 var board_view = null
 var effect_root: Node = null
@@ -24,6 +25,7 @@ var effect_scenes: Dictionary = {
 	"teleport": TeleportEffectScene,
 	"swap": SwapEffectScene,
 	"slime_burst": SlimeBurstEffectScene,
+	"slime_bind_hit": SlimeBindEffectScene,
 }
 
 
@@ -106,6 +108,15 @@ func play_frame(frame: Dictionary) -> void:
 				"direction": frame.get("direction", _actor_facing(swap_actor)),
 				"intensity": 1.1,
 				"tint": _actor_color(swap_actor),
+			})
+		"slime_bind_hit":
+			var bind_actor = frame.get("actor")
+			var bind_target_cell: Vector2i = frame.get("target_cell", Vector2i.ZERO)
+			spawn_effect_world("slime_bind_hit", _world_for_cell(bind_target_cell), {
+				"direction": frame.get("direction", _actor_facing(bind_actor)),
+				"intensity": 1.1,
+				"tint": _actor_color(bind_actor),
+				"source_world": _world_for_actor(bind_actor),
 			})
 		_:
 			pass

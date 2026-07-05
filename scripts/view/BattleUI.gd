@@ -1,6 +1,8 @@
 class_name BattleUI
 extends Control
 
+const CenterNavDialScript := preload("res://scripts/view/CenterNavDial.gd")
+
 signal start_requested
 signal reward_chosen(index: int)
 signal restart_requested
@@ -39,6 +41,9 @@ const AUTO_SPEED_HINTS := {
 const UiActionCardScene := preload("res://scenes/ui/components/UiActionCard.tscn")
 const UiRewardCardScene := preload("res://scenes/ui/components/UiRewardCard.tscn")
 const BagUIScript = preload("res://scripts/view/BagUI.gd")
+const AUTO_PLAY_ICON_PATH := "res://art/imported/ui/controls/icon_play.png"
+const AUTO_FAST_ICON_PATH := "res://art/imported/ui/controls/icon_fast_forward.png"
+const CENTER_NAV_ARROW_DISTANCE := 72.0
 
 @onready var _panel: PanelContainer = %BattlePanel
 @onready var _overlay: Control = %Overlay
@@ -57,6 +62,8 @@ const BagUIScript = preload("res://scripts/view/BagUI.gd")
 @onready var _npc_dialogue_hint: Label = %NpcDialogueHint
 @onready var _auto_toggle_button: Button = %AutoToggleButton
 @onready var _auto_speed_button: Button = %AutoSpeedButton
+@onready var _center_nav_panel: PanelContainer = %CenterNavPanel
+@onready var _center_nav_arrow: Control = %CenterNavArrow
 
 var _key_program_editable := false
 var _permanent_buffs: Array[Dictionary] = []
@@ -65,6 +72,8 @@ var _cached_pool_entries: Array[Dictionary] = []
 var _auto_advance_mode := AUTO_PAUSE
 var _adhesive_slot_id := ""
 var _disabled_slot_ids: Array[String] = []
+static var _auto_play_icon: Texture2D = null
+static var _auto_fast_icon: Texture2D = null
 
 
 func _ready() -> void:
@@ -78,6 +87,7 @@ func _ready() -> void:
 	_connect_bag_ui_signals()
 	_refresh_bag_ui()
 	_update_auto_advance_button()
+	_disable_button_focus()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -195,6 +205,35 @@ func update_state(state) -> void:
 	_refresh_feed(state)
 	_run_sidebar.update_state(state)
 	_run_sidebar.set_debug_messages(state.messages)
+	_refresh_center_nav(state)
+
+
+func _refresh_center_nav(state) -> void:
+	if _center_nav_panel == null:
+		return
+	if state == null or not bool(state.is_world_slice) or state.player == null:
+		_center_nav_panel.visible = false
+		return
+	var target_cell: Vector2i = Vector2i(state.focused_nav_target_cell)
+	var target_label: String = String(state.focused_nav_target_label)
+	if target_cell == Vector2i(-1, -1) or target_label.is_empty():
+		_center_nav_panel.visible = false
+		return
+	_center_nav_panel.visible = true
+	var direction := Vector2(target_cell - state.player.grid_pos)
+	if direction.length_squared() <= 0.001:
+		direction = Vector2.UP
+	else:
+		direction = direction.normalized()
+	if _center_nav_arrow != null and _center_nav_arrow is CenterNavDialScript:
+		_center_nav_arrow.set_direction(direction)
+	var panel_size: Vector2 = _center_nav_panel.size
+	if panel_size.x <= 0.0 or panel_size.y <= 0.0:
+		panel_size = _center_nav_panel.get_combined_minimum_size()
+	var viewport_center: Vector2 = get_viewport_rect().size * 0.5
+	_center_nav_panel.position = viewport_center + direction * CENTER_NAV_ARROW_DISTANCE - panel_size * 0.5
+
+
 
 
 func _refresh_feed(state) -> void:
@@ -308,6 +347,14 @@ func _show_overlay(title_text: String, body_text: String, buttons: Array) -> voi
 	right_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_overlay_buttons.add_child(right_spacer)
+	_disable_button_focus(_overlay)
+
+
+func _disable_button_focus(node: Node = self) -> void:
+	for child in node.get_children():
+		if child is Button:
+			child.focus_mode = Control.FOCUS_NONE
+		_disable_button_focus(child)
 
 
 func _make_overlay_button(button_data: Dictionary, index: int) -> Button:
@@ -371,10 +418,15 @@ func _on_auto_speed_button_pressed() -> void:
 
 
 func _update_auto_advance_button() -> void:
-	_auto_toggle_button.text = String(AUTO_TOGGLE_ICONS.get(_auto_advance_mode, "⏸"))
+	_ensure_auto_icons()
+	_auto_toggle_button.text = ""
 	_auto_toggle_button.tooltip_text = String(AUTO_TOGGLE_HINTS.get(_auto_advance_mode, "自动：关闭"))
-	_auto_speed_button.text = String(AUTO_SPEED_ICONS.get(_auto_advance_mode, "▷"))
+	_auto_speed_button.text = ""
 	_auto_speed_button.tooltip_text = String(AUTO_SPEED_HINTS.get(_auto_advance_mode, "速度：普通"))
+	_auto_toggle_button.icon = _auto_play_icon
+	_auto_speed_button.icon = _auto_fast_icon
+	_auto_toggle_button.expand_icon = true
+	_auto_speed_button.expand_icon = true
 	_apply_auto_button_visuals(_auto_toggle_button, _auto_advance_mode != AUTO_PAUSE)
 	_apply_auto_button_visuals(_auto_speed_button, _auto_advance_mode == AUTO_FAST)
 
@@ -386,11 +438,27 @@ func _is_fast_enabled() -> bool:
 func _apply_auto_button_visuals(button: Button, is_active: bool) -> void:
 	if button == null:
 		return
-	button.self_modulate = Color(1, 1, 1, 0.96) if is_active else Color(0.62, 0.66, 0.72, 0.72)
+	button.self_modulate = Color(1, 1, 1, 0.98) if is_active else Color(1, 1, 1, 0.42)
 	button.add_theme_stylebox_override("normal", _make_auto_button_style(is_active, false))
 	button.add_theme_stylebox_override("hover", _make_auto_button_style(is_active, true))
 	button.add_theme_stylebox_override("pressed", _make_auto_button_style(is_active, true))
 	button.add_theme_stylebox_override("focus", _make_auto_button_style(is_active, true))
+
+
+func _ensure_auto_icons() -> void:
+	if _auto_play_icon == null:
+		_auto_play_icon = _load_ui_texture(AUTO_PLAY_ICON_PATH)
+	if _auto_fast_icon == null:
+		_auto_fast_icon = _load_ui_texture(AUTO_FAST_ICON_PATH)
+
+
+func _load_ui_texture(resource_path: String) -> Texture2D:
+	if resource_path.is_empty() or not FileAccess.file_exists(resource_path):
+		return null
+	var image: Image = Image.load_from_file(ProjectSettings.globalize_path(resource_path))
+	if image == null or image.is_empty():
+		return null
+	return ImageTexture.create_from_image(image)
 
 
 func _make_auto_button_style(is_active: bool, is_hovered: bool) -> StyleBoxFlat:
