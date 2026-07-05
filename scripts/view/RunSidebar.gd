@@ -39,6 +39,14 @@ func _ready() -> void:
 	_refresh_poi_hints(null)
 	_inventory_panel.visible = false
 	_debug_panel.visible = false
+	_disable_button_focus()
+
+
+func _disable_button_focus(node: Node = self) -> void:
+	for child in node.get_children():
+		if child is Button:
+			child.focus_mode = Control.FOCUS_NONE
+		_disable_button_focus(child)
 
 
 func show_inventory() -> void:
@@ -134,13 +142,22 @@ func _refresh_poi_hints(state) -> void:
 		return
 	_poi_hint_panel.visible = true
 	if is_instance_valid(_poi_hint_title):
-		_poi_hint_title.text = "自动导航"
+		_poi_hint_title.text = "导航指引"
 	if is_instance_valid(_safe_zone_poi_hint):
-		_safe_zone_poi_hint.text = "前往最近安全区"
+		_safe_zone_poi_hint.text = _poi_button_text("最近安全区", String(state.tracked_safe_zone_relative_hint), String(state.focused_nav_target_label))
+		_safe_zone_poi_hint.tooltip_text = "点击后只在地图上指向目标，不会自动走动。"
 	if is_instance_valid(_boss_poi_hint):
-		_boss_poi_hint.text = "前往 Boss遗迹"
+		_boss_poi_hint.text = _poi_button_text("Boss遗迹", String(state.tracked_boss_poi_relative_hint), String(state.focused_nav_target_label))
+		_boss_poi_hint.tooltip_text = "点击后只在地图上指向目标，不会自动走动。"
 	if is_instance_valid(_ruin_poi_hint):
-		_ruin_poi_hint.text = "前往最近小遗迹"
+		_ruin_poi_hint.text = _poi_button_text("最近小遗迹", String(state.tracked_nearest_ruin_relative_hint), String(state.focused_nav_target_label))
+		_ruin_poi_hint.tooltip_text = "点击后只在地图上指向目标，不会自动走动。"
+
+
+func _poi_button_text(label: String, hint_text: String, focused_label: String) -> String:
+	var suffix := hint_text if not hint_text.is_empty() else "未定位"
+	var prefix := "已指向 · " if focused_label == label else ""
+	return "%s%s：%s" % [prefix, label, suffix]
 
 
 func _build_debug_state_text(state) -> String:

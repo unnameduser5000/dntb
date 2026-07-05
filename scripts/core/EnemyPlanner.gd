@@ -56,6 +56,8 @@ func decide_enemy_action(enemy, state):
 			return _decide_static_attack(enemy, state)
 		"line_keeper":
 			return _decide_line_keeper(enemy, state)
+		"slime_god":
+			return _decide_slime_god(enemy, state)
 		"melee_chaser":
 			return _decide_melee_chaser(enemy, state)
 		_:
@@ -122,6 +124,35 @@ func _decide_line_keeper(enemy, state):
 	return move
 
 
+func _decide_slime_god(enemy, state):
+	if enemy == null or state == null or state.player == null:
+		return null
+	var distance: int = _manhattan(enemy.grid_pos, state.player.grid_pos)
+	var spin_action = attack_actions_by_id.get("spin_axe")
+	var thrust_action = attack_actions_by_id.get("charge_thrust")
+	var bind_action = attack_actions_by_id.get("slime_bind")
+	if spin_action != null and _get_attack_cells(enemy.grid_pos, Vector2i.UP, spin_action, state.grid).has(state.player.grid_pos):
+		return _make_specific_attack(enemy, Vector2i.UP, spin_action)
+	if distance <= 2 and thrust_action != null:
+		var thrust_dir := _get_attack_dir_for_action(enemy, state, thrust_action)
+		if thrust_dir != Vector2i.ZERO:
+			return _make_specific_attack(enemy, thrust_dir, thrust_action)
+	if distance <= 3 and bind_action != null:
+		var bind_dir := _get_attack_dir_for_action(enemy, state, bind_action)
+		if bind_dir != Vector2i.ZERO:
+			return _make_specific_attack(enemy, bind_dir, bind_action)
+	if move_action == null:
+		return null
+	var move_dir := _get_path_step_towards(enemy.grid_pos, state.player.grid_pos, state.grid, state)
+	if move_dir == Vector2i.ZERO:
+		return null
+	var move = ActionInstanceScript.new()
+	move.actor = enemy
+	move.def = move_action
+	move.chosen_dir = move_dir
+	return move
+
+
 func _can_enemy_enter_cell(state, cell: Vector2i) -> bool:
 	if state == null or state.grid == null:
 		return false
@@ -163,11 +194,32 @@ func _make_attack(enemy, direction: Vector2i):
 	var enemy_attack = _attack_action_for_enemy(enemy)
 	if enemy_attack == null:
 		return null
+	return _make_specific_attack(enemy, direction, enemy_attack)
+
+
+func _make_specific_attack(enemy, direction: Vector2i, action_def):
+	if enemy == null or action_def == null:
+		return null
 	var attack = ActionInstanceScript.new()
 	attack.actor = enemy
-	attack.def = enemy_attack
+	attack.def = action_def
 	attack.chosen_dir = direction
 	return attack
+
+
+func _get_attack_dir_for_action(enemy, state, action_def) -> Vector2i:
+	if enemy == null or state == null or state.player == null or action_def == null:
+		return Vector2i.ZERO
+	for raw_direction in CARDINAL_DIRECTIONS:
+		var direction: Vector2i = raw_direction
+		var cells := _get_attack_cells(enemy.grid_pos, direction, action_def, state.grid)
+		if cells.has(state.player.grid_pos):
+			return direction
+	return Vector2i.ZERO
+
+
+func _manhattan(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x - b.x) + absi(a.y - b.y)
 
 func _attack_action_for_enemy(enemy):
 	if enemy == null or enemy.def == null:
@@ -368,9 +420,6 @@ func _line_step_toward(from_cell: Vector2i, to_cell: Vector2i) -> Vector2i:
 	if delta.y != 0 and delta.x == 0:
 		return Vector2i.DOWN if delta.y > 0 else Vector2i.UP
 	return Vector2i.ZERO
-
-func _manhattan(a: Vector2i, b: Vector2i) -> int:
-	return absi(a.x - b.x) + absi(a.y - b.y)
 
 func _dir_name(dir: Vector2i) -> String:
 	if dir == Vector2i.UP:

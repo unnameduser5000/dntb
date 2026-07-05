@@ -232,10 +232,21 @@ func _init() -> void:
 	_require(game.state.is_world_slice, "boss node now uses the large-map rendering/state path")
 	_require(game.state.grid.width >= 256 and game.state.grid.height >= 256, "boss node now generates a large dungeon map")
 	_require(not String(game._boss_adhesive_key_id).is_empty(), "boss dungeon selects one adhesive locked key")
+	_require(["W", "A", "S", "D"].has(String(game._boss_adhesive_key_id)), "boss dungeon selects the adhesive key only from WASD")
 	var boss_san_before_adhesive: int = int(game.state.player.san)
+	var boss_adhesive_key: String = String(game._boss_adhesive_key_id)
+	var boss_player_cell_before_adhesive: Vector2i = game.state.player.grid_pos
 	game._submit_key_chain(String(game._boss_adhesive_key_id))
 	await process_frame
-	_require(game.state.player.san == boss_san_before_adhesive - 8, "pressing the adhesive locked key drains SAN")
+	_require(game.state.player.san == boss_san_before_adhesive - 1, "pressing the adhesive locked key drains SAN by 1")
+	game.state.player.san = game.state.player.max_san
+	boss_player_cell_before_adhesive = game.state.player.grid_pos
+	game.state.player.facing = Vector2i.RIGHT
+	game._boss_adhesive_key_id = "W"
+	game._submit_key_chain("W")
+	await process_frame
+	_require(game.state.player.grid_pos == boss_player_cell_before_adhesive + Vector2i.RIGHT, "full SAN makes the adhesive key still trigger its action")
+	game._boss_adhesive_key_id = boss_adhesive_key
 
 	_disable_enemies(game)
 	game.state.player.facing = Vector2i.RIGHT
@@ -249,14 +260,38 @@ func _init() -> void:
 	_require(game.state.player.grid_pos == boss_player_before_move + Vector2i.RIGHT, "pressing W key executes the remapped single-token movement")
 	_require(_string_name_array_equals(game.get_player_action_trace_symbols(1), [&"F"]), "combat key-program execution records the recent single relative trace symbol")
 	game.state.player.san = 10
+	var low_san_before_adhesive: int = int(game.state.player.san)
 	game._submit_key_chain(String(game._boss_adhesive_key_id))
 	await process_frame
+	_require(game.state.player.san == low_san_before_adhesive - 1, "adhesive key still drains exactly 1 SAN at low sanity")
 	_require(game._boss_hidden_layer_active, "adhesive SAN collapse switches the run into the hidden boss layer")
 	_require(game.state.room_name == "隐藏黏神层", "hidden boss layer updates the room name")
 	_require(game.state.get_alive_enemies().any(func(actor): return actor != null and String(actor.def.id) == "slime_god"), "hidden boss layer spawns slime_god")
+	var slime_god_actor = null
+	for hidden_enemy in game.state.get_alive_enemies():
+		if hidden_enemy != null and hidden_enemy.def != null and String(hidden_enemy.def.id) == "slime_god":
+			slime_god_actor = hidden_enemy
+			break
+	_require(slime_god_actor != null, "hidden boss layer exposes the slime_god actor")
+	slime_god_actor.hp = int(floor(float(slime_god_actor.max_hp) * 0.5))
+	game._maybe_trigger_slime_god_phase_two()
+	_require(game._slime_god_phase_two_triggered, "slime_god enters phase two at half health")
+	_require(game.state.persistent_danger_cells.size() > 0, "slime_god phase two expands a persistent corruption zone on the map")
+	var persistent_danger_cell: Vector2i = Vector2i(game.state.persistent_danger_cells[0])
+	_move_player_to(game, persistent_danger_cell)
+	var san_before_corruption: int = int(game.state.player.san)
+	game._on_turn_finished()
+	_require(game.state.player.san == san_before_corruption, "hidden boss layer no longer changes SAN while standing in a persistent corruption zone")
+	var hidden_locked_after_phase_two: int = game._hidden_boss_locked_keys.size()
+	_require(hidden_locked_after_phase_two >= 1, "phase two immediately revokes an additional key")
 	game.state.turn_count = 10
 	game._on_turn_finished()
-	_require(game._hidden_boss_locked_keys.size() == 1, "hidden boss layer permanently revokes one key every 10 turns")
+	_require(game._hidden_boss_locked_keys.size() >= hidden_locked_after_phase_two, "hidden boss layer continues to revoke keys on its timed lock cycle")
+	game._hidden_boss_locked_keys.clear()
+	game._slime_god_phase_two_triggered = true
+	game.state.turn_count = 5
+	game._on_turn_finished()
+	_require(game._hidden_boss_locked_keys.size() == 1, "phase two increases the lock cadence to every 5 turns")
 
 	await _start_seeded_combat_run(game, "action-trace-turn")
 	_disable_enemies(game)
@@ -673,7 +708,8 @@ func _init() -> void:
 	_require(not world_game._world_autopath_active, "world slice does not start autopath when an enemy is already visible")
 	_require(world_game.state.turn_count == autopath_turn_before_click, "blocked autopath click does not consume a turn")
 	_require(world_game.state.player.grid_pos == autopath_player_before_click, "blocked autopath click does not move the player")
-	_require(String(world_game.state.messages[0]).contains("视野内已有敌人"), "blocked autopath click explains that visible enemies prevent auto movement")
+	_require(Vector2i(world_game.state.focused_nav_target_cell) == Vector2i(world_game.state.tracked_nearest_ruin_cell), "clicking a poi now focuses the target cell even when enemies are visible")
+	_require(String(world_game.state.messages[0]).contains("不会自动移动"), "poi click now explains that it only points toward the target")
 	if autopath_blocker != null:
 		world_game.state.grid.remove_actor(autopath_blocker)
 		autopath_blocker.hp = 0
@@ -736,10 +772,13 @@ func _init() -> void:
 		world_game._world_slice_controller.on_player_moved(world_game.state, outside_rest_cell, ruin_interaction_cell)
 	world_game._refresh_views()
 	await process_frame
-	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/PoiHintTitle").text == "自动导航", "world slice sidebar now labels the left panel as auto navigation")
-	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/SafeZonePoiHint").text == "前往最近安全区", "world slice sidebar keeps the safe-zone entry as an auto navigation action")
-	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/BossPoiHint").text == "前往 Boss遗迹", "world slice sidebar keeps the boss entry as an auto navigation action")
-	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/RuinPoiHint").text == "前往最近小遗迹", "world slice sidebar keeps the ruin entry as an auto navigation action")
+	_require(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/PoiHintTitle").text == "导航指引", "world slice sidebar now labels the panel as navigation guidance")
+	_require(String(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/SafeZonePoiHint").text).contains("最近安全区："), "world slice sidebar shows the safe-zone direction instead of an auto-run action label")
+	_require(String(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/BossPoiHint").text).contains("Boss遗迹："), "world slice sidebar shows the boss direction instead of an auto-run action label")
+	_require(String(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/RuinPoiHint").text).contains("最近小遗迹："), "world slice sidebar shows the ruin direction instead of an auto-run action label")
+	world_game._on_boss_poi_requested()
+	_require(Vector2i(world_game.state.focused_nav_target_cell) == Vector2i(world_game.state.tracked_boss_poi_cell), "clicking the boss entry now focuses the target instead of starting automatic movement")
+	_require(not world_game._world_autopath_active, "clicking a poi entry no longer starts autopath immediately")
 	_move_player_to(world_game, boss_interaction_cell)
 	if world_game._world_slice_controller != null:
 		world_game._world_slice_controller.on_player_moved(world_game.state, ruin_interaction_cell, boss_interaction_cell)

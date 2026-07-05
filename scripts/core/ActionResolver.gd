@@ -113,6 +113,8 @@ func _resolve_attack(action, state):
 		return _resolve_bow_shot(action, state, actor, dir, attack_cells, result)
 	if String(action.def.id) == "hook_pull":
 		return _resolve_hook_pull(action, state, actor, dir, attack_cells, result)
+	if String(action.def.id) == "slime_bind":
+		return _resolve_slime_bind(action, state, actor, dir, attack_cells, result)
 	if String(action.def.id) == "shield_bash":
 		return _resolve_shield_bash(action, state, actor, dir, attack_cells, result)
 
@@ -197,6 +199,42 @@ func _resolve_hook_pull(action, state, actor, dir: Vector2i, attack_cells: Array
 		"speed": _get_action_momentum_speed(action),
 	})
 	_add_message(state, "%s 的钩拽落空。" % actor.def.display_name)
+	return result
+
+
+func _resolve_slime_bind(action, state, actor, dir: Vector2i, attack_cells: Array[Vector2i], result):
+	for target_cell in attack_cells:
+		result.record_attempted_cell(target_cell)
+		var target = state.grid.get_actor(target_cell)
+		if target == null or target.team == actor.team:
+			continue
+
+		var damage: int = int(actor.atk) * int(action.def.power)
+		var damage_packets: Array = apply_effect_damage(actor, target, damage, state, action, [&"attack", &"slime_bind"])
+		result.record_hit(target, target_cell, damage_packets, false, damage)
+		_append_presentation_frame("slime_bind_hit", {
+			"actor": actor,
+			"target_cell": target_cell,
+			"direction": dir,
+			"speed": _get_action_momentum_speed(action),
+		})
+		if target != null and not target.is_dead():
+			apply_effect_pull(actor, target, -dir, 1, state, action, [&"slime_bind", &"pull"])
+		return result
+
+	var miss_cell: Vector2i = actor.grid_pos + dir
+	if not attack_cells.is_empty():
+		miss_cell = Vector2i(attack_cells.back())
+	result.record_miss(miss_cell)
+	attack_missed.emit(actor, miss_cell)
+	_emit_attack_miss_event(actor, action, miss_cell, dir)
+	_append_presentation_frame("attack_missed", {
+		"actor": actor,
+		"target_cell": miss_cell,
+		"direction": dir,
+		"speed": _get_action_momentum_speed(action),
+	})
+	_add_message(state, "%s 的黏缚落空。" % actor.def.display_name)
 	return result
 
 

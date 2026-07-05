@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://7jiaunxos0rr"
+path="res://.godot/imported/The Last Stand.mp3-b7ca9b7ffe2c6ebc5176fa93a4434995.mp3str"
+
+[deps]
+
+source_file="res://music/The Last Stand.mp3"
+dest_files=["res://.godot/imported/The Last Stand.mp3-b7ca9b7ffe2c6ebc5176fa93a4434995.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

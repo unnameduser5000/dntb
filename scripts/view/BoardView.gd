@@ -6,7 +6,8 @@ const TILE_TEXTURE_BASE_PATH := "res://art/tiles/board/"
 const EXPLORED_FOG_ALPHA := 0.52
 const EXPLORED_FOG_COLOR := Color(0.05, 0.06, 0.08, 1.0)
 const EXPLORED_FOG_DESATURATE := 0.18
-const POI_MARKER_RING_RADIUS_CELLS := 1.55
+const POI_MARKER_TAIL_RADIUS_CELLS := 1.0
+const POI_MARKER_TIP_RADIUS_CELLS := 1.5
 const POI_MARKER_SYMBOLS := {
 	"boss": "B",
 	"ruin": "R",
@@ -270,6 +271,7 @@ func render(state) -> void:
 
 func _draw() -> void:
 	_draw_world_slice_poi_markers()
+	_draw_focused_nav_marker()
 
 
 func _draw_world_slice_poi_markers() -> void:
@@ -280,11 +282,12 @@ func _draw_world_slice_poi_markers() -> void:
 		return
 
 	var player_center: Vector2 = _grid_to_local_center(state.player.grid_pos)
-	var marker_radius: float = maxf(18.0, float(cell_size) * POI_MARKER_RING_RADIUS_CELLS)
+	var marker_tail_radius: float = maxf(12.0, float(cell_size) * POI_MARKER_TAIL_RADIUS_CELLS)
+	var marker_tip_radius: float = maxf(18.0, float(cell_size) * POI_MARKER_TIP_RADIUS_CELLS)
 	var marker_spacing: float = maxf(16.0, float(cell_size) * 0.55)
 	var markers: Array[Dictionary] = []
-	_append_poi_marker(markers, state, Vector2i(state.tracked_boss_poi_cell), "boss", player_center, marker_radius)
-	_append_poi_marker(markers, state, Vector2i(state.tracked_nearest_ruin_cell), "ruin", player_center, marker_radius)
+	_append_poi_marker(markers, state, Vector2i(state.tracked_boss_poi_cell), "boss", player_center, marker_tail_radius, marker_tip_radius)
+	_append_poi_marker(markers, state, Vector2i(state.tracked_nearest_ruin_cell), "ruin", player_center, marker_tail_radius, marker_tip_radius)
 	if markers.is_empty():
 		return
 
@@ -302,11 +305,49 @@ func _draw_world_slice_poi_markers() -> void:
 			var marker_dir: Vector2 = Vector2(marker.get("dir", Vector2.ZERO))
 			var tangent := Vector2(-marker_dir.y, marker_dir.x)
 			var centered_index: float = float(index) - (float(marker_group.size() - 1) * 0.5)
-			var offset_pos: Vector2 = Vector2(marker.get("pos", player_center)) + tangent * centered_index * marker_spacing
-			_draw_single_poi_marker(offset_pos, marker_dir, String(marker.get("symbol", "?")), Color(marker.get("color", Color.WHITE)))
+			var lateral_offset: Vector2 = tangent * centered_index * marker_spacing
+			_draw_single_poi_marker(
+				Vector2(marker.get("tail", player_center)),
+				Vector2(marker.get("tip", player_center)),
+				marker_dir,
+				String(marker.get("symbol", "?")),
+				Color(marker.get("color", Color.WHITE)),
+				lateral_offset
+			)
 
 
-func _append_poi_marker(markers: Array[Dictionary], state, target_cell: Vector2i, marker_kind: String, player_center: Vector2, marker_radius: float) -> void:
+func _draw_focused_nav_marker() -> void:
+	var state = _last_state
+	if state == null or not bool(state.is_world_slice) or state.player == null:
+		return
+	var target_cell: Vector2i = Vector2i(state.focused_nav_target_cell)
+	if target_cell == Vector2i(-1, -1):
+		return
+	var focus_color := Color(1.0, 0.92, 0.42, 0.98)
+	var player_center: Vector2 = _grid_to_local_center(state.player.grid_pos)
+	var delta: Vector2 = Vector2(target_cell - state.player.grid_pos)
+	if delta.length_squared() <= 0.001:
+		return
+	var dir: Vector2 = delta.normalized()
+	var marker_tail_radius: float = maxf(12.0, float(cell_size) * POI_MARKER_TAIL_RADIUS_CELLS)
+	var marker_tip_radius: float = maxf(18.0, float(cell_size) * POI_MARKER_TIP_RADIUS_CELLS)
+	_draw_single_poi_marker(
+		player_center + dir * marker_tail_radius,
+		player_center + dir * marker_tip_radius,
+		dir,
+		"!",
+		focus_color
+	)
+	if is_cell_in_render_window(target_cell):
+		var center := _grid_to_local_center(target_cell)
+		draw_arc(center, maxf(12.0, float(cell_size) * 0.52), 0.0, TAU, 24, focus_color, 3.0, true)
+		draw_circle(center, maxf(3.0, float(cell_size) * 0.08), focus_color)
+		return
+	if _render_window_size == Vector2i.ZERO:
+		return
+
+
+func _append_poi_marker(markers: Array[Dictionary], state, target_cell: Vector2i, marker_kind: String, player_center: Vector2, marker_tail_radius: float, marker_tip_radius: float) -> void:
 	if target_cell == Vector2i(-1, -1):
 		return
 	if target_cell == state.player.grid_pos:
@@ -319,17 +360,17 @@ func _append_poi_marker(markers: Array[Dictionary], state, target_cell: Vector2i
 	var dir: Vector2 = delta.normalized()
 	markers.append({
 		"dir": dir,
-		"pos": player_center + dir * marker_radius,
+		"tail": player_center + dir * marker_tail_radius,
+		"tip": player_center + dir * marker_tip_radius,
 		"symbol": String(POI_MARKER_SYMBOLS.get(marker_kind, "?")),
 		"color": Color(POI_MARKER_COLORS.get(marker_kind, Color.WHITE)),
 	})
 
 
-func _draw_single_poi_marker(marker_pos: Vector2, dir: Vector2, symbol: String, color: Color) -> void:
-	var arrow_length: float = maxf(12.0, float(cell_size) * 0.55)
+func _draw_single_poi_marker(tail_pos: Vector2, tip_pos: Vector2, dir: Vector2, symbol: String, color: Color, lateral_offset: Vector2 = Vector2.ZERO) -> void:
 	var arrow_half_width: float = maxf(5.0, float(cell_size) * 0.18)
-	var tip: Vector2 = marker_pos + dir * arrow_length * 0.45
-	var tail: Vector2 = marker_pos - dir * arrow_length * 0.4
+	var tail: Vector2 = tail_pos + lateral_offset
+	var tip: Vector2 = tip_pos + lateral_offset
 	var tangent := Vector2(-dir.y, dir.x)
 	var left: Vector2 = tail + tangent * arrow_half_width
 	var right: Vector2 = tail - tangent * arrow_half_width
@@ -339,6 +380,7 @@ func _draw_single_poi_marker(marker_pos: Vector2, dir: Vector2, symbol: String, 
 	draw_line(left, tip, color, 2.0, true)
 	draw_line(right, tip, color, 2.0, true)
 	draw_line(tail, tip - dir * 2.0, color.darkened(0.2), 2.0, true)
+	var marker_pos: Vector2 = tail.lerp(tip, 0.45)
 	var label_pos: Vector2 = marker_pos - Vector2(float(cell_size) * 0.2, float(cell_size) * 0.3)
 	var font := get_theme_default_font()
 	var font_size: int = get_theme_default_font_size()
@@ -424,6 +466,7 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 	var is_visible: bool = reveal_all or _cell_in_set(state, "visible_cell_set", "visible_cells", cell)
 	var is_explored: bool = is_visible or _cell_in_set(state, "explored_cell_set", "explored_cells", cell)
 	var is_danger: bool = state.danger_cells.has(cell)
+	var is_persistent_danger: bool = state.get("persistent_danger_cells") != null and state.persistent_danger_cells.has(cell)
 	var is_preview_move: bool = state.preview_move_cells.has(cell)
 	var is_preview_attack: bool = state.preview_attack_cells.has(cell)
 
@@ -481,12 +524,12 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 			"tooltip": "Predicted movement path",
 		}
 
-	if is_danger:
+	if is_danger or is_persistent_danger:
 		var danger_cell := _describe_terrain_cell(cell, state, is_visible)
 		danger_cell["char"] = "!"
-		danger_cell["font_color"] = Color(1.0, 0.18, 0.22, 1.0)
-		danger_cell["border_color"] = Color(1.0, 0.14, 0.18, 0.98)
-		danger_cell["tooltip"] = (actor_tooltip + "\n" if not actor_tooltip.is_empty() else "") + "Threatened by enemy action"
+		danger_cell["font_color"] = Color(1.0, 0.18, 0.22, 1.0) if is_danger else Color(0.92, 0.28, 0.94, 1.0)
+		danger_cell["border_color"] = Color(1.0, 0.14, 0.18, 0.98) if is_danger else Color(0.88, 0.26, 0.96, 0.98)
+		danger_cell["tooltip"] = (actor_tooltip + "\n" if not actor_tooltip.is_empty() else "") + ("Threatened by enemy action" if is_danger else "Persistent corruption zone")
 		return danger_cell
 
 	var terrain_cell := _describe_terrain_cell(cell, state, is_visible)

@@ -36,6 +36,7 @@ const ACTION_STEP_LEFT := preload("res://data/actions/step_left.tres")
 const ACTION_STEP_RIGHT := preload("res://data/actions/step_right.tres")
 const ACTION_DASH := preload("res://data/actions/dash.tres")
 const ACTION_HOOK_PULL := preload("res://data/actions/hook_pull.tres")
+const ACTION_SLIME_BIND := preload("res://data/actions/slime_bind.tres")
 const ACTION_SHIELD_BASH := preload("res://data/actions/shield_bash.tres")
 const ACTION_HAMMER_SMASH := preload("res://data/actions/hammer_smash.tres")
 const ACTION_SPIN_AXE := preload("res://data/actions/spin_axe.tres")
@@ -218,6 +219,7 @@ var _boss_adhesive_key_id := ""
 var _boss_hidden_layer_triggered := false
 var _boss_hidden_layer_active := false
 var _hidden_boss_locked_keys: Array[String] = []
+var _slime_god_phase_two_triggered := false
 
 func _ready() -> void:
 	_action_by_id = {
@@ -227,6 +229,7 @@ func _ready() -> void:
 		"step_right": ACTION_STEP_RIGHT,
 		"dash": ACTION_DASH,
 		"hook_pull": ACTION_HOOK_PULL,
+		"slime_bind": ACTION_SLIME_BIND,
 		"shield_bash": ACTION_SHIELD_BASH,
 		"hammer_smash": ACTION_HAMMER_SMASH,
 		"spin_axe": ACTION_SPIN_AXE,
@@ -354,6 +357,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 			if OS.is_debug_build() and event.keycode == KEY_SEMICOLON:
 				_kill_all_enemies_debug()
+				get_viewport().set_input_as_handled()
+				return
+			if OS.is_debug_build() and event.keycode == KEY_APOSTROPHE:
+				_restore_player_debug_state()
 				get_viewport().set_input_as_handled()
 				return
 
@@ -630,23 +637,28 @@ func _submit_key_chain(key_id: String) -> void:
 	_clear_key_slot_preview(false)
 	var curse_service = get_node_or_null("/root/CurseService")
 	if _is_boss_dungeon_state() and key_id == _boss_adhesive_key_id:
-		if curse_service != null:
-			curse_service.ban_key(key_id, "adhesive", -1)
-			var adhesive_allowed: bool = curse_service.register_key_pressed(key_id, {
-				"room_index": state.room_index,
-				"turn_count": state.turn_count,
-				"reason": "adhesive",
-			})
-			if not adhesive_allowed:
-				state.player.san = max(0, state.player.san - 8)
-				_run_player_san = state.player.san
-				_play_slime_adhesive_effect()
-				state.add_message("黏附触发：%s键被Boss黏住了。SAN -8。" % state.key_name(key_id))
-				if state.player.san <= 10:
-					_try_force_hidden_boss_transition()
-					return
-				_refresh_views()
+		_play_slime_adhesive_effect()
+		var san_ratio: float = 0.0 if state.player.max_san <= 0 else float(state.player.san) / float(state.player.max_san)
+		var fail_probability: float = sqrt(maxf(0.0, 1.0 - san_ratio))
+		if not _boss_hidden_layer_active:
+			state.player.san = max(0, state.player.san - 1)
+			_run_player_san = state.player.san
+			san_ratio = 0.0 if state.player.max_san <= 0 else float(state.player.san) / float(state.player.max_san)
+			fail_probability = sqrt(maxf(0.0, 1.0 - san_ratio))
+			state.add_message("黏附触发：%s键被Boss黏住了。SAN -1。当前失效率 %.0f%%。" % [state.key_name(key_id), fail_probability * 100.0])
+			if state.player.san <= 10:
+				_try_force_hidden_boss_transition()
 				return
+		else:
+			state.add_message("黏神压制：%s键被持续干扰，但隐藏层不再改动 SAN。当前失效率 %.0f%%。" % [state.key_name(key_id), fail_probability * 100.0])
+		var random_service = get_node_or_null("/root/RandomService")
+		var roll: float = randf()
+		if random_service != null and random_service.has_method("randf_value"):
+			roll = float(random_service.randf_value())
+		if roll < fail_probability:
+			state.add_message("黏附失效：这次按键没有成功触发动作。")
+			_refresh_views()
+			return
 	if _is_boss_dungeon_state() and _hidden_boss_locked_keys.has(key_id):
 		state.add_message("黏神压制：%s键已经被彻底封死，无法再用。" % state.key_name(key_id))
 		_play_slime_adhesive_effect()
@@ -1014,19 +1026,33 @@ func _try_interact_with_world_ruin() -> bool:
 func _on_boss_poi_requested() -> void:
 	if state == null:
 		return
-	_start_world_autopath(Vector2i(state.tracked_boss_poi_cell), "Boss遗迹")
+	_focus_world_poi(Vector2i(state.tracked_boss_poi_cell), "Boss遗迹")
 
 
 func _on_safe_zone_poi_requested() -> void:
 	if state == null:
 		return
-	_start_world_autopath(Vector2i(state.tracked_safe_zone_cell), "最近安全区")
+	_focus_world_poi(Vector2i(state.tracked_safe_zone_cell), "最近安全区")
 
 
 func _on_ruin_poi_requested() -> void:
 	if state == null:
 		return
-	_start_world_autopath(Vector2i(state.tracked_nearest_ruin_cell), "最近小遗迹")
+	_focus_world_poi(Vector2i(state.tracked_nearest_ruin_cell), "最近小遗迹")
+
+
+func _focus_world_poi(target_cell: Vector2i, label: String) -> void:
+	if state == null or not bool(state.is_world_slice) or state.player == null:
+		return
+	if target_cell == Vector2i(-1, -1):
+		state.add_message("%s 当前未定位。" % label)
+		_refresh_views()
+		return
+	state.focused_nav_target_cell = target_cell
+	state.focused_nav_target_label = label
+	_stop_world_autopath(false)
+	state.add_message("已指向%s。不会自动移动，请自行前往。" % label)
+	_refresh_views()
 
 
 func _start_world_autopath(target_cell: Vector2i, label: String) -> void:
@@ -1075,6 +1101,8 @@ func _stop_world_autopath(show_message: bool = true) -> void:
 
 func _on_turn_finished() -> void:
 	_apply_turn_regen()
+	_update_slime_god_corruption_zone()
+	_apply_persistent_corruption_penalty()
 	_maybe_apply_hidden_boss_key_lock()
 	_refresh_views()
 	_update_auto_advance_state()
@@ -1290,6 +1318,60 @@ func _on_actor_died(actor) -> void:
 	_refresh_inventory_ui()
 	_refresh_key_program_ui()
 	_refresh_views()
+
+
+func _maybe_trigger_slime_god_phase_two() -> void:
+	if not _boss_hidden_layer_active or _slime_god_phase_two_triggered or state == null:
+		return
+	for enemy in state.get_alive_enemies():
+		if enemy == null or enemy.def == null or String(enemy.def.id) != "slime_god":
+			continue
+		if enemy.hp > int(floor(float(enemy.max_hp) * 0.5)):
+			return
+		_slime_god_phase_two_triggered = true
+		enemy.atk += 1
+		state.add_message("黏神进入第二阶段：攻击更猛烈，封键速度也更快了。")
+		_force_lock_hidden_boss_key()
+		_update_slime_god_corruption_zone()
+		_refresh_key_program_ui()
+		_refresh_views()
+		return
+
+
+func _update_slime_god_corruption_zone() -> void:
+	if state == null:
+		return
+	state.persistent_danger_cells.clear()
+	if not _boss_hidden_layer_active or not _slime_god_phase_two_triggered:
+		return
+	for enemy in state.get_alive_enemies():
+		if enemy == null or enemy.def == null or String(enemy.def.id) != "slime_god":
+			continue
+		for y in range(-2, 3):
+			for x in range(-2, 3):
+				if abs(x) + abs(y) > 3:
+					continue
+				var cell: Vector2i = enemy.grid_pos + Vector2i(x, y)
+				if state.grid == null or not state.grid.is_inside(cell):
+					continue
+				if not state.persistent_danger_cells.has(cell):
+					state.persistent_danger_cells.append(cell)
+		state.add_message("黏神的污染在地面扩张，周围区域被长期侵蚀。")
+		return
+
+
+func _apply_persistent_corruption_penalty() -> void:
+	if state == null or state.player == null or state.battle_finished:
+		return
+	if _boss_hidden_layer_active:
+		return
+	if state.persistent_danger_cells.is_empty():
+		return
+	if not state.persistent_danger_cells.has(state.player.grid_pos):
+		return
+	state.player.san = max(0, state.player.san - 1)
+	_run_player_san = state.player.san
+	state.add_message("污染侵蚀：你站在黏神污染区里。SAN -1。")
 
 
 func _try_trigger_level_up_reward() -> void:
@@ -1652,7 +1734,7 @@ func _setup_boss_adhesive_key() -> void:
 		return
 	_ensure_action_helpers()
 	var available_keys: Array[String] = []
-	for key_id in ["W", "A", "S", "D", "Q", "E", "R", "F", "Z", "X", "C", "V"]:
+	for key_id in ["W", "A", "S", "D"]:
 		if _action_program.has_slot(key_id) and not _action_program.get_slot(key_id).is_empty():
 			available_keys.append(key_id)
 	if available_keys.is_empty():
@@ -1673,7 +1755,14 @@ func _setup_boss_adhesive_key() -> void:
 func _maybe_apply_hidden_boss_key_lock() -> void:
 	if not _boss_hidden_layer_active or state == null or not _is_boss_dungeon_state():
 		return
-	if state.turn_count <= 0 or state.turn_count % 10 != 0:
+	var lock_interval: int = 5 if _slime_god_phase_two_triggered else 10
+	if state.turn_count <= 0 or state.turn_count % lock_interval != 0:
+		return
+	_force_lock_hidden_boss_key()
+
+
+func _force_lock_hidden_boss_key() -> void:
+	if state == null:
 		return
 	_ensure_action_helpers()
 	var candidates: Array[String] = []
@@ -1696,6 +1785,7 @@ func _maybe_apply_hidden_boss_key_lock() -> void:
 	_hidden_boss_locked_keys.append(locked_key_id)
 	state.add_message("黏神扩张：%s键的权限被彻底剥夺了。" % state.key_name(locked_key_id))
 	_play_slime_adhesive_effect()
+	_refresh_key_program_ui()
 
 
 func _try_force_hidden_boss_transition() -> void:
@@ -2074,6 +2164,22 @@ func _kill_all_enemies_debug() -> void:
 		if _battle_presentation != null:
 			_battle_presentation.handle_actor_died(enemy)
 	state.add_message("[debug] 已清除当前层的所有怪物。")
+	_refresh_views()
+
+
+func _restore_player_debug_state() -> void:
+	if state == null or state.player == null:
+		return
+	_run_player_max_hp = 50
+	_run_player_hp = 50
+	_run_player_max_san = 100
+	_run_player_san = 100
+	state.player.max_hp = 50
+	state.player.hp = 50
+	state.player.max_san = 100
+	state.player.san = 100
+	state.add_message("[debug] 玩家状态已恢复：HP 50/50，SAN 100/100。")
+	_refresh_inventory_ui()
 	_refresh_views()
 
 
