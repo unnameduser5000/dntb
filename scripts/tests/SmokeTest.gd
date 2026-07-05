@@ -545,6 +545,27 @@ func _init() -> void:
 	var mixed_plan: Array = game._build_key_slot_plan(game.get_key_program_slots()["W"])
 	_require(mixed_plan.size() == 2 and mixed_plan[0].def.id == "move_forward" and mixed_plan[1].def.id == "turn_left", "two-slot key now builds a two-action plan")
 
+	var cooldown_game = GameScene.instantiate()
+	root.add_child(cooldown_game)
+	await process_frame
+	cooldown_game.start_world_slice_debug()
+	await process_frame
+	var cooldown_turn_before: int = int(cooldown_game.state.turn_count)
+	# World-slice turn resolution in headless can take longer than the key
+	# cooldown window, so simulate a rapid double-press by re-submitting the
+	# same key while the first action is still starting.
+	var second_submitted := false
+	cooldown_game.turn_controller.action_started.connect(func(_action):
+		if not second_submitted:
+			second_submitted = true
+			cooldown_game._submit_key_chain("W")
+	, CONNECT_ONE_SHOT)
+	cooldown_game._submit_key_chain("W")
+	await process_frame
+	_require(int(cooldown_game.state.turn_count) == cooldown_turn_before + 1, "rapid identical key submits are throttled by cooldown")
+	cooldown_game.queue_free()
+	await process_frame
+
 	var world_game = GameScene.instantiate()
 	root.add_child(world_game)
 	await process_frame
