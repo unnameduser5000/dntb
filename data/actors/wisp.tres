@@ -6,7 +6,7 @@
 [resource]
 script = ExtResource("1_actor")
 id = "wisp"
-display_name = "游光（无害）"
+display_name = "游光史莱姆（无害）"
 max_hp = 1
 atk = 0
 move_range = 1
@@ -16,4 +16,5 @@ ai_type = "melee_chaser"
 default_drop_key = ""
 drop_tier = 1
 view_scene = ExtResource("2_view")
+view_scale = Vector2(0.72, 0.72)
 color = Color(0.7, 0.92, 1, 1)

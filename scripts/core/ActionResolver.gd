@@ -620,14 +620,14 @@ func _kill_actor(actor, state) -> void:
 	var death_cell: Vector2i = actor.grid_pos
 	var dropped_key := _resolve_drop_key_for_actor(actor)
 	state.grid.remove_actor(actor)
-	if not dropped_key.is_empty():
-		state.drop_key_at(death_cell, dropped_key)
+	if not dropped_key.is_empty() and String(actor.team) == "enemy":
+		key_picked.emit(state.player, dropped_key, death_cell)
 	actor_died.emit(actor)
 	_append_presentation_frame("actor_died", {
 		"actor": actor,
 	})
 	if not dropped_key.is_empty():
-		_add_message(state, "%s 掉落了%s按键。" % [actor.def.display_name, state.key_name(dropped_key)])
+		_add_message(state, "%s 掉落了%s按键，并直接放入备用行动池。" % [actor.def.display_name, state.key_name(dropped_key)])
 	_add_message(state, "%s 倒下。" % actor.def.display_name)
 	_check_battle_end(state)
 

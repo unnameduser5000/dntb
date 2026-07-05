@@ -435,15 +435,9 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 		}
 
 	var actor = state.grid.get_actor(cell)
+	var actor_tooltip := ""
 	if actor != null and (is_visible or reveal_all):
-		var char: String = String(actor.map_char())
-		if actor.team == "player":
-			char = _player_facing_char(actor.facing)
-		return {
-			"char": char,
-			"style": _actor_cell_style(actor, is_danger, is_preview_move, is_preview_attack),
-			"tooltip": _actor_tooltip(actor, is_danger, is_preview_move, is_preview_attack),
-		}
+		actor_tooltip = _actor_tooltip(actor, is_danger, is_preview_move, is_preview_attack)
 
 	if (is_visible or reveal_all) and state.items_at.has(cell):
 		var item_id := String(state.items_at[cell])
@@ -488,13 +482,17 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 		}
 
 	if is_danger:
-		return {
-			"char": "!",
-			"style": "BoardDangerCell",
-			"tooltip": "Threatened by enemy action",
-		}
+		var danger_cell := _describe_terrain_cell(cell, state, is_visible)
+		danger_cell["char"] = "!"
+		danger_cell["font_color"] = Color(1.0, 0.18, 0.22, 1.0)
+		danger_cell["border_color"] = Color(1.0, 0.14, 0.18, 0.98)
+		danger_cell["tooltip"] = (actor_tooltip + "\n" if not actor_tooltip.is_empty() else "") + "Threatened by enemy action"
+		return danger_cell
 
-	return _describe_terrain_cell(cell, state, is_visible)
+	var terrain_cell := _describe_terrain_cell(cell, state, is_visible)
+	if not actor_tooltip.is_empty():
+		terrain_cell["tooltip"] = "%s\n%s" % [actor_tooltip, String(terrain_cell.get("tooltip", ""))]
+	return terrain_cell
 
 
 func _describe_terrain_cell(cell: Vector2i, state, is_visible: bool) -> Dictionary:
@@ -522,9 +520,12 @@ func _describe_terrain_cell(cell: Vector2i, state, is_visible: bool) -> Dictiona
 			var context: String = _terrain_context_label(map_cell)
 			if not context.is_empty():
 				terrain_name = "%s / %s" % [terrain_name, context]
+	if state != null and bool(state.is_world_slice) and String(state.map_node_kind) == "boss" and walkable:
+		tile_texture_id = "boss_dungeon_floor"
+		terrain_name = "boss dungeon floor"
 
 	return {
-		"char": terrain_char if walkable or state.map_data != null else "#",
+		"char": "",
 		"style": style,
 		"tile_texture_id": tile_texture_id,
 		"fog_overlay_alpha": 0.0 if is_visible else EXPLORED_FOG_ALPHA,
@@ -974,19 +975,31 @@ func _textured_stylebox_for_palette(tile_texture_id: String, bg_color: Color, fo
 func _tile_texture_id_for_map_cell(map_cell) -> String:
 	if map_cell == null:
 		return ""
+	if map_cell.tags.has("boss_locked_door"):
+		return "poi_locked_door"
 	var poi_type: String = _poi_type_for_map_cell(map_cell)
 	if map_cell.tags.has("building_door"):
-		return "building_door"
+		match poi_type:
+			"challenge_entrance":
+				return "poi_locked_door"
+			"tavern":
+				return "poi_camp"
+			_:
+				return "building_door"
 	if map_cell.tags.has("building_floor"):
 		match poi_type:
+			"tavern":
+				return "poi_camp"
 			"challenge_entrance":
 				return "challenge_floor"
 			"ruin":
-				return "ruin_floor"
+				return "poi_ruins"
 			"shrine":
-				return "shrine_floor"
+				return "poi_watchtower"
 		return "building_floor"
 	if map_cell.tags.has("building_open_ground"):
+		if poi_type == "tavern":
+			return "poi_camp"
 		return "building_yard"
 	match int(map_cell.terrain_type):
 		1:
@@ -1179,12 +1192,14 @@ func _load_tile_texture_asset(tile_texture_id: String) -> Texture2D:
 		return _loaded_tile_textures[tile_texture_id]
 	var candidates: Array[String] = _tile_texture_asset_candidates(tile_texture_id)
 	for candidate in candidates:
-		var resource_path := TILE_TEXTURE_BASE_PATH + candidate + ".png"
+		var resource_path := candidate if candidate.begins_with("res://") else TILE_TEXTURE_BASE_PATH + candidate + ".png"
 		if not FileAccess.file_exists(resource_path):
 			continue
 		var image: Image = Image.load_from_file(ProjectSettings.globalize_path(resource_path))
 		if image == null or image.is_empty():
 			continue
+		if resource_path.contains("/art/imported/world/poi/"):
+			image = _crop_image_to_visible_bounds(image)
 		var texture := ImageTexture.create_from_image(image)
 		if texture != null:
 			_loaded_tile_textures[tile_texture_id] = texture
@@ -1195,22 +1210,76 @@ func _load_tile_texture_asset(tile_texture_id: String) -> Texture2D:
 
 func _tile_texture_asset_candidates(tile_texture_id: String) -> Array[String]:
 	match tile_texture_id:
+		"plain":
+			return ["res://art/imported/world/biomes/biome_grassland.png", "plain"]
+		"forest":
+			return ["res://art/imported/world/foliage/tall_grass_generated.png", "res://art/imported/world/biomes/biome_grassland.png", "forest", "plain"]
+		"tree":
+			return ["res://art/imported/world/poi/poi_watchtower.png", "tree", "forest"]
+		"rock":
+			return ["res://art/imported/world/poi/poi_ruins.png", "rock", "structure_wall"]
+		"statue":
+			return ["res://art/imported/world/poi/poi_ruins.png", "statue", "rock"]
+		"hill":
+			return ["res://art/imported/world/biomes/biome_distant_mountains.png", "hill", "mountain"]
+		"desert":
+			return ["res://art/imported/world/biomes/biome_quicksand.png", "res://art/imported/world/biomes/biome_desert.png", "desert"]
+		"swamp":
+			return ["res://art/imported/world/biomes/biome_wetland.png", "swamp"]
+		"mountain":
+			return ["res://art/imported/world/biomes/biome_distant_mountains.png", "mountain"]
+		"peak":
+			return ["res://art/imported/world/biomes/biome_snowfield.png", "peak"]
+		"river":
+			return ["res://art/imported/world/biomes/biome_wetland.png", "river", "water"]
+		"bridge":
+			return ["res://art/imported/world/biomes/biome_grassland.png", "bridge", "plain"]
 		"building_floor":
 			return ["tavern_floor", "building_floor", "plain"]
 		"building_door":
 			return ["tavern_door", "building_door", "building_floor"]
 		"building_yard":
-			return ["building_yard", "plain"]
+			return ["res://art/imported/world/biomes/biome_grassland.png", "building_yard", "plain"]
+		"poi_locked_door":
+			return ["res://art/imported/world/poi/poi_locked_door.png", "building_door"]
+		"poi_ruins":
+			return ["res://art/imported/world/poi/poi_ruins.png", "ruin_floor", "building_floor"]
+		"poi_watchtower":
+			return ["res://art/imported/world/poi/poi_watchtower.png", "shrine_floor", "building_floor"]
+		"poi_camp":
+			return ["res://art/imported/world/poi/poi_camp.png", "building_floor", "building_yard"]
 		"structure_wall":
-			return ["structure_wall"]
+			return ["res://art/imported/world/poi/poi_ruins.png", "structure_wall"]
 		"challenge_floor":
-			return ["challenge_floor", "building_floor"]
+			return ["res://art/imported/world/biomes/biome_desert.png", "challenge_floor", "building_floor"]
 		"ruin_floor":
 			return ["ruin_floor", "building_floor"]
 		"shrine_floor":
 			return ["shrine_floor", "building_floor"]
+		"boss_dungeon_floor":
+			return ["res://art/imported/world/dungeon/dungeon_concept.jpg", "challenge_floor"]
 		_:
 			return [tile_texture_id]
+func _crop_image_to_visible_bounds(source_image: Image) -> Image:
+	if source_image == null or source_image.is_empty():
+		return source_image
+	var min_x := source_image.get_width()
+	var min_y := source_image.get_height()
+	var max_x := -1
+	var max_y := -1
+	for y in range(source_image.get_height()):
+		for x in range(source_image.get_width()):
+			if source_image.get_pixel(x, y).a <= 0.01:
+				continue
+			min_x = mini(min_x, x)
+			min_y = mini(min_y, y)
+			max_x = maxi(max_x, x)
+			max_y = maxi(max_y, y)
+	if max_x < min_x or max_y < min_y:
+		return source_image
+	var cropped := Image.create(max_x - min_x + 1, max_y - min_y + 1, false, Image.FORMAT_RGBA8)
+	cropped.blit_rect(source_image, Rect2i(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1), Vector2i.ZERO)
+	return cropped
 
 
 func _fill_rect(image: Image, rect: Rect2i, color: Color) -> void:
