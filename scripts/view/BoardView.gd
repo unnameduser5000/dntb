@@ -8,6 +8,7 @@ const EXPLORED_FOG_COLOR := Color(0.05, 0.06, 0.08, 1.0)
 const EXPLORED_FOG_DESATURATE := 0.18
 const POI_MARKER_TAIL_RADIUS_CELLS := 1.0
 const POI_MARKER_TIP_RADIUS_CELLS := 1.5
+const MAX_TILE_TEXTURE_SOURCE_SIZE := 128
 const POI_MARKER_SYMBOLS := {
 	"boss": "B",
 	"ruin": "R",
@@ -52,6 +53,7 @@ var _stylebox_cache: Dictionary = {}
 var _texture_stylebox_cache: Dictionary = {}
 var _loaded_tile_textures: Dictionary = {}
 var _derived_tile_textures: Dictionary = {}
+var _cropped_texture_cache: Dictionary = {}
 var _last_state = null
 
 
@@ -455,6 +457,15 @@ func _compute_render_window(state) -> Rect2i:
 		clampi(end_cell.x - origin_cell.x, 1, grid_width),
 		clampi(end_cell.y - origin_cell.y, 1, grid_height)
 	)
+	const MAX_RENDER_WINDOW_CELLS_PER_AXIS := 40
+	if window_size.x > MAX_RENDER_WINDOW_CELLS_PER_AXIS:
+		var excess_x: int = window_size.x - MAX_RENDER_WINDOW_CELLS_PER_AXIS
+		origin_cell.x += excess_x / 2
+		window_size.x = MAX_RENDER_WINDOW_CELLS_PER_AXIS
+	if window_size.y > MAX_RENDER_WINDOW_CELLS_PER_AXIS:
+		var excess_y: int = window_size.y - MAX_RENDER_WINDOW_CELLS_PER_AXIS
+		origin_cell.y += excess_y / 2
+		window_size.y = MAX_RENDER_WINDOW_CELLS_PER_AXIS
 	origin_cell.x = clampi(origin_cell.x, 0, max(0, grid_width - window_size.x))
 	origin_cell.y = clampi(origin_cell.y, 0, max(0, grid_height - window_size.y))
 	return Rect2i(origin_cell, window_size)
@@ -596,10 +607,42 @@ func _apply_cell_visual(label: Label, cell_data: Dictionary) -> void:
 	if label == null:
 		return
 	label.visible = true
+
+	var style: StringName = StringName(cell_data["style"])
+	var char_text: String = String(cell_data["char"])
+	var tooltip: String = String(cell_data["tooltip"])
+	var bg_variant = cell_data.get("bg_color", null)
+	var font_variant = cell_data.get("font_color", null)
+	var border_variant = cell_data.get("border_color", null)
+	var tile_texture_id: String = String(cell_data.get("tile_texture_id", ""))
+	var fog_overlay_alpha: float = clampf(float(cell_data.get("fog_overlay_alpha", 0.0)), 0.0, 1.0)
+
+	var cell_key: String = "%s|%s|%s|%s|%s|%s|%s|%.3f" % [
+		style,
+		char_text,
+		tooltip,
+		bg_variant.to_html() if bg_variant is Color else "",
+		font_variant.to_html() if font_variant is Color else "",
+		border_variant.to_html() if border_variant is Color else "",
+		tile_texture_id,
+		fog_overlay_alpha,
+	]
+
+	var last_key: String = ""
+	if label.has_meta("_last_cell_key"):
+		last_key = String(label.get_meta("_last_cell_key"))
+
+	var last_cell_size: int = int(label.get_meta("_last_cell_size", -1))
+	if cell_key == last_key and last_cell_size == cell_size:
+		return
+
+	label.set_meta("_last_cell_key", cell_key)
+	label.set_meta("_last_cell_size", cell_size)
+
 	label.custom_minimum_size = Vector2(cell_size, cell_size)
-	label.text = String(cell_data["char"])
-	label.tooltip_text = String(cell_data["tooltip"])
-	label.theme_type_variation = StringName(cell_data["style"])
+	label.text = char_text
+	label.tooltip_text = tooltip
+	label.theme_type_variation = style
 	_apply_dynamic_palette(label, cell_data)
 
 
@@ -1238,17 +1281,56 @@ func _load_tile_texture_asset(tile_texture_id: String) -> Texture2D:
 		var resource_path := candidate if candidate.begins_with("res://") else TILE_TEXTURE_BASE_PATH + candidate + ".png"
 		if not FileAccess.file_exists(resource_path):
 			continue
-		var image: Image = Image.load_from_file(ProjectSettings.globalize_path(resource_path))
-		if image == null or image.is_empty():
+		var texture: Texture2D = ResourceLoader.load(resource_path, "Texture2D", ResourceLoader.CACHE_MODE_REUSE)
+		if texture == null:
 			continue
+		texture = _scaled_texture_if_needed(texture)
 		if resource_path.contains("/art/imported/world/poi/"):
-			image = _crop_image_to_visible_bounds(image)
-		var texture := ImageTexture.create_from_image(image)
-		if texture != null:
-			_loaded_tile_textures[tile_texture_id] = texture
-			return texture
+			var cropped: Texture2D = _crop_texture_to_visible_bounds_cached(texture, resource_path)
+			if cropped != null:
+				_loaded_tile_textures[tile_texture_id] = cropped
+				return cropped
+		_loaded_tile_textures[tile_texture_id] = texture
+		return texture
 	_loaded_tile_textures[tile_texture_id] = null
 	return null
+
+
+func _scaled_texture_if_needed(source_texture: Texture2D) -> Texture2D:
+	if source_texture == null:
+		return null
+	var image: Image = source_texture.get_image()
+	if image == null or image.is_empty():
+		return source_texture
+	var max_dimension: int = maxi(image.get_width(), image.get_height())
+	if max_dimension <= MAX_TILE_TEXTURE_SOURCE_SIZE:
+		return source_texture
+	var scale_ratio: float = float(MAX_TILE_TEXTURE_SOURCE_SIZE) / float(max_dimension)
+	var scaled_size := Vector2i(
+		maxi(1, int(round(float(image.get_width()) * scale_ratio))),
+		maxi(1, int(round(float(image.get_height()) * scale_ratio)))
+	)
+	var scaled := image.duplicate()
+	if scaled.get_format() != Image.FORMAT_RGBA8:
+		scaled.convert(Image.FORMAT_RGBA8)
+	scaled.resize(scaled_size.x, scaled_size.y, Image.INTERPOLATE_LANCZOS)
+	return ImageTexture.create_from_image(scaled)
+
+
+func _crop_texture_to_visible_bounds_cached(source_texture: Texture2D, cache_key: String) -> Texture2D:
+	if source_texture == null:
+		return null
+	if _cropped_texture_cache.has(cache_key):
+		return _cropped_texture_cache[cache_key]
+	var image: Image = source_texture.get_image()
+	if image == null or image.is_empty():
+		return source_texture
+	var cropped := _crop_image_to_visible_bounds(image.duplicate())
+	if cropped == null or cropped.is_empty():
+		return source_texture
+	var cropped_texture := ImageTexture.create_from_image(cropped)
+	_cropped_texture_cache[cache_key] = cropped_texture
+	return cropped_texture
 
 
 func _tile_texture_asset_candidates(tile_texture_id: String) -> Array[String]:

@@ -65,6 +65,12 @@ const MOD_LANCER_FOCUS := preload("res://data/modifiers/lancer_focus.tres")
 const MOD_CYCLONE_FURY := preload("res://data/modifiers/cyclone_fury.tres")
 const MOD_BATTLE_TRANCE := preload("res://data/modifiers/battle_trance.tres")
 
+const MUSIC_TITLE := "title"
+const MUSIC_DUNGEON := "dungeon"
+const MUSIC_ELITE := "elite"
+const MUSIC_BOSS := "boss"
+const MUSIC_REST := "rest"
+
 const ROOM_SIZE := 8
 const MAP_NODE_COMBAT := "combat"
 const MAP_NODE_REST := "rest"
@@ -221,6 +227,11 @@ var _boss_hidden_layer_active := false
 var _hidden_boss_locked_keys: Array[String] = []
 var _slime_god_phase_two_triggered := false
 
+var _held_move_action := ""
+var _held_move_repeat_delay := 0.0
+const MOVE_REPEAT_INITIAL_DELAY := 0.28
+const MOVE_REPEAT_INTERVAL := 0.12
+
 func _ready() -> void:
 	_action_by_id = {
 		"move_forward": ACTION_MOVE_FORWARD,
@@ -287,6 +298,7 @@ func _ready() -> void:
 	_register_save_provider()
 	if show_title_on_ready:
 		battle_ui.show_title()
+		_play_music_for_state()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _shell_overlay_active:
@@ -377,6 +389,36 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	get_viewport().set_input_as_handled()
 	var key_id: String = input_service.get_key_id_for_action(action_name)
+	if input_service.is_move_action(action_name):
+		_held_move_action = action_name
+		_held_move_repeat_delay = MOVE_REPEAT_INITIAL_DELAY
+	_submit_key_chain(key_id)
+
+
+func _process(delta: float) -> void:
+	if _held_move_action.is_empty():
+		return
+	if state == null or state.phase != "planning" or state.battle_finished:
+		_held_move_action = ""
+		return
+	if _bag_open or _world_npc_dialogue_active or _player_input_locked or _auto_submitting_plan:
+		return
+
+	var input_service = get_node_or_null("/root/PlayerInputService")
+	if input_service == null or not input_service.is_move_action(_held_move_action):
+		_held_move_action = ""
+		return
+
+	if not Input.is_action_pressed(_held_move_action):
+		_held_move_action = ""
+		return
+
+	_held_move_repeat_delay -= delta
+	if _held_move_repeat_delay > 0.0:
+		return
+
+	_held_move_repeat_delay = MOVE_REPEAT_INTERVAL
+	var key_id: String = input_service.get_key_id_for_action(_held_move_action)
 	_submit_key_chain(key_id)
 
 
@@ -397,6 +439,13 @@ func set_game_visible(is_visible: bool) -> void:
 	battle_ui.visible = is_visible
 	if world_loading_overlay != null and not is_visible:
 		world_loading_overlay.hide_loading()
+
+
+func return_to_title() -> void:
+	var audio_service = get_node_or_null("/root/AudioService")
+	if audio_service != null:
+		audio_service.play_music_by_key(MUSIC_TITLE)
+	set_game_visible(false)
 
 
 func set_shell_overlay_active(is_active: bool) -> void:
@@ -437,6 +486,7 @@ func start_run() -> void:
 		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
 		await get_tree().process_frame
 	start_world_slice_debug()
+	_play_music_for_state()
 
 
 func start_run_legacy() -> void:
@@ -496,6 +546,7 @@ func start_world_slice_debug() -> void:
 	set_game_visible(true)
 	if world_loading_overlay != null:
 		world_loading_overlay.hide_loading()
+	_play_music_for_state()
 
 
 func _on_world_generation_progress(progress_data: Dictionary) -> void:
@@ -541,6 +592,7 @@ func _start_new_run(seed_value) -> void:
 	_setup_default_key_slots()
 	_refresh_inventory_ui()
 	_start_map_node(_current_map_node_index)
+	_play_music_for_state()
 
 
 func _start_map_node(node_index: int) -> void:
@@ -576,6 +628,7 @@ func _start_room(room_index: int) -> void:
 	_refresh_inventory_ui()
 	battle_ui.show_battle()
 	_refresh_views()
+	_play_music_for_state()
 
 
 func _start_boss_dungeon_node(node: Dictionary) -> void:
@@ -608,6 +661,7 @@ func _start_boss_dungeon_node(node: Dictionary) -> void:
 	battle_ui.show_battle()
 	_refresh_world_visibility("boss_dungeon_init")
 	_refresh_views()
+	_play_music_for_state()
 
 func _start_rest_node(node: Dictionary) -> void:
 	_next_actor_id = 0
@@ -627,6 +681,7 @@ func _start_rest_node(node: Dictionary) -> void:
 	_refresh_inventory_ui()
 	battle_ui.show_rest_site(String(node.get("label", "休息处")), "这里可以拖拽调整行动 token 与按键槽。整理好后继续前进。")
 	_refresh_views()
+	_play_music_for_state()
 
 func _submit_key_chain(key_id: String) -> void:
 	if _world_npc_dialogue_active:
@@ -697,6 +752,7 @@ func _on_battle_finished(victory: bool) -> void:
 
 	if not victory:
 		battle_ui.show_result(false)
+		_play_music_for_state()
 		return
 
 	_record_achievement_event("room_cleared", {
@@ -712,6 +768,7 @@ func _on_battle_finished(victory: bool) -> void:
 			"map_node_index": _current_map_node_index,
 		})
 		battle_ui.show_result(true)
+		_play_music_for_state()
 		return
 
 	_current_rewards = _build_rewards()
@@ -783,6 +840,36 @@ func _advance_to_next_map_node(choice_index: int = 0) -> void:
 
 	var safe_choice := clampi(choice_index, 0, next_nodes.size() - 1)
 	_start_map_node(int(next_nodes[safe_choice]))
+	_play_music_for_state()
+
+
+func _play_music_for_state() -> void:
+	var audio_service = get_node_or_null("/root/AudioService")
+	if audio_service == null:
+		return
+	if battle_ui != null and battle_ui.visible and battle_ui.is_title_visible():
+		audio_service.play_music_by_key(MUSIC_TITLE)
+		return
+	if state == null or state.battle_finished:
+		audio_service.stop_music()
+		return
+	if _is_boss_dungeon_state():
+		audio_service.play_music_by_key(MUSIC_BOSS)
+		return
+	if _is_current_rest_node() or _is_player_in_world_slice_rest_area():
+		audio_service.play_music_by_key(MUSIC_REST)
+		return
+	if _is_world_slice_state():
+		if _world_slice_has_visible_enemy():
+			audio_service.play_music_by_key(MUSIC_ELITE)
+		else:
+			audio_service.play_music_by_key(MUSIC_DUNGEON)
+		return
+	if _is_current_boss_node():
+		audio_service.play_music_by_key(MUSIC_BOSS)
+		return
+	audio_service.play_music_by_key(MUSIC_DUNGEON)
+
 
 func _map_summary() -> String:
 	var labels: Array[String] = []
@@ -798,11 +885,22 @@ func _refresh_views() -> void:
 	if state == null:
 		return
 
+	var refresh_started_at: int = Time.get_ticks_msec()
+
 	if bool(state.is_world_slice):
 		_update_world_slice_editability()
+
+	var enemy_preview_started_at: int = Time.get_ticks_msec()
 	_update_enemy_preview()
+	state.last_refresh_enemy_preview_ms = float(Time.get_ticks_msec() - enemy_preview_started_at)
+
 	_update_world_slice_camera()
+
+	var board_render_started_at: int = Time.get_ticks_msec()
 	board_view.render(state)
+	state.last_refresh_board_render_ms = float(Time.get_ticks_msec() - board_render_started_at)
+
+	var sync_views_ms: int = 0
 	if _battle_presentation != null:
 		var snap_actor_views: bool = not _battle_presentation.should_wait_for_presentation()
 		if bool(state.is_world_slice):
@@ -811,9 +909,22 @@ func _refresh_views() -> void:
 			# BattlePresentationController keeps this scoped to the player plus
 			# currently visible actors instead of maintaining views for the whole map.
 			snap_actor_views = true
+		var sync_started_at: int = Time.get_ticks_msec()
 		_battle_presentation.sync_views(state, snap_actor_views)
+		sync_views_ms = Time.get_ticks_msec() - sync_started_at
+
+	var hud_started_at: int = Time.get_ticks_msec()
 	battle_ui.update_state(state)
+	state.last_refresh_hud_ms = float(Time.get_ticks_msec() - hud_started_at)
+
 	_sync_actor_roots_with_board_view()
+
+	var music_started_at: int = Time.get_ticks_msec()
+	_play_music_for_state()
+	state.last_refresh_music_ms = float(Time.get_ticks_msec() - music_started_at)
+
+	state.last_refresh_total_ms = float(Time.get_ticks_msec() - refresh_started_at)
+	state.last_refresh_sync_views_ms = float(sync_views_ms)
 
 
 func _update_world_slice_camera() -> void:
@@ -850,9 +961,12 @@ func _on_actor_moved(actor, from_cell: Vector2i, to_cell: Vector2i) -> void:
 	if _is_boss_dungeon_state():
 		_world_slice_controller.recompute_visibility(state, "player_moved" if actor == state.player else "actor_moved")
 		_refresh_views()
+		_play_music_for_state()
 		return
 	_world_slice_controller.on_actor_moved(state, actor, from_cell, to_cell)
 	_refresh_views()
+	if actor == state.player:
+		_play_music_for_state()
 
 
 func _refresh_world_visibility(reason: String) -> void:
@@ -861,6 +975,7 @@ func _refresh_world_visibility(reason: String) -> void:
 	if not bool(state.is_world_slice):
 		return
 	_world_slice_controller.recompute_visibility(state, reason)
+	_play_music_for_state()
 
 
 func _update_world_slice_editability(force_refresh: bool = false) -> void:
@@ -883,6 +998,7 @@ func _update_world_slice_editability(force_refresh: bool = false) -> void:
 			state.add_message("进入酒馆休息区：这里可以调整行动编排，也可以按确认键和邻近幸存者交谈。")
 		else:
 			state.add_message("离开酒馆休息区：行动编排已锁定。")
+		_play_music_for_state()
 	_world_slice_last_rest_area_state = editable_now
 
 
@@ -1106,6 +1222,7 @@ func _on_turn_finished() -> void:
 	_maybe_apply_hidden_boss_key_lock()
 	_refresh_views()
 	_update_auto_advance_state()
+	_play_music_for_state()
 
 
 func _on_planning_started() -> void:
@@ -1143,6 +1260,8 @@ func _call_world_autopath_step() -> void:
 	if _world_slice_has_visible_enemy():
 		_stop_world_autopath(false)
 		state.add_message("视野内出现敌人，自动跑图已暂停。")
+		battle_ui.set_auto_advance_mode(BattleUI.AUTO_PAUSE)
+		_play_music_for_state()
 		_refresh_views()
 		return
 	if state.player.grid_pos == _world_autopath_target:
@@ -1298,6 +1417,8 @@ func _on_actor_damaged(actor, amount: int) -> void:
 	if actor != null and state != null and state.player != null and actor == state.player:
 		_stop_world_autopath(false)
 		state.add_message("受到伤害，自动跑图已停止。")
+		battle_ui.set_auto_advance_mode(BattleUI.AUTO_PAUSE)
+		_play_music_for_state()
 		_refresh_views()
 
 
@@ -1318,6 +1439,7 @@ func _on_actor_died(actor) -> void:
 	_refresh_inventory_ui()
 	_refresh_key_program_ui()
 	_refresh_views()
+	_play_music_for_state()
 
 
 func _maybe_trigger_slime_god_phase_two() -> void:
@@ -2197,6 +2319,9 @@ func _toggle_bag() -> void:
 			battle_ui.set_key_program_editable(_key_program_editable)
 			_refresh_key_program_ui()
 		get_tree().paused = _bag_open
+		var audio_service = get_node_or_null("/root/AudioService")
+		if audio_service != null:
+			audio_service.set_duck_active(_bag_open)
 
 
 func _close_bag_if_open() -> void:
@@ -2204,6 +2329,9 @@ func _close_bag_if_open() -> void:
 		battle_ui.toggle_bag()
 		_bag_open = false
 		get_tree().paused = false
+		var audio_service = get_node_or_null("/root/AudioService")
+		if audio_service != null:
+			audio_service.set_duck_active(false)
 
 
 func _on_auto_advance_mode_changed(mode: int) -> void:
@@ -2360,6 +2488,7 @@ func load_save_data(data: Dictionary) -> void:
 	_load_key_program(data)
 	_refresh_inventory_ui()
 	_start_map_node(_current_map_node_index)
+	_play_music_for_state()
 
 func _load_key_program(data: Dictionary) -> void:
 	_ensure_action_helpers()
