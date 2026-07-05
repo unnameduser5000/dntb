@@ -231,6 +231,8 @@ var _held_move_action := ""
 var _held_move_repeat_delay := 0.0
 const MOVE_REPEAT_INITIAL_DELAY := 0.28
 const MOVE_REPEAT_INTERVAL := 0.12
+const KEY_SUBMIT_COOLDOWN_MS := 150
+var _last_key_submit_msec: Dictionary = {}
 
 func _ready() -> void:
 	_action_by_id = {
@@ -419,7 +421,7 @@ func _process(delta: float) -> void:
 
 	_held_move_repeat_delay = MOVE_REPEAT_INTERVAL
 	var key_id: String = input_service.get_key_id_for_action(_held_move_action)
-	_submit_key_chain(key_id)
+	_submit_key_chain(key_id, true)
 
 
 func _is_world_interaction_event(event: InputEvent) -> bool:
@@ -683,7 +685,12 @@ func _start_rest_node(node: Dictionary) -> void:
 	_refresh_views()
 	_play_music_for_state()
 
-func _submit_key_chain(key_id: String) -> void:
+func _submit_key_chain(key_id: String, ignore_cooldown: bool = false) -> void:
+	if not ignore_cooldown:
+		var now: int = Time.get_ticks_msec()
+		var last_msec: int = int(_last_key_submit_msec.get(key_id, 0))
+		if now - last_msec < KEY_SUBMIT_COOLDOWN_MS:
+			return
 	if _world_npc_dialogue_active:
 		if state != null:
 			state.add_message("对话还没结束，先听对方把话说完。")
@@ -739,6 +746,7 @@ func _submit_key_chain(key_id: String) -> void:
 
 	var plan := _build_key_slot_plan(chain_keys)
 	if not plan.is_empty():
+		_last_key_submit_msec[key_id] = Time.get_ticks_msec()
 		turn_controller.submit_player_plan(plan)
 		if not _auto_submitting_plan:
 			_update_auto_advance_state()
