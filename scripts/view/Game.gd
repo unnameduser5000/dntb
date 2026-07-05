@@ -913,6 +913,12 @@ func _refresh_views() -> void:
 		_battle_presentation.sync_views(state, snap_actor_views)
 		sync_views_ms = Time.get_ticks_msec() - sync_started_at
 
+	# Streamed enemies may have been spawned/despawned during the view refresh.
+	# Recompute world-slice visibility and music so newly visible enemies are
+	# reflected immediately (e.g. switching to elite music on sight).
+	if bool(state.is_world_slice):
+		_refresh_world_visibility("player_moved")
+
 	var hud_started_at: int = Time.get_ticks_msec()
 	battle_ui.update_state(state)
 	state.last_refresh_hud_ms = float(Time.get_ticks_msec() - hud_started_at)
