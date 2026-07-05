@@ -1,5 +1,51 @@
 # Develop Log
 
+## 2026-07-05 Boss node upgraded into a large dungeon layer
+
+- Reworked the Boss node from a small `8x8` combat room into a large dungeon
+  layer that matches the world-slice map scale.
+- The Boss layer now:
+  - still enters through `challenge_entrance` interaction in the overworld
+  - still resolves as `MAP_NODE_BOSS` in run progression
+  - but internally uses a large `MapData + FOV + BoardView` state instead of the
+    old small-room setup
+- Current first pass content is intentionally simple:
+  - a centered dungeon chamber carved out of a `256x256` map
+  - structure-wall perimeter and a few pillars
+  - one Boss as the main encounter target
+- Kept overworld-only features out of the Boss layer:
+  - no tavern edit zone
+  - no POI hint sidebar
+  - no streamed enemy refresh on actor movement inside the Boss dungeon
+- Updated SmokeTest to verify that:
+  - the Boss node now builds a large map
+  - overworld interaction still enters the Boss node correctly
+  - key editing remains locked
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
+## 2026-07-05 Boss entrance POI interaction
+
+- Added a direct world-slice Boss入口交互:
+  - when the player stands on a `challenge_entrance` `interaction_cell`
+  - pressing confirm now enters the existing Boss node immediately
+  - the transition reuses the current `MAP_NODE_BOSS` room setup instead of
+    creating a separate world-boss runtime path
+- Kept ruin interaction on the same POI-interaction pattern, but separated the
+  test flow so Boss入口 and ruin调查 are both covered explicitly.
+- Documented the current Boss-related asset placement convention:
+  - enemy defs in `data/actors/`
+  - boss actions in `data/actions/`
+  - room layout in the existing `ROOMS` run config until a stronger need for
+    standalone room data appears
+  - world entrance remains the existing `challenge_entrance` POI type
+
+Validation:
+
+- `godot --headless --path . --script res://scripts/tests/SmokeTest.gd`
+
 ## 2026-07-04 Token stack pool and single-slot key mapping
 
 - Replaced the short-lived shared-use experiment with a more direct inventory model:
