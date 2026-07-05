@@ -17,6 +17,9 @@ jobs:
         with:
           lfs: true
 
+      - name: Pull Git LFS files
+        run: git lfs pull
+
       - name: Verify MP3 binaries
         run: |
           echo "=== music/ file sizes ==="
