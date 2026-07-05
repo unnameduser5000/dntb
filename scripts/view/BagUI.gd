@@ -64,10 +64,12 @@ var _hint_label: Label = null
 var _close_button: Button = null
 
 var _slot_chains: Dictionary = {}
-var _pool_tokens: Array[String] = []
+var _pool_entries: Array[Dictionary] = []
 var _editable := false
 var _permanent_buffs: Array[Dictionary] = []
 var _slot_panels: Dictionary = {}
+var _adhesive_slot_id: String = ""
+var _disabled_slot_ids: Array[String] = []
 
 
 func _ready() -> void:
@@ -150,19 +152,23 @@ func _apply_layout_settings() -> void:
 		_buffs_scroll.custom_minimum_size = Vector2(0, buffs_panel_height)
 
 
-func setup(slot_chains: Dictionary, pool_tokens: Array, editable: bool, buffs: Array[Dictionary]) -> void:
+func setup(slot_chains: Dictionary, pool_entries: Array, editable: bool, buffs: Array[Dictionary], adhesive_slot_id: String = "", disabled_slot_ids: Array[String] = []) -> void:
 	_slot_chains.clear()
 	for key_id in SLOT_ORDER:
 		_slot_chains[key_id] = []
 		for token_id in slot_chains.get(key_id, []):
 			_slot_chains[key_id].append(String(token_id))
 
-	_pool_tokens.clear()
-	for token_id in pool_tokens:
-		_pool_tokens.append(String(token_id))
+	_pool_entries.clear()
+	for entry in pool_entries:
+		_pool_entries.append(Dictionary(entry).duplicate(true))
 
 	_editable = editable
 	_permanent_buffs = buffs.duplicate(true)
+	_adhesive_slot_id = adhesive_slot_id
+	_disabled_slot_ids.clear()
+	for slot_id in disabled_slot_ids:
+		_disabled_slot_ids.append(String(slot_id))
 	_refresh()
 
 
@@ -187,7 +193,7 @@ func _refresh() -> void:
 	if _editable_label:
 		_editable_label.text = "可编辑 · 拖拽调整按键绑定" if _editable else "已锁定 · 查看不可编辑"
 	if _hint_label:
-		_hint_label.text = "同一键位会按从左到右顺序触发；Tab / Esc 关闭；休息区可拖拽编辑" if _editable else "同一键位会按从左到右顺序触发；Tab / Esc 关闭；战斗中只可查看顺序"
+		_hint_label.text = "每个键位当前有 2 个栏位，每个栏位只能放 1 个动作；从右侧拖入会消耗 1 个库存" if _editable else "当前只读；每个键位显示 2 个独立栏位"
 	if _buffs_title:
 		_buffs_title.text = "永久增益（悬停查看详情）"
 	if _pool_title:
@@ -232,7 +238,7 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 	var token_ids: Array = _slot_chains.get(key_id, [])
 	var binding := _get_binding_label(key_id)
 	var suffix := "可调整" if _editable else "锁定"
-	var meta_text := "绑定：%s · %d格 · %s" % [binding, maxi(1, key_slot_visible_capacity), suffix]
+	var meta_text := "绑定：%s · 2格 · %s" % [binding, suffix]
 
 	var panel = UiKeySlotScript.new()
 	panel.setup(key_id, _editable)
@@ -242,6 +248,10 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 	panel.interaction_blocked.connect(_on_locked_slot_interaction)
 	panel.custom_minimum_size = Vector2(key_slot_panel_min_width, _key_slot_panel_min_height())
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if _disabled_slot_ids.has(key_id):
+		panel.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.22, 0.08, 0.12, 0.98), Color(0.96, 0.28, 0.44, 0.98)))
+	elif key_id == _adhesive_slot_id:
+		panel.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.28, 0.18, 0.36, 0.96), Color(0.82, 0.42, 0.96, 0.98)))
 	_slot_panels[key_id] = panel
 
 	var margin := MarginContainer.new()
@@ -259,7 +269,7 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 	header_row.add_theme_constant_override("separation", 8)
 	content.add_child(header_row)
 
-	header_row.add_child(_make_key_badge(key_id))
+	header_row.add_child(_make_key_badge(key_id, key_id == _adhesive_slot_id, _disabled_slot_ids.has(key_id)))
 
 	var meta_label := Label.new()
 	meta_label.text = meta_text
@@ -278,7 +288,7 @@ func _make_key_slot_panel(key_id: String) -> PanelContainer:
 	var visible_slots := maxi(maxi(1, key_slot_visible_capacity), token_ids.size())
 	for index in range(visible_slots):
 		if index < token_ids.size():
-			token_grid.add_child(_make_token_button(String(token_ids[index]), key_id, index))
+			token_grid.add_child(_make_slot_token_button(String(token_ids[index]), key_id, index))
 		else:
 			token_grid.add_child(_make_key_slot_empty_cell())
 
@@ -291,15 +301,20 @@ func _refresh_pool_grid() -> void:
 	if _pool_container.has_method("setup"):
 		_pool_container.setup(_editable)
 	_pool_container.columns = maxi(1, token_pool_columns)
-	var visible_slots := maxi(maxi(1, token_pool_visible_capacity), _pool_tokens.size())
+	var visible_slots := maxi(maxi(1, token_pool_visible_capacity), _pool_entries.size())
 	for index in range(visible_slots):
-		if index < _pool_tokens.size():
-			_pool_container.add_child(_make_token_button(String(_pool_tokens[index]), KEY_POOL_ID, index))
+		if index < _pool_entries.size():
+			var entry := Dictionary(_pool_entries[index])
+			_pool_container.add_child(_make_pool_token_button(
+				String(entry.get("token_id", "")),
+				int(entry.get("source_index", index)),
+				int(entry.get("count", 1))
+			))
 		else:
 			_pool_container.add_child(_make_pool_empty_token_cell())
 
 
-func _make_token_button(token_id: String, source_slot_id: String, source_index: int) -> Control:
+func _make_slot_token_button(token_id: String, source_slot_id: String, source_index: int) -> Control:
 	var token = UiKeyTokenScript.new()
 	token.setup(
 		token_id,
@@ -307,8 +322,29 @@ func _make_token_button(token_id: String, source_slot_id: String, source_index: 
 		source_index,
 		_token_label(token_id),
 		_editable,
-		_token_tooltip(token_id),
-		token_cell_size
+		_token_tooltip(token_id, 1, false),
+		token_cell_size,
+		source_slot_id == _adhesive_slot_id,
+		_disabled_slot_ids.has(source_slot_id)
+	)
+	if not token.drop_requested.is_connected(_on_key_dropped):
+		token.drop_requested.connect(_on_key_dropped)
+	if not token.interaction_blocked.is_connected(_on_locked_slot_interaction):
+		token.interaction_blocked.connect(_on_locked_slot_interaction)
+	return token
+
+
+func _make_pool_token_button(token_id: String, source_index: int, stack_count: int) -> Control:
+	var token = UiKeyTokenScript.new()
+	token.setup(
+		token_id,
+		KEY_POOL_ID,
+		source_index,
+		_token_label(token_id, stack_count),
+		_editable,
+		_token_tooltip(token_id, stack_count, true),
+		token_cell_size,
+		false
 	)
 	if not token.drop_requested.is_connected(_on_key_dropped):
 		token.drop_requested.connect(_on_key_dropped)
@@ -354,17 +390,18 @@ func _key_grid_min_size() -> Vector2:
 	return Vector2(width, height)
 
 
-func _token_tooltip(token_id: String) -> String:
-	var title := _token_label(token_id)
+func _token_tooltip(token_id: String, stack_count: int, show_stack: bool) -> String:
+	var title := _token_label(token_id, stack_count if show_stack else 1)
 	var description := String(TOKEN_DESCRIPTIONS.get(token_id, "TODO：当前动作简介尚未接到统一的 ActionDef.description API。"))
-	var drag_hint := "可拖拽到键位槽，按链顺序执行。" if _editable else "当前只读，可在休息区调整。"
-	return "%s\n%s\n%s" % [title, description, drag_hint]
+	var stack_hint := "当前数量：%d" % stack_count if show_stack else "已装配到该键位"
+	var drag_hint := "可拖拽到键位槽，拖入后库存 -1。" if _editable and show_stack else ("可拖回右侧库存池。" if _editable else "当前只读，可在休息区调整。")
+	return "%s\n%s\n%s\n%s" % [title, stack_hint, description, drag_hint]
 
-func _make_key_badge(key_id: String) -> Control:
+func _make_key_badge(key_id: String, is_adhesive: bool = false, is_disabled: bool = false) -> Control:
 	var badge := PanelContainer.new()
 	badge.custom_minimum_size = Vector2(42, 30)
 	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	badge.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.21, 0.24, 0.3, 1.0), Color(0.78, 0.82, 0.88, 0.92)))
+	badge.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.26, 0.08, 0.12, 1.0), Color(1.0, 0.34, 0.48, 0.98)) if is_disabled else (_make_square_stylebox(Color(0.35, 0.16, 0.42, 1.0), Color(0.96, 0.52, 1.0, 0.98)) if is_adhesive else _make_square_stylebox(Color(0.21, 0.24, 0.3, 1.0), Color(0.78, 0.82, 0.88, 0.92))))
 
 	var label := Label.new()
 	label.text = key_id
@@ -373,6 +410,19 @@ func _make_key_badge(key_id: String) -> Control:
 	label.theme_type_variation = &"ScreenTitle"
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(label)
+	if is_disabled:
+		var lock_label := Label.new()
+		lock_label.text = "锁"
+		lock_label.position = Vector2(24, -2)
+		lock_label.custom_minimum_size = Vector2(14, 14)
+		lock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lock_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lock_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lock_label.add_theme_font_size_override("font_size", 10)
+		lock_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.96, 1.0))
+		lock_label.add_theme_color_override("font_outline_color", Color(0.12, 0.02, 0.05, 0.96))
+		lock_label.add_theme_constant_override("outline_size", 2)
+		badge.add_child(lock_label)
 	return badge
 
 
@@ -429,54 +479,57 @@ func _get_binding_label(key_id: String) -> String:
 	return input_service.get_binding_label(action_name)
 
 
-func _token_label(token_id: String) -> String:
+func _token_label(token_id: String, stack_count: int = 1) -> String:
+	var base_label := token_id
 	match token_id:
 		"F":
-			return "前进"
+			base_label = "前进"
 		"B":
-			return "后退"
+			base_label = "后退"
 		"SL":
-			return "左侧移"
+			base_label = "左侧移"
 		"SR":
-			return "右侧移"
+			base_label = "右侧移"
 		"DS":
-			return "冲刺"
+			base_label = "冲刺"
 		"HK":
-			return "钩拽"
+			base_label = "钩拽"
 		"SB":
-			return "盾击"
+			base_label = "盾击"
 		"HM":
-			return "锤击"
+			base_label = "锤击"
 		"RA":
-			return "旋斧"
+			base_label = "旋斧"
 		"PI":
-			return "穿刺"
+			base_label = "穿刺"
 		"TH":
-			return "贯刺"
+			base_label = "贯刺"
 		"SW":
-			return "横扫"
+			base_label = "横扫"
 		"BW":
-			return "弓射"
+			base_label = "弓射"
 		"CA":
-			return "十字刃"
+			base_label = "十字刃"
 		"TL":
-			return "左转"
+			base_label = "左转"
 		"TR":
-			return "右转"
+			base_label = "右转"
 		"A":
-			return "攻击"
+			base_label = "攻击"
 		"G":
-			return "防御"
+			base_label = "防御"
 		"W":
-			return "等待"
+			base_label = "等待"
 		"J":
-			return "跳跃"
+			base_label = "跳跃"
 		"U":
-			return "上"
+			base_label = "上"
 		"D":
-			return "下"
+			base_label = "下"
 		"L":
-			return "左"
+			base_label = "左"
 		"R":
-			return "右"
-	return token_id
+			base_label = "右"
+	if stack_count <= 1:
+		return base_label
+	return "%s x%d" % [base_label, stack_count]

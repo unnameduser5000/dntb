@@ -61,8 +61,10 @@ const BagUIScript = preload("res://scripts/view/BagUI.gd")
 var _key_program_editable := false
 var _permanent_buffs: Array[Dictionary] = []
 var _cached_slot_chains: Dictionary = {}
-var _cached_pool_tokens: Array[String] = []
+var _cached_pool_entries: Array[Dictionary] = []
 var _auto_advance_mode := AUTO_PAUSE
+var _adhesive_slot_id := ""
+var _disabled_slot_ids: Array[String] = []
 
 
 func _ready() -> void:
@@ -100,23 +102,35 @@ func _connect_bag_ui_signals() -> void:
 func _refresh_bag_ui() -> void:
 	if not is_node_ready():
 		return
-	_bag_ui.setup(_cached_slot_chains, _cached_pool_tokens, _key_program_editable, _permanent_buffs)
+	_bag_ui.setup(_cached_slot_chains, _cached_pool_entries, _key_program_editable, _permanent_buffs, _adhesive_slot_id, _disabled_slot_ids)
 
 
-func set_key_program(slot_chains: Dictionary, pool_tokens: Array) -> void:
+func set_key_program(slot_chains: Dictionary, pool_entries: Array) -> void:
 	_cached_slot_chains.clear()
 	for key_id in slot_chains:
 		_cached_slot_chains[key_id] = slot_chains[key_id].duplicate()
 
-	_cached_pool_tokens.clear()
-	for token_id in pool_tokens:
-		_cached_pool_tokens.append(String(token_id))
+	_cached_pool_entries.clear()
+	for entry in pool_entries:
+		_cached_pool_entries.append(Dictionary(entry).duplicate(true))
 
 	_refresh_bag_ui()
 
 
 func set_key_program_editable(is_editable: bool) -> void:
 	_key_program_editable = is_editable
+	_refresh_bag_ui()
+
+
+func set_adhesive_slot(slot_id: String) -> void:
+	_adhesive_slot_id = slot_id
+	_refresh_bag_ui()
+
+
+func set_disabled_slots(slot_ids: Array[String]) -> void:
+	_disabled_slot_ids.clear()
+	for slot_id in slot_ids:
+		_disabled_slot_ids.append(String(slot_id))
 	_refresh_bag_ui()
 
 

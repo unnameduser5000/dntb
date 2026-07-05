@@ -6,6 +6,15 @@ const TILE_TEXTURE_BASE_PATH := "res://art/tiles/board/"
 const EXPLORED_FOG_ALPHA := 0.52
 const EXPLORED_FOG_COLOR := Color(0.05, 0.06, 0.08, 1.0)
 const EXPLORED_FOG_DESATURATE := 0.18
+const POI_MARKER_RING_RADIUS_CELLS := 1.55
+const POI_MARKER_SYMBOLS := {
+	"boss": "B",
+	"ruin": "R",
+}
+const POI_MARKER_COLORS := {
+	"boss": Color(0.92, 0.78, 0.42, 0.98),
+	"ruin": Color(0.72, 0.9, 0.78, 0.98),
+}
 
 @export var cell_size: int = 52
 @export var board_origin: Vector2 = Vector2(380, 120)
@@ -53,6 +62,7 @@ func _ready() -> void:
 	var settings_service = get_node_or_null("/root/SettingsService")
 	if settings_service != null:
 		settings_service.world_slice_zoom_changed.connect(_on_world_slice_zoom_changed)
+	queue_redraw()
 
 
 func center_world_slice_camera_on_player(state) -> void:
@@ -188,6 +198,7 @@ func _is_world_slice_mode() -> bool:
 func _apply_camera_transform() -> void:
 	position = board_origin + _camera_offset
 	scale = Vector2(_camera_zoom, _camera_zoom)
+	queue_redraw()
 
 
 func _zoom_at(screen_point: Vector2, factor: float) -> void:
@@ -254,6 +265,97 @@ func render(state) -> void:
 
 	if state != null:
 		state.last_board_refresh_ms = float(Time.get_ticks_msec() - started_at)
+	queue_redraw()
+
+
+func _draw() -> void:
+	_draw_world_slice_poi_markers()
+
+
+func _draw_world_slice_poi_markers() -> void:
+	var state = _last_state
+	if state == null or not bool(state.is_world_slice) or state.player == null:
+		return
+	if _render_window_size == Vector2i.ZERO:
+		return
+
+	var player_center: Vector2 = _grid_to_local_center(state.player.grid_pos)
+	var marker_radius: float = maxf(18.0, float(cell_size) * POI_MARKER_RING_RADIUS_CELLS)
+	var marker_spacing: float = maxf(16.0, float(cell_size) * 0.55)
+	var markers: Array[Dictionary] = []
+	_append_poi_marker(markers, state, Vector2i(state.tracked_boss_poi_cell), "boss", player_center, marker_radius)
+	_append_poi_marker(markers, state, Vector2i(state.tracked_nearest_ruin_cell), "ruin", player_center, marker_radius)
+	if markers.is_empty():
+		return
+
+	var grouped: Dictionary = {}
+	for marker in markers:
+		var dir_key: String = _marker_direction_key(Vector2(marker.get("dir", Vector2.ZERO)))
+		if not grouped.has(dir_key):
+			grouped[dir_key] = []
+		grouped[dir_key].append(marker)
+
+	for group_markers in grouped.values():
+		var marker_group: Array = Array(group_markers)
+		for index in range(marker_group.size()):
+			var marker: Dictionary = marker_group[index]
+			var marker_dir: Vector2 = Vector2(marker.get("dir", Vector2.ZERO))
+			var tangent := Vector2(-marker_dir.y, marker_dir.x)
+			var centered_index: float = float(index) - (float(marker_group.size() - 1) * 0.5)
+			var offset_pos: Vector2 = Vector2(marker.get("pos", player_center)) + tangent * centered_index * marker_spacing
+			_draw_single_poi_marker(offset_pos, marker_dir, String(marker.get("symbol", "?")), Color(marker.get("color", Color.WHITE)))
+
+
+func _append_poi_marker(markers: Array[Dictionary], state, target_cell: Vector2i, marker_kind: String, player_center: Vector2, marker_radius: float) -> void:
+	if target_cell == Vector2i(-1, -1):
+		return
+	if target_cell == state.player.grid_pos:
+		return
+	if _cell_in_set(state, "visible_cell_set", "visible_cells", target_cell):
+		return
+	var delta: Vector2 = Vector2(target_cell - state.player.grid_pos)
+	if delta.length_squared() <= 0.001:
+		return
+	var dir: Vector2 = delta.normalized()
+	markers.append({
+		"dir": dir,
+		"pos": player_center + dir * marker_radius,
+		"symbol": String(POI_MARKER_SYMBOLS.get(marker_kind, "?")),
+		"color": Color(POI_MARKER_COLORS.get(marker_kind, Color.WHITE)),
+	})
+
+
+func _draw_single_poi_marker(marker_pos: Vector2, dir: Vector2, symbol: String, color: Color) -> void:
+	var arrow_length: float = maxf(12.0, float(cell_size) * 0.55)
+	var arrow_half_width: float = maxf(5.0, float(cell_size) * 0.18)
+	var tip: Vector2 = marker_pos + dir * arrow_length * 0.45
+	var tail: Vector2 = marker_pos - dir * arrow_length * 0.4
+	var tangent := Vector2(-dir.y, dir.x)
+	var left: Vector2 = tail + tangent * arrow_half_width
+	var right: Vector2 = tail - tangent * arrow_half_width
+	var shadow := Color(0.03, 0.04, 0.05, 0.82)
+	var fill_points := PackedVector2Array([tip, left, right])
+	draw_colored_polygon(fill_points, shadow)
+	draw_line(left, tip, color, 2.0, true)
+	draw_line(right, tip, color, 2.0, true)
+	draw_line(tail, tip - dir * 2.0, color.darkened(0.2), 2.0, true)
+	var label_pos: Vector2 = marker_pos - Vector2(float(cell_size) * 0.2, float(cell_size) * 0.3)
+	var font := get_theme_default_font()
+	var font_size: int = get_theme_default_font_size()
+	if font != null:
+		draw_string_outline(font, label_pos + Vector2(0, font_size * 0.35), symbol, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, 3, shadow)
+		draw_string(font, label_pos + Vector2(0, font_size * 0.35), symbol, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, color)
+
+
+func _grid_to_local_center(cell: Vector2i) -> Vector2:
+	var cell_world: Vector2 = grid_to_world(cell)
+	return (cell_world - global_position) / scale + Vector2(cell_size * 0.5, cell_size * 0.5)
+
+
+func _marker_direction_key(dir: Vector2) -> String:
+	if dir.length_squared() <= 0.001:
+		return "0,0"
+	return "%d,%d" % [roundi(dir.x * 2.0), roundi(dir.y * 2.0)]
 
 
 func _compute_render_window(state) -> Rect2i:
@@ -333,15 +435,9 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 		}
 
 	var actor = state.grid.get_actor(cell)
+	var actor_tooltip := ""
 	if actor != null and (is_visible or reveal_all):
-		var char: String = String(actor.map_char())
-		if actor.team == "player":
-			char = _player_facing_char(actor.facing)
-		return {
-			"char": char,
-			"style": _actor_cell_style(actor, is_danger, is_preview_move, is_preview_attack),
-			"tooltip": _actor_tooltip(actor, is_danger, is_preview_move, is_preview_attack),
-		}
+		actor_tooltip = _actor_tooltip(actor, is_danger, is_preview_move, is_preview_attack)
 
 	if (is_visible or reveal_all) and state.items_at.has(cell):
 		var item_id := String(state.items_at[cell])
@@ -386,13 +482,17 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 		}
 
 	if is_danger:
-		return {
-			"char": "!",
-			"style": "BoardDangerCell",
-			"tooltip": "Threatened by enemy action",
-		}
+		var danger_cell := _describe_terrain_cell(cell, state, is_visible)
+		danger_cell["char"] = "!"
+		danger_cell["font_color"] = Color(1.0, 0.18, 0.22, 1.0)
+		danger_cell["border_color"] = Color(1.0, 0.14, 0.18, 0.98)
+		danger_cell["tooltip"] = (actor_tooltip + "\n" if not actor_tooltip.is_empty() else "") + "Threatened by enemy action"
+		return danger_cell
 
-	return _describe_terrain_cell(cell, state, is_visible)
+	var terrain_cell := _describe_terrain_cell(cell, state, is_visible)
+	if not actor_tooltip.is_empty():
+		terrain_cell["tooltip"] = "%s\n%s" % [actor_tooltip, String(terrain_cell.get("tooltip", ""))]
+	return terrain_cell
 
 
 func _describe_terrain_cell(cell: Vector2i, state, is_visible: bool) -> Dictionary:
@@ -420,9 +520,12 @@ func _describe_terrain_cell(cell: Vector2i, state, is_visible: bool) -> Dictiona
 			var context: String = _terrain_context_label(map_cell)
 			if not context.is_empty():
 				terrain_name = "%s / %s" % [terrain_name, context]
+	if state != null and bool(state.is_world_slice) and String(state.map_node_kind) == "boss" and walkable:
+		tile_texture_id = "boss_dungeon_floor"
+		terrain_name = "boss dungeon floor"
 
 	return {
-		"char": terrain_char if walkable or state.map_data != null else "#",
+		"char": "",
 		"style": style,
 		"tile_texture_id": tile_texture_id,
 		"fog_overlay_alpha": 0.0 if is_visible else EXPLORED_FOG_ALPHA,
@@ -872,19 +975,31 @@ func _textured_stylebox_for_palette(tile_texture_id: String, bg_color: Color, fo
 func _tile_texture_id_for_map_cell(map_cell) -> String:
 	if map_cell == null:
 		return ""
+	if map_cell.tags.has("boss_locked_door"):
+		return "poi_locked_door"
 	var poi_type: String = _poi_type_for_map_cell(map_cell)
 	if map_cell.tags.has("building_door"):
-		return "building_door"
+		match poi_type:
+			"challenge_entrance":
+				return "poi_locked_door"
+			"tavern":
+				return "poi_camp"
+			_:
+				return "building_door"
 	if map_cell.tags.has("building_floor"):
 		match poi_type:
+			"tavern":
+				return "poi_camp"
 			"challenge_entrance":
 				return "challenge_floor"
 			"ruin":
-				return "ruin_floor"
+				return "poi_ruins"
 			"shrine":
-				return "shrine_floor"
+				return "poi_watchtower"
 		return "building_floor"
 	if map_cell.tags.has("building_open_ground"):
+		if poi_type == "tavern":
+			return "poi_camp"
 		return "building_yard"
 	match int(map_cell.terrain_type):
 		1:
@@ -1077,12 +1192,14 @@ func _load_tile_texture_asset(tile_texture_id: String) -> Texture2D:
 		return _loaded_tile_textures[tile_texture_id]
 	var candidates: Array[String] = _tile_texture_asset_candidates(tile_texture_id)
 	for candidate in candidates:
-		var resource_path := TILE_TEXTURE_BASE_PATH + candidate + ".png"
+		var resource_path := candidate if candidate.begins_with("res://") else TILE_TEXTURE_BASE_PATH + candidate + ".png"
 		if not FileAccess.file_exists(resource_path):
 			continue
 		var image: Image = Image.load_from_file(ProjectSettings.globalize_path(resource_path))
 		if image == null or image.is_empty():
 			continue
+		if resource_path.contains("/art/imported/world/poi/"):
+			image = _crop_image_to_visible_bounds(image)
 		var texture := ImageTexture.create_from_image(image)
 		if texture != null:
 			_loaded_tile_textures[tile_texture_id] = texture
@@ -1093,22 +1210,76 @@ func _load_tile_texture_asset(tile_texture_id: String) -> Texture2D:
 
 func _tile_texture_asset_candidates(tile_texture_id: String) -> Array[String]:
 	match tile_texture_id:
+		"plain":
+			return ["res://art/imported/world/biomes/biome_grassland.png", "plain"]
+		"forest":
+			return ["res://art/imported/world/foliage/tall_grass_generated.png", "res://art/imported/world/biomes/biome_grassland.png", "forest", "plain"]
+		"tree":
+			return ["res://art/imported/world/poi/poi_watchtower.png", "tree", "forest"]
+		"rock":
+			return ["res://art/imported/world/poi/poi_ruins.png", "rock", "structure_wall"]
+		"statue":
+			return ["res://art/imported/world/poi/poi_ruins.png", "statue", "rock"]
+		"hill":
+			return ["res://art/imported/world/biomes/biome_distant_mountains.png", "hill", "mountain"]
+		"desert":
+			return ["res://art/imported/world/biomes/biome_quicksand.png", "res://art/imported/world/biomes/biome_desert.png", "desert"]
+		"swamp":
+			return ["res://art/imported/world/biomes/biome_wetland.png", "swamp"]
+		"mountain":
+			return ["res://art/imported/world/biomes/biome_distant_mountains.png", "mountain"]
+		"peak":
+			return ["res://art/imported/world/biomes/biome_snowfield.png", "peak"]
+		"river":
+			return ["res://art/imported/world/biomes/biome_wetland.png", "river", "water"]
+		"bridge":
+			return ["res://art/imported/world/biomes/biome_grassland.png", "bridge", "plain"]
 		"building_floor":
 			return ["tavern_floor", "building_floor", "plain"]
 		"building_door":
 			return ["tavern_door", "building_door", "building_floor"]
 		"building_yard":
-			return ["building_yard", "plain"]
+			return ["res://art/imported/world/biomes/biome_grassland.png", "building_yard", "plain"]
+		"poi_locked_door":
+			return ["res://art/imported/world/poi/poi_locked_door.png", "building_door"]
+		"poi_ruins":
+			return ["res://art/imported/world/poi/poi_ruins.png", "ruin_floor", "building_floor"]
+		"poi_watchtower":
+			return ["res://art/imported/world/poi/poi_watchtower.png", "shrine_floor", "building_floor"]
+		"poi_camp":
+			return ["res://art/imported/world/poi/poi_camp.png", "building_floor", "building_yard"]
 		"structure_wall":
-			return ["structure_wall"]
+			return ["res://art/imported/world/poi/poi_ruins.png", "structure_wall"]
 		"challenge_floor":
-			return ["challenge_floor", "building_floor"]
+			return ["res://art/imported/world/biomes/biome_desert.png", "challenge_floor", "building_floor"]
 		"ruin_floor":
 			return ["ruin_floor", "building_floor"]
 		"shrine_floor":
 			return ["shrine_floor", "building_floor"]
+		"boss_dungeon_floor":
+			return ["res://art/imported/world/dungeon/dungeon_concept.jpg", "challenge_floor"]
 		_:
 			return [tile_texture_id]
+func _crop_image_to_visible_bounds(source_image: Image) -> Image:
+	if source_image == null or source_image.is_empty():
+		return source_image
+	var min_x := source_image.get_width()
+	var min_y := source_image.get_height()
+	var max_x := -1
+	var max_y := -1
+	for y in range(source_image.get_height()):
+		for x in range(source_image.get_width()):
+			if source_image.get_pixel(x, y).a <= 0.01:
+				continue
+			min_x = mini(min_x, x)
+			min_y = mini(min_y, y)
+			max_x = maxi(max_x, x)
+			max_y = maxi(max_y, y)
+	if max_x < min_x or max_y < min_y:
+		return source_image
+	var cropped := Image.create(max_x - min_x + 1, max_y - min_y + 1, false, Image.FORMAT_RGBA8)
+	cropped.blit_rect(source_image, Rect2i(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1), Vector2i.ZERO)
+	return cropped
 
 
 func _fill_rect(image: Image, rect: Rect2i, color: Color) -> void:

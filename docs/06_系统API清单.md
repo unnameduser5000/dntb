@@ -77,7 +77,7 @@
 {"moved": bool, "token_id": String}
 ```
 
-用途：在键槽与 `POOL` 之间移动 token。
+用途：在键槽与 `POOL` 之间移动 token。当前每个键位有 2 个独立栏位、每栏只允许放 1 个 token；从 `POOL` 拖到键槽会消耗 1 个库存。
 
 #### `add_token_to_pool(token_id, allow_duplicates := false)`
 
@@ -262,9 +262,9 @@
 
 ### 4.4 当前新增怪物相关能力
 
-- `wisp`
+- `wisp`：当前展示名与视觉口径为游光史莱姆（无害）
   - 低威胁怪，`atk = 0`
-- `line_warden`
+- `line_warden`：当前展示名与视觉口径为线卫史莱姆
   - 直线压迫怪，使用 `line_keeper`
 
 ## 5. `WorldSliceController.gd`

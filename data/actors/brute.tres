@@ -6,7 +6,7 @@
 [resource]
 script = ExtResource("1_brute")
 id = "brute"
-display_name = "重甲怪"
+display_name = "厚甲史莱姆"
 max_hp = 4
 atk = 2
 move_range = 1
@@ -14,5 +14,7 @@ map_char = "B"
 team = "enemy"
 ai_type = "melee_chaser"
 default_drop_key = ""
+drop_tier = 2
 view_scene = ExtResource("2_view")
+view_scale = Vector2(1.18, 1.18)
 color = Color(0.9, 0.28, 0.22, 1)

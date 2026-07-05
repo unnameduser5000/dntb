@@ -3,69 +3,50 @@ extends "res://scripts/view/ActorView.gd"
 
 @export var install_debug_frames_on_ready := true
 static var _debug_player_frames_cache: SpriteFrames
+static var _imported_player_clean_frames_cache: SpriteFrames
+static var _imported_player_corrupted_frames_cache: SpriteFrames
 @onready var facing_label: Label = $FacingLabel
+
+const PLAYER_FRONT_01_PATH := "res://art/imported/characters/player/player_front_01.png"
+const PLAYER_FRONT_02_PATH := "res://art/imported/characters/player/player_front_02.png"
+const PLAYER_SIDE_01_PATH := "res://art/imported/characters/player/player_side_01.png"
+const PLAYER_SIDE_02_PATH := "res://art/imported/characters/player/player_side_02.png"
+const PLAYER_BACK_01_PATH := "res://art/imported/characters/player/player_back_01.png"
+const PLAYER_BACK_02_PATH := "res://art/imported/characters/player/player_back_02.png"
+const PLAYER_TEXTURE_BOX_SIZE := 40
 
 
 func _ready() -> void:
 	super()
 	_ensure_visual_nodes()
-	_setup_facing_box()
 	if install_debug_frames_on_ready and not _has_sprite_visual() and sprite != null:
-		if _debug_player_frames_cache == null:
-			_debug_player_frames_cache = _build_debug_player_frames()
-		sprite.sprite_frames = _debug_player_frames_cache
+		_ensure_imported_frames()
+		sprite.sprite_frames = _imported_player_clean_frames_cache
 		update_visual()
 
 
 func update_visual() -> void:
+	_ensure_imported_frames()
+	if install_debug_frames_on_ready and sprite != null:
+		sprite.sprite_frames = _imported_player_corrupted_frames_cache if _should_use_corrupted_visual() else _imported_player_clean_frames_cache
 	super()
-	_update_facing_label()
+	if facing_label != null:
+		facing_label.visible = false
 
 
 func _sprite_tint(_actor_color: Color) -> Color:
 	return Color.WHITE
 
 
-func _update_facing_label() -> void:
-	if facing_label == null:
+func _apply_sprite_facing(animation_name: StringName) -> void:
+	super._apply_sprite_facing(animation_name)
+	if sprite == null:
 		return
-	facing_label.position = Vector2(-12, -12)
-	facing_label.custom_minimum_size = Vector2(24, 24)
-	facing_label.visible = actor_state != null
-	if actor_state == null:
-		facing_label.text = ""
-		return
-	facing_label.text = _facing_arrow_text()
-
-
-func _facing_arrow_text() -> String:
-	if actor_state == null:
-		return ""
-	if actor_state.facing == Vector2i.UP:
-		return "^"
-	if actor_state.facing == Vector2i.DOWN:
-		return "v"
-	if actor_state.facing == Vector2i.LEFT:
-		return "<"
-	return ">"
-
-
-func _setup_facing_box() -> void:
-	if facing_label == null:
-		return
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.06, 0.09, 0.1, 0.62)
-	box.border_color = Color(0.66, 0.9, 0.95, 0.88)
-	box.border_width_left = 1
-	box.border_width_top = 1
-	box.border_width_right = 1
-	box.border_width_bottom = 1
-	box.corner_radius_top_left = 2
-	box.corner_radius_top_right = 2
-	box.corner_radius_bottom_left = 2
-	box.corner_radius_bottom_right = 2
-	facing_label.add_theme_stylebox_override("normal", box)
-	facing_label.add_theme_color_override("font_color", Color(0.92, 0.99, 1.0, 1.0))
+	var animation_label := String(animation_name)
+	if animation_label.ends_with("_right"):
+		sprite.flip_h = true
+	elif animation_label.ends_with("_left"):
+		sprite.flip_h = false
 
 
 func _build_debug_player_frames() -> SpriteFrames:
@@ -165,3 +146,81 @@ func _make_player_frame(primary: Color, accent: Color, variant: int) -> Texture2
 			image.set_pixel(x, body_bottom + 4, accent.darkened(0.45))
 
 	return ImageTexture.create_from_image(image)
+
+
+func _ensure_imported_frames() -> void:
+	if _imported_player_clean_frames_cache == null:
+		_imported_player_clean_frames_cache = _build_imported_player_frames(false)
+	if _imported_player_corrupted_frames_cache == null:
+		_imported_player_corrupted_frames_cache = _build_imported_player_frames(true)
+
+
+func _build_imported_player_frames(use_corrupted_set: bool) -> SpriteFrames:
+	var frames := SpriteFrames.new()
+	var front := _load_imported_texture(PLAYER_FRONT_02_PATH if use_corrupted_set else PLAYER_FRONT_01_PATH)
+	var side := _load_imported_texture(PLAYER_SIDE_02_PATH if use_corrupted_set else PLAYER_SIDE_01_PATH)
+	var back := _load_imported_texture(PLAYER_BACK_02_PATH if use_corrupted_set else PLAYER_BACK_01_PATH)
+	_add_animation(frames, &"idle_down", [front], true, 4.0)
+	_add_animation(frames, &"move_down", [front], true, 7.0)
+	_add_animation(frames, &"action_start_down", [front], false, 10.0)
+	_add_animation(frames, &"hit_down", [front], false, 10.0)
+	_add_animation(frames, &"die_down", [front], false, 8.0)
+
+	_add_animation(frames, &"idle_up", [back], true, 4.0)
+	_add_animation(frames, &"move_up", [back], true, 7.0)
+	_add_animation(frames, &"action_start_up", [back], false, 10.0)
+	_add_animation(frames, &"hit_up", [back], false, 10.0)
+	_add_animation(frames, &"die_up", [back], false, 8.0)
+
+	_add_animation(frames, &"idle_right", [side], true, 4.0)
+	_add_animation(frames, &"move_right", [side], true, 7.0)
+	_add_animation(frames, &"action_start_right", [side], false, 10.0)
+	_add_animation(frames, &"hit_right", [side], false, 10.0)
+	_add_animation(frames, &"die_right", [side], false, 8.0)
+
+	_add_animation(frames, &"idle_left", [side], true, 4.0)
+	_add_animation(frames, &"move_left", [side], true, 7.0)
+	_add_animation(frames, &"action_start_left", [side], false, 10.0)
+	_add_animation(frames, &"hit_left", [side], false, 10.0)
+	_add_animation(frames, &"die_left", [side], false, 8.0)
+	return frames
+
+
+func _should_use_corrupted_visual() -> bool:
+	if actor_state == null:
+		return false
+	var max_san_value: int = maxi(1, int(actor_state.max_san))
+	return int(actor_state.san) * 2 <= max_san_value
+
+
+func _load_imported_texture(resource_path: String) -> Texture2D:
+	if resource_path.is_empty() or not FileAccess.file_exists(resource_path):
+		return null
+	var image: Image = Image.load_from_file(ProjectSettings.globalize_path(resource_path))
+	if image == null or image.is_empty():
+		return null
+	return _texture_fitted_to_box(image, PLAYER_TEXTURE_BOX_SIZE)
+
+
+func _texture_fitted_to_box(source_image: Image, box_size: int) -> Texture2D:
+	if source_image == null or source_image.is_empty() or box_size <= 0:
+		return null
+	var working := source_image.duplicate()
+	var max_dimension: int = maxi(working.get_width(), working.get_height())
+	if max_dimension <= 0:
+		return null
+	var scale_ratio: float = minf(float(box_size) / float(max_dimension), 1.0)
+	var scaled_size := Vector2i(
+		maxi(1, int(round(float(working.get_width()) * scale_ratio))),
+		maxi(1, int(round(float(working.get_height()) * scale_ratio)))
+	)
+	if scaled_size.x != working.get_width() or scaled_size.y != working.get_height():
+		working.resize(scaled_size.x, scaled_size.y)
+	var canvas := Image.create(box_size, box_size, false, Image.FORMAT_RGBA8)
+	canvas.fill(Color(0, 0, 0, 0))
+	var paste_position := Vector2i(
+		int((box_size - scaled_size.x) / 2),
+		int((box_size - scaled_size.y) / 2)
+	)
+	canvas.blit_rect(working, Rect2i(Vector2i.ZERO, scaled_size), paste_position)
+	return ImageTexture.create_from_image(canvas)

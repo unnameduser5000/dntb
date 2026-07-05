@@ -53,6 +53,7 @@ var world_enemy_stream_last_despawned: int = 0
 var world_enemy_stream_spawn_total: int = 0
 var world_enemy_stream_despawn_total: int = 0
 var world_enemy_stream_last_reason: String = ""
+var world_enemy_spawn_profile: String = "calm"
 var world_npc_positions: Dictionary = {}
 var world_npc_display_names: Dictionary = {}
 var tracked_world_npc_id: String = ""
