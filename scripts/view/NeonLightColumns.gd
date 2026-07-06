@@ -6,7 +6,7 @@ extends Control
 
 @export var column_width: float = 24.0
 @export var column_gap: float = 12.0
-@export var max_height_ratio: float = 0.55
+@export var max_height_ratio: float = 0.20
 @export var rise_speed: float = 18.0
 @export var fall_speed: float = 8.0
 @export var base_alpha: float = 0.22
