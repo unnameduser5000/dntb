@@ -4,7 +4,6 @@ extends Control
 ## Music-reactive neon light columns for the main menu.
 ## Sits between the background and the menu panel.
 
-@export var column_count: int = 16
 @export var column_width: float = 24.0
 @export var column_gap: float = 12.0
 @export var max_height_ratio: float = 0.55
@@ -24,6 +23,7 @@ var _columns: Array[ColorRect] = []
 var _energies: Array[float] = []
 var _spectrum: AudioEffectSpectrumAnalyzerInstance = null
 var _shader_material: ShaderMaterial = null
+var _column_count: int = 0
 
 
 func _ready() -> void:
@@ -39,8 +39,8 @@ func _ready() -> void:
 	_shader_material.shader = load("res://scenes/ui/shaders/NeonColumnGlow.gdshader")
 
 	_setup_spectrum_analyzer()
-	_create_columns()
-	resized.connect(_layout_columns)
+	_update_column_count()
+	resized.connect(_update_column_count)
 	_layout_columns()
 
 
@@ -68,7 +68,7 @@ func _create_columns() -> void:
 	_columns.clear()
 	_energies.clear()
 
-	for i in range(column_count):
+	for i in range(_column_count):
 		var column := ColorRect.new()
 		column.name = "Column%d" % i
 		column.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -79,12 +79,24 @@ func _create_columns() -> void:
 		_energies.append(0.0)
 
 
+func _update_column_count() -> void:
+	var available_width := size.x
+	var needed_for_one := column_width + column_gap
+	var count := int(floorf((available_width + column_gap) / needed_for_one))
+	count = maxi(count, 8)
+	if count == _column_count:
+		return
+	_column_count = count
+	_create_columns()
+	_layout_columns()
+
+
 func _layout_columns() -> void:
 	if _columns.is_empty():
 		return
-	var total_width := column_count * column_width + maxf(0, column_count - 1) * column_gap
+	var total_width := _column_count * column_width + maxf(0, _column_count - 1) * column_gap
 	var start_x := (size.x - total_width) * 0.5
-	for i in range(column_count):
+	for i in range(_column_count):
 		var column := _columns[i]
 		column.position = Vector2(start_x + i * (column_width + column_gap), size.y)
 		column.size = Vector2(column_width, 0.0)
@@ -100,9 +112,9 @@ func _process(delta: float) -> void:
 	var log_min := log(min_freq)
 	var log_max := log(max_freq)
 
-	for i in range(column_count):
-		var t0 := float(i) / column_count
-		var t1 := float(i + 1) / column_count
+	for i in range(_column_count):
+		var t0 := float(i) / _column_count
+		var t1 := float(i + 1) / _column_count
 		var f0 := exp(log_min + (log_max - log_min) * t0)
 		var f1 := exp(log_min + (log_max - log_min) * t1)
 		var mag := _spectrum.get_magnitude_for_frequency_range(f0, f1)
