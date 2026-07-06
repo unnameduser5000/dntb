@@ -563,6 +563,9 @@ func start_world_slice_debug() -> void:
 	_refresh_world_visibility("init")
 	_refresh_views()
 	set_game_visible(true)
+	if tile_reveal_loading_screen != null and tile_reveal_loading_screen.visible:
+		tile_reveal_loading_screen.set_progress(1.0)
+		await get_tree().create_timer(1.0).timeout
 	if tile_reveal_loading_screen != null:
 		tile_reveal_loading_screen.hide_loading()
 	elif world_loading_overlay != null:

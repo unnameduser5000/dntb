@@ -21,6 +21,8 @@ var _elapsed: float = 0.0
 var _source_image: Texture2D = null
 var _is_revealing: bool = false
 var _progress_ratio: float = 0.0
+var _complete_delay: float = 1.0
+var _complete_elapsed: float = 0.0
 
 @onready var _progress_label: Label = %ProgressLabel
 
@@ -64,6 +66,7 @@ func _reset_and_start() -> void:
 	_tile_indices.clear()
 	_revealed_count = 0
 	_elapsed = 0.0
+	_complete_elapsed = 0.0
 	_is_revealing = true
 	visible = true
 
@@ -140,8 +143,10 @@ func _process(delta: float) -> void:
 	_elapsed += delta
 	var duration := reveal_duration + TILE_COUNT * reveal_stagger
 	var target_revealed := int(TILE_COUNT * clampf(_elapsed / duration, 0.0, 1.0))
-	if _progress_ratio > 0.0 and _progress_ratio < 1.0:
+	if _progress_ratio >= 0.0 and _progress_ratio < 1.0:
 		target_revealed = mini(target_revealed, int(TILE_COUNT * _progress_ratio))
+	else:
+		target_revealed = TILE_COUNT
 	target_revealed = mini(target_revealed, TILE_COUNT)
 
 	while _revealed_count < target_revealed:
@@ -150,7 +155,13 @@ func _process(delta: float) -> void:
 		_revealed_count += 1
 
 	if _revealed_count >= TILE_COUNT:
-		_is_revealing = false
+		_complete_elapsed += delta
+		if _complete_elapsed >= _complete_delay:
+			_is_revealing = false
+
+
+func is_complete() -> bool:
+	return _revealed_count >= TILE_COUNT and _complete_elapsed >= _complete_delay
 
 
 func _update_progress_label() -> void:
