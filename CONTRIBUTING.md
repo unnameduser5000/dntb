@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping with Dungeon Arranger (`DNTB`). The project is still a prototype, so the best contributions are small, readable, and easy to verify.
+Thanks for helping with Dungeon Arranger: Forbidden Keys (`DNTB`). The project is still a prototype, so the best contributions are small, readable, and easy to verify.
 
 ## Setup
 

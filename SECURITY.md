@@ -1,6 +1,6 @@
 # Security Policy
 
-Dungeon Arranger (`DNTB`) is a local Godot game prototype and does not currently operate a hosted service.
+Dungeon Arranger: Forbidden Keys (`DNTB`) is a local Godot game prototype and does not currently operate a hosted service.
 
 ## Reporting a vulnerability
 

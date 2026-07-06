@@ -2,7 +2,7 @@
 
 ## Our pledge
 
-We want Dungeon Arranger (`DNTB`) to be a friendly, low-drama place to collaborate. Be respectful, assume good intent, and make room for people who are learning.
+We want Dungeon Arranger: Forbidden Keys (`DNTB`) to be a friendly, low-drama place to collaborate. Be respectful, assume good intent, and make room for people who are learning.
 
 ## Expected behavior
 
