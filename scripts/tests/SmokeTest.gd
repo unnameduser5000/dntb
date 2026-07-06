@@ -292,6 +292,19 @@ func _init() -> void:
 	game.state.turn_count = 5
 	game._on_turn_finished()
 	_require(game._hidden_boss_locked_keys.size() == 1, "phase two increases the lock cadence to every 5 turns")
+	var boss_actor = null
+	for boss_enemy in game.state.get_alive_enemies():
+		if boss_enemy != null and boss_enemy.def != null and String(boss_enemy.def.id) == "boss":
+			boss_actor = boss_enemy
+			break
+	if boss_actor != null:
+		game.state.player.grid_pos = boss_actor.grid_pos + Vector2i(0, 5)
+		game.state.player.facing = Vector2i.UP
+		var boss_jump_action = game.enemy_planner.decide_enemy_action(boss_actor, game.state)
+		_require(boss_jump_action != null and boss_jump_action.def != null and boss_jump_action.def.id == "jump", "boss_tactician uses jump to rapidly close a long gap")
+		game.state.player.grid_pos = boss_actor.grid_pos + Vector2i(0, 4)
+		var boss_dash_action = game.enemy_planner.decide_enemy_action(boss_actor, game.state)
+		_require(boss_dash_action != null and boss_dash_action.def != null and ["dash", "jump"].has(String(boss_dash_action.def.id)), "boss_tactician uses an aggressive gap closer at medium range")
 
 	await _start_seeded_combat_run(game, "action-trace-turn")
 	_disable_enemies(game)
@@ -830,6 +843,8 @@ func _init() -> void:
 	world_game._refresh_views()
 	await process_frame
 	world_game._on_auto_advance_mode_changed(world_game.battle_ui.AUTO_FAST)
+	_require(world_game.turn_controller.auto_advance_delay > 0.0, "world slice test enables auto mode before poi autopath click")
+	_require(_count_visible_world_slice_enemies(world_game.state) == 0, "world slice has no visible enemies before the poi autopath click test")
 	world_game._on_boss_poi_requested()
 	await process_frame
 	_require(world_game._world_autopath_active, "world slice starts autopath from poi click while auto mode is enabled")

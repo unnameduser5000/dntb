@@ -134,16 +134,30 @@ func _decide_slime_god(enemy, state):
 	var spin_action = attack_actions_by_id.get("spin_axe")
 	var thrust_action = attack_actions_by_id.get("charge_thrust")
 	var bind_action = attack_actions_by_id.get("slime_bind")
+	var dash_action = attack_actions_by_id.get("dash")
+	var jump_action = attack_actions_by_id.get("jump")
 	if spin_action != null and _get_attack_cells(enemy.grid_pos, Vector2i.UP, spin_action, state.grid).has(state.player.grid_pos):
 		return _make_specific_attack(enemy, Vector2i.UP, spin_action)
-	if distance <= 2 and thrust_action != null:
-		var thrust_dir := _get_attack_dir_for_action(enemy, state, thrust_action)
-		if thrust_dir != Vector2i.ZERO:
-			return _make_specific_attack(enemy, thrust_dir, thrust_action)
-	if distance <= 3 and bind_action != null:
+	if bind_action != null and distance <= 3:
 		var bind_dir := _get_attack_dir_for_action(enemy, state, bind_action)
 		if bind_dir != Vector2i.ZERO:
 			return _make_specific_attack(enemy, bind_dir, bind_action)
+	if thrust_action != null and distance <= 3:
+		var thrust_dir := _get_attack_dir_for_action(enemy, state, thrust_action)
+		if thrust_dir != Vector2i.ZERO:
+			return _make_specific_attack(enemy, thrust_dir, thrust_action)
+	if dash_action != null and distance >= 2 and distance <= 5:
+		var dash_dir := _line_step_toward(enemy.grid_pos, state.player.grid_pos)
+		if dash_dir != Vector2i.ZERO and _can_dash_land(enemy.grid_pos, dash_dir, state):
+			return _make_specific_attack(enemy, dash_dir, dash_action)
+	if jump_action != null and distance >= 4:
+		var jump_landing_cell: Vector2i = state.player.grid_pos - state.player.facing
+		if jump_landing_cell == enemy.grid_pos or not _can_jump_behind_target(enemy, jump_landing_cell, state):
+			jump_landing_cell = state.player.grid_pos
+		if jump_landing_cell != enemy.grid_pos and _can_enemy_enter_cell(state, jump_landing_cell):
+			var jump_dir: Vector2i = jump_landing_cell - enemy.grid_pos
+			if absi(jump_dir.x) + absi(jump_dir.y) <= max(1, int(jump_action.range)):
+				return _make_specific_attack(enemy, jump_dir.sign(), jump_action)
 	if move_action == null:
 		return null
 	var move_dir := _get_path_step_towards(enemy.grid_pos, state.player.grid_pos, state.grid, state)
