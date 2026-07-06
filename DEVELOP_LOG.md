@@ -1,5 +1,31 @@
 # Develop Log
 
+## 2026-07-06 Randomized level-up permanent buff offers
+
+- Changed level-up permanent buff generation in `scripts/view/Game.gd` from a
+  fixed top-of-list selection to a random 3-choice draw from the full modifier
+  pool.
+- The draw now uses `RandomService.shuffle_copy()` so the offer order remains
+  deterministic per run seed and save/load flow.
+- Rule update: one level-up offer cannot contain the same permanent buff twice,
+  but later level-ups are allowed to roll already owned permanent buffs again so
+  the effect can stack.
+- Updated `scripts/tests/SmokeTest.gd` to stop asserting a fixed first reward;
+  the smoke test now verifies that level-up rewards:
+  - always return 3 choices
+  - come from the known modifier pool
+  - do not duplicate a modifier within a single offer
+  - can roll an already owned modifier again across later offers
+- Updated `docs/01_系统设计文档.md` and `docs/03_测试与验证.md` to match the new
+  permanent-buff selection rule.
+- Follow-up: increased new-run seed entropy so repeated quick restarts are less
+  likely to reuse the same permanent-buff offer sequence by accident.
+- `Game.start_run()` and `start_world_slice_debug()` now generate and propagate a
+  high-precision runtime seed based on unix time plus `Time.get_ticks_usec()`.
+- `WorldSliceController._make_random_seed()` now also includes microsecond ticks
+  in addition to the monotonic counter, reducing same-second seed collisions for
+  quick `F6` world regenerations.
+
 ## 2026-07-06 CI smoke-test timeout fix
 
 - Symptom: every GitHub Actions `Smoke Test` run on `main` hung until manually

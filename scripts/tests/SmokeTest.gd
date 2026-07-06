@@ -1321,7 +1321,9 @@ func _init() -> void:
 	_require(game.state.player.max_hp == max_hp_before_level_up + 1, "leveling up increases max hp")
 	_require(game.state.player.hp >= hp_before_level_up, "leveling up restores hp immediately")
 	_require(game._current_rewards.size() == 3, "level up offers three permanent buff choices")
-	_require(String(game._current_rewards[0].get("name", "")).contains("回响刃"), "first level-up reward set starts from the modifier reward pool")
+	_require(_reward_list_has_kind(game._current_rewards, "add_modifier"), "level-up reward set includes permanent modifier choices")
+	_require(_reward_list_modifiers_are_distinct(game._current_rewards), "level-up reward modifiers are distinct within one offer")
+	_require(_reward_list_modifiers_are_known(game._current_rewards, game._modifier_by_id), "level-up reward modifiers come from the known permanent modifier pool")
 	game._on_reward_chosen(0)
 	await process_frame
 	_require(game._run_modifier_ids.size() >= 1, "choosing a level-up reward grants a permanent modifier")
@@ -1331,6 +1333,7 @@ func _init() -> void:
 	var late_level_rewards: Array = game._build_level_up_rewards()
 	_require(late_level_rewards.size() == 3, "later level-up reward pool still offers three choices")
 	_require(_reward_list_has_kind(late_level_rewards, "add_modifier"), "later level-up rewards still include permanent modifier choices")
+	_require(_reward_list_modifiers_are_distinct(late_level_rewards), "later level-up offers do not repeat the same modifier in one roll")
 	game._run_modifier_ids.clear()
 	game._run_modifier_ids.append("echo_strike")
 	game._run_modifier_ids.append("force_prism")
@@ -1340,6 +1343,14 @@ func _init() -> void:
 	var richer_level_rewards: Array = game._build_level_up_rewards()
 	_require(richer_level_rewards.size() == 3, "expanded modifier roster still returns three level-up choices")
 	_require(_reward_list_has_kind(richer_level_rewards, "add_modifier"), "expanded modifier roster still offers modifier choices even when some are already owned")
+	_require(_reward_list_modifiers_are_distinct(richer_level_rewards), "expanded modifier roster still keeps one offer free of duplicate modifiers")
+	var duplicate_seen := false
+	for roll_index in range(12):
+		var repeated_roll: Array = game._build_level_up_rewards()
+		if _reward_list_contains_modifier_id(repeated_roll, "echo_strike"):
+			duplicate_seen = true
+			break
+	_require(duplicate_seen, "owned permanent modifiers can appear again in later random level-up offers")
 
 	var achievement_service = root.get_node_or_null("/root/AchievementService")
 	_require(achievement_service != null, "achievement service autoload exists")
@@ -1502,6 +1513,44 @@ func _world_slice_cell_hugs_wall(map_data, cell: Vector2i) -> bool:
 func _reward_list_has_kind(rewards: Array, kind: String) -> bool:
 	for reward in rewards:
 		if String(reward.get("kind", "")) == kind:
+			return true
+	return false
+
+
+func _reward_list_modifiers_are_distinct(rewards: Array) -> bool:
+	var seen: Dictionary = {}
+	for reward in rewards:
+		if String(reward.get("kind", "")) != "add_modifier":
+			continue
+		var modifier = reward.get("modifier")
+		if modifier == null:
+			return false
+		var modifier_id := String(modifier.id)
+		if modifier_id.is_empty() or seen.has(modifier_id):
+			return false
+		seen[modifier_id] = true
+	return true
+
+
+func _reward_list_modifiers_are_known(rewards: Array, modifier_by_id: Dictionary) -> bool:
+	for reward in rewards:
+		if String(reward.get("kind", "")) != "add_modifier":
+			continue
+		var modifier = reward.get("modifier")
+		if modifier == null:
+			return false
+		var modifier_id := String(modifier.id)
+		if modifier_id.is_empty() or not modifier_by_id.has(modifier_id):
+			return false
+	return true
+
+
+func _reward_list_contains_modifier_id(rewards: Array, modifier_id: String) -> bool:
+	for reward in rewards:
+		if String(reward.get("kind", "")) != "add_modifier":
+			continue
+		var modifier = reward.get("modifier")
+		if modifier != null and String(modifier.id) == modifier_id:
 			return true
 	return false
 

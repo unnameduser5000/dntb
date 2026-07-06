@@ -500,12 +500,12 @@ func start_run() -> void:
 	elif world_loading_overlay != null:
 		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
 	await get_tree().process_frame
-	start_world_slice_debug()
+	start_world_slice_debug(_make_runtime_seed("world_slice_run"))
 	_play_music_for_state()
 
 
 func start_run_legacy() -> void:
-	_start_new_run(Time.get_datetime_string_from_system())
+	_start_new_run(_make_runtime_seed("legacy_run"))
 
 
 func start_room_chain_legacy() -> void:
@@ -515,10 +515,14 @@ func start_seeded_run(seed_value) -> void:
 	_start_new_run(seed_value)
 
 
-func start_world_slice_debug() -> void:
+func start_world_slice_debug(seed_value: String = "") -> void:
 	_ensure_action_helpers()
 	_world_npc_interaction_counts.clear()
 	_world_ruin_claims.clear()
+	_run_seed = seed_value if not seed_value.is_empty() else _make_runtime_seed("world_slice_debug")
+	var random_service = get_node_or_null("/root/RandomService")
+	if random_service != null:
+		random_service.set_seed(_run_seed)
 	if state != null:
 		state.player_xp = 0
 		state.player_level = 1
@@ -536,7 +540,7 @@ func start_world_slice_debug() -> void:
 	_hidden_boss_locked_keys.clear()
 	_slime_god_phase_two_triggered = false
 	_close_world_npc_dialogue(false)
-	state = await _world_slice_controller.create_demo_state_with_progress("", Callable(self, "_on_world_generation_progress")) if _world_slice_controller != null else null
+	state = await _world_slice_controller.create_demo_state_with_progress(_run_seed, Callable(self, "_on_world_generation_progress")) if _world_slice_controller != null else null
 	if state == null:
 		return
 	_current_rewards = []
@@ -570,6 +574,10 @@ func start_world_slice_debug() -> void:
 	elif world_loading_overlay != null:
 		world_loading_overlay.hide_loading()
 	_play_music_for_state()
+
+
+func _make_runtime_seed(prefix: String = "run") -> String:
+	return "%s_%d_%d" % [prefix, int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
 
 
 func _on_world_generation_progress(progress_data: Dictionary) -> void:
@@ -2117,8 +2125,7 @@ func _build_rewards() -> Array:
 
 
 func _build_level_up_rewards() -> Array:
-	var rewards: Array = []
-	for modifier in [
+	var modifier_pool := [
 		MOD_ECHO_STRIKE,
 		MOD_FORCE_PRISM,
 		MOD_LONG_DRAW,
@@ -2129,7 +2136,19 @@ func _build_level_up_rewards() -> Array:
 		MOD_LANCER_FOCUS,
 		MOD_CYCLONE_FURY,
 		MOD_BATTLE_TRANCE,
-	]:
+	]
+	var random_service = get_node_or_null("/root/RandomService")
+	var selected_modifiers: Array = []
+	while not modifier_pool.is_empty() and selected_modifiers.size() < 3:
+		var chosen_index := 0
+		if random_service != null and random_service.has_method("randi_range_value"):
+			chosen_index = int(random_service.randi_range_value(0, modifier_pool.size() - 1))
+		else:
+			chosen_index = randi_range(0, modifier_pool.size() - 1)
+		selected_modifiers.append(modifier_pool[chosen_index])
+		modifier_pool.remove_at(chosen_index)
+	var rewards: Array = []
+	for modifier in selected_modifiers:
 		if modifier == null:
 			continue
 		var modifier_id := String(modifier.id)

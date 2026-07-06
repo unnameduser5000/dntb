@@ -981,4 +981,4 @@ func _build_default_map_config():
 
 func _make_random_seed() -> String:
 	_seed_counter += 1
-	return "world_slice_%d_%d" % [int(Time.get_unix_time_from_system()), _seed_counter]
+	return "world_slice_%d_%d_%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec(), _seed_counter]
