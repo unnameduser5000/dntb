@@ -6,10 +6,13 @@ signal continue_requested
 signal settings_requested
 signal quit_requested
 
+const PRIVACY_URL := "https://www.yunbu.me/service/yunbu/privacy.html"
+
 @onready var start_button: Button = %StartButton
 @onready var continue_button: Button = %ContinueButton
 @onready var settings_button: Button = %SettingsButton
 @onready var quit_button: Button = %QuitButton
+@onready var privacy_button: Button = %PrivacyButton
 @onready var title_texture: TextureRect = $Panel/Margin/Content/TitleCenter/Title
 
 const REFERENCE_VIEWPORT_HEIGHT: float = 1080.0
@@ -21,6 +24,7 @@ func _ready() -> void:
 	continue_button.pressed.connect(continue_requested.emit)
 	settings_button.pressed.connect(settings_requested.emit)
 	quit_button.pressed.connect(quit_requested.emit)
+	privacy_button.pressed.connect(_open_privacy_url)
 
 	get_tree().root.size_changed.connect(_update_title_scale)
 	_update_title_scale()
@@ -45,3 +49,7 @@ func _update_title_scale() -> void:
 	var target_size: Vector2 = source_size * scale_factor
 	title_texture.custom_minimum_size = target_size
 	title_texture.size = target_size
+
+
+func _open_privacy_url() -> void:
+	OS.shell_open(PRIVACY_URL)
