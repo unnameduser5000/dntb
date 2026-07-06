@@ -2678,8 +2678,8 @@ func get_save_data() -> Dictionary:
 		"run_regen_progress": _run_regen_progress,
 		"run_seed": _run_seed,
 		"run_modifier_ids": _run_modifier_ids,
-		"player_grid_pos": player_cell,
-		"player_facing": player_facing,
+		"player_grid_pos": {"x": player_cell.x, "y": player_cell.y},
+		"player_facing": {"x": player_facing.x, "y": player_facing.y},
 		"player_xp": player_xp,
 		"player_level": player_level,
 		"world_enemy_spawn_profile": world_enemy_spawn_profile,
@@ -2789,7 +2789,7 @@ func _restore_world_slice_state_from_save(data: Dictionary) -> void:
 func _restore_saved_player_transform(data: Dictionary) -> void:
 	if state == null or state.player == null or state.grid == null or state.map_data == null:
 		return
-	var saved_cell := Vector2i(data.get("player_grid_pos", state.player.grid_pos))
+	var saved_cell := _vector2i_from_save_value(data.get("player_grid_pos", state.player.grid_pos), state.player.grid_pos)
 	if saved_cell != state.player.grid_pos and state.map_data.is_walkable(saved_cell):
 		var occupant = state.grid.get_actor(saved_cell)
 		if occupant != null and occupant != state.player:
@@ -2797,6 +2797,16 @@ func _restore_saved_player_transform(data: Dictionary) -> void:
 			state.actors.erase(occupant)
 		if state.grid.can_enter(saved_cell):
 			state.grid.move_actor(state.player, saved_cell)
-	var saved_facing := Vector2i(data.get("player_facing", state.player.facing))
+	var saved_facing := _vector2i_from_save_value(data.get("player_facing", state.player.facing), state.player.facing)
 	if saved_facing != Vector2i.ZERO:
 		state.player.facing = saved_facing
+
+
+func _vector2i_from_save_value(value, fallback: Vector2i = Vector2i.ZERO) -> Vector2i:
+	if value is Vector2i:
+		return value
+	if typeof(value) == TYPE_DICTIONARY:
+		return Vector2i(int(value.get("x", fallback.x)), int(value.get("y", fallback.y)))
+	if value is Array and value.size() >= 2:
+		return Vector2i(int(value[0]), int(value[1]))
+	return fallback
