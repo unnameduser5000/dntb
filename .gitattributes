@@ -30,3 +30,4 @@
 *.woff2 binary
 *.aseprite binary
 *.psd binary
+*.mp3 filter=lfs diff=lfs merge=lfs -text
