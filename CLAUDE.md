@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Dungeon Arranger: Forbidden Keys (`DNTB`) is a Godot 4 tactical roguelite prototype. The core idea is programmable direction keys: the player edits twelve physical key slots (`QWER / ASDF / ZXCV`) at camp/rest nodes and tavern safe areas, and during combat those slots are locked. Pressing a key executes the slot's token chain.
+《地牢编排师：禁忌之键》 / Dungeon Arranger: Forbidden Keys (`DNTB`) is a Godot 4 tactical roguelite prototype. The core idea is programmable direction keys: the player edits twelve physical key slots (`QWER / ASDF / ZXCV`) at camp/rest nodes and tavern safe areas, and during combat those slots are locked. Pressing a key executes the slot's token chain.
 
 The project is early-stage and intentionally small. Keep gameplay systems easy to inspect, test, and refactor.
 
@@ -14,6 +14,7 @@ Read `AGENTS.md` first for project-specific conventions; it is written in Chines
 
 - Godot 4.7 stable or a compatible Godot 4.x build.
 - Git.
+- Git LFS (MP3 audio assets are tracked by LFS; CI and fresh clones need LFS initialized).
 
 ## Common commands
 
@@ -35,23 +36,19 @@ Run the headless smoke test (used by CI and recommended before submitting change
 godot --headless --path . --script res://scripts/tests/SmokeTest.gd
 ```
 
-Run the actor-presentation sandbox smoke test:
+Run other smoke tests and probes:
 
 ```powershell
 godot --headless --path . --script res://scripts/tests/ActorPresentationSandboxSmoke.gd
-```
-
-Run the battle-effect sandbox smoke test:
-
-```powershell
 godot --headless --path . --script res://scripts/tests/BattleEffectSandboxSmoke.gd
-```
-
-Run map-generation probes:
-
-```powershell
 godot --headless --path . --script res://scripts/tests/MapPrintProbe.gd
 godot --headless --path . --script res://scripts/tests/LargeMapPlacementProbe.gd
+```
+
+Import assets headless (useful on fresh clones or CI before running tests):
+
+```powershell
+godot --headless --path . --import
 ```
 
 If Godot is not on PATH, run it with the full executable path instead:
@@ -61,6 +58,24 @@ If Godot is not on PATH, run it with the full executable path instead:
 ```
 
 There is no separate build, lint, or package step. Godot loads the project directly from `project.godot`.
+
+### Running a single test
+
+`SmokeTest.gd` is a single SceneTree script with a long sequence of inline assertions; it is not a test framework with selectable cases. To isolate a failing section, either temporarily comment out the unrelated parts of `_init()` or create a small focused test script under `scripts/tests/` and run it with `--script`.
+
+### Git LFS assets
+
+MP3 files under `music/` are tracked by Git LFS. After cloning, verify they are real binaries:
+
+```powershell
+wc -c music/*.mp3
+```
+
+If any file is only ~132 bytes (an LFS pointer), run:
+
+```powershell
+git lfs pull
+```
 
 ## Entry points and scenes
 
@@ -129,13 +144,14 @@ keyboard event
 - `ActionResolver.gd` owns movement, attacks, turns, guards, jumps, death, and win/loss checks.
 - `EffectPipeline.gd` (in `scripts/runtime/`) owns effect-packet modification, execution, and event reactions. Relics, status effects, and weapon affixes should extend `EffectModifierDef`.
 - `GameState.gd` owns the mutable battle state, including `action_trace` and run-progress fields.
-- `DirectionalTechniqueResolver.gd` translates input tokens (`U/D/L/R`, `F/B/TL/TR/A/G/W/J`) into base executable actions. The generic attack token `A` resolves to the actor's equipped weapon `attack_action`.
+- `DirectionalTechniqueResolver.gd` translates input tokens (`U/D/L/R`, `F/B/SL/SR/DS/HK/SB/HM/RA/PI/TH/SW/BW/CA/TL/TR/A/I/G/W/J`) into base executable actions. The generic attack token `A` resolves to the actor's equipped weapon `attack_action`.
 - `ActionTraceRecorder.gd` writes execution semantics (`F/B/SL/SR/TL/TR`) after actions resolve. `ActionTrace` is consumed by debug UI and is the intended hook for future combo recognition.
 - `BattlePresentationController.gd` and `ActorRoot` handle actor visuals; `EffectRoot` / `BattleEffectController.gd` handle battle feedback effects. They are presentation-only and do not own combat state.
+- `ActorInteractionService.gd` handles world-slice NPC/POI interactions. `ActorDef` carries interaction fields (`interaction_enabled`, `interaction_title`, `interaction_lines`) so both monsters and NPCs can be interacted with or killed through the same rules.
 
 ### Weapon model
 
-`WeaponDef.gd` is now a thin data resource: one weapon corresponds to one `attack_action`. The generic attack token `A` is resolved by `DirectionalTechniqueResolver` into the actor's `active_weapon.attack_action`. Weapon differences are expressed through distinct `ActionDef` resources, not through per-weapon combat hooks.
+`WeaponDef.gd` is a thin data resource: one weapon corresponds to one `attack_action`. The generic attack token `A` is resolved by `DirectionalTechniqueResolver` into the actor's `active_weapon.attack_action`. Weapon differences are expressed through distinct `ActionDef` resources, not through per-weapon combat hooks.
 
 Current examples:
 
@@ -159,7 +175,10 @@ Extend `EffectModifierDef` for new relics, status effects, or weapon rules:
 `WorldSliceController.gd` generates a large open map (`WORLD_GRID_SIZE = 256×256`). When `state.is_world_slice` is true:
 
 - `BoardView` renders a moving window around the player with fog-of-war.
-- `Game._update_world_slice_editability()` enables key-slot editing only while the player stands on a tavern safe-area footprint walkable cell (building_floor, building_door, building_open_ground, or tavern interactable).
+- `Game._update_world_slice_editability()` enables key-slot editing only while the player stands on a tavern safe-area footprint walkable cell (`building_floor`, `building_door`, `building_open_ground`, or tavern interactable).
+- Safe-zone NPCs are spawned from `npc_spawn_slots` declared in `BuildingPatternLibrary.tavern`; the starting tavern generates a `tavern_keeper`.
+- POI hints in the sidebar show relative directions to `Boss遗迹` (`challenge_entrance`) and `最近小遗迹` (nearest `ruin`). Clicking them starts an auto-path that pauses when enemies become visible or the player takes damage.
+- Entering a `challenge_entrance` switches to a large-map Boss dungeon layer (`MAP_NODE_BOSS`) with overworld systems disabled.
 - Debug keys while in world-slice mode:
   - `V` — toggle reveal-all fog.
   - `M` — print map summary.
@@ -201,3 +220,5 @@ Prefer adding scene-local nodes/Resources over new autoloads unless the service 
 ## CI
 
 `.github/workflows/smoke-test.yml` runs the smoke test on every push to `main` and on every pull request using `chickensoft-games/setup-godot@v2` with Godot 4.7.0.
+
+The workflow checks out with `lfs: true` and runs `git lfs pull` before importing assets, because MP3 audio files are tracked by Git LFS and the runner needs real binaries for Godot's import step.
