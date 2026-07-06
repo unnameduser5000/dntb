@@ -183,6 +183,7 @@ const MAP_NODES := [
 @onready var camera = $Camera2D
 @onready var battle_ui = $CanvasLayer/BattleUI
 @onready var world_loading_overlay = $CanvasLayer/WorldLoadingOverlay
+@onready var tile_reveal_loading_screen = $CanvasLayer/TileRevealLoadingScreen
 @onready var turn_controller = $TurnController
 @onready var resolver = $ActionResolver
 @onready var enemy_planner = $EnemyPlanner
@@ -496,9 +497,11 @@ func start_run() -> void:
 	_close_bag_if_open()
 	_close_world_npc_dialogue(false)
 	set_game_visible(false)
-	if world_loading_overlay != null:
+	if tile_reveal_loading_screen != null:
+		tile_reveal_loading_screen.show_loading("生成地图中", "准备世界参数…", 0.0)
+	elif world_loading_overlay != null:
 		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
-		await get_tree().process_frame
+	await get_tree().process_frame
 	start_world_slice_debug()
 	_play_music_for_state()
 
@@ -560,17 +563,19 @@ func start_world_slice_debug() -> void:
 	_refresh_world_visibility("init")
 	_refresh_views()
 	set_game_visible(true)
-	if world_loading_overlay != null:
+	if tile_reveal_loading_screen != null:
+		tile_reveal_loading_screen.hide_loading()
+	elif world_loading_overlay != null:
 		world_loading_overlay.hide_loading()
 	_play_music_for_state()
 
 
 func _on_world_generation_progress(progress_data: Dictionary) -> void:
-	if world_loading_overlay == null:
-		return
-	var stage_label := String(progress_data.get("stage_label", "Generating world"))
 	var progress_ratio := float(progress_data.get("progress", 0.0))
-	world_loading_overlay.show_loading("Generating world", stage_label, progress_ratio)
+	if tile_reveal_loading_screen != null:
+		tile_reveal_loading_screen.set_progress(progress_ratio, String(progress_data.get("stage_label", "")))
+	elif world_loading_overlay != null:
+		world_loading_overlay.show_loading("Generating world", String(progress_data.get("stage_label", "Generating world")), progress_ratio)
 
 
 func _start_new_run(seed_value) -> void:

@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://bkkfek3jfxnfo" path="res://scripts/view/Game.gd" id="1_game"]
 [ext_resource type="PackedScene" path="res://scenes/map/BoardView.tscn" id="2_board"]
 [ext_resource type="PackedScene" path="res://scenes/ui/BattleUI.tscn" id="3_ui"]
+[ext_resource type="PackedScene" path="res://scenes/ui/TileRevealLoadingScreen.tscn" id="4_loading"]
 [ext_resource type="PackedScene" path="res://scenes/ui/WorldLoadingOverlay.tscn" id="8_loading"]
 [ext_resource type="Script" uid="uid://cav3smfev3ce0" path="res://scripts/core/TurnController.gd" id="4_turn"]
 [ext_resource type="Script" uid="uid://c3lo32kgwnugi" path="res://scripts/core/ActionResolver.gd" id="5_resolver"]
@@ -29,6 +30,9 @@ z_index = 20
 [node name="BattleUI" parent="CanvasLayer" unique_id=175595060 instance=ExtResource("3_ui")]
 
 [node name="WorldLoadingOverlay" parent="CanvasLayer" instance=ExtResource("8_loading")]
+
+[node name="TileRevealLoadingScreen" parent="CanvasLayer" instance=ExtResource("4_loading")]
+visible = false
 
 [node name="TurnController" type="Node" parent="." unique_id=1343878795]
 script = ExtResource("4_turn")
