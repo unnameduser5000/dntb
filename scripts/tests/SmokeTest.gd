@@ -825,10 +825,7 @@ func _init() -> void:
 		world_game._refresh_world_visibility("cleanup_visible_enemy_music")
 		world_game._refresh_views()
 		await process_frame
-	for remaining_enemy in world_game.state.get_alive_enemies():
-		if remaining_enemy != null and world_game.state.visible_cells.has(remaining_enemy.grid_pos):
-			world_game.state.grid.remove_actor(remaining_enemy)
-			remaining_enemy.hp = 0
+	world_game._kill_all_enemies_debug()
 	world_game._refresh_world_visibility("cleanup_visible_enemies_before_autopath")
 	world_game._refresh_views()
 	await process_frame
