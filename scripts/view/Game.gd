@@ -969,12 +969,6 @@ func _refresh_views() -> void:
 		_battle_presentation.sync_views(state, snap_actor_views)
 		sync_views_ms = Time.get_ticks_msec() - sync_started_at
 
-	# Streamed enemies may have been spawned/despawned during the view refresh.
-	# Recompute world-slice visibility and music so newly visible enemies are
-	# reflected immediately (e.g. switching to elite music on sight).
-	if bool(state.is_world_slice):
-		_refresh_world_visibility("player_moved")
-
 	var hud_started_at: int = Time.get_ticks_msec()
 	battle_ui.update_state(state)
 	state.last_refresh_hud_ms = float(Time.get_ticks_msec() - hud_started_at)
@@ -1139,6 +1133,11 @@ func _try_resolve_world_poi_npc_interaction(actor_id: String, actor) -> bool:
 			var ruin_record := _record_for_world_poi_actor(actor)
 			if ruin_record.is_empty():
 				return false
+			if int(_world_npc_interaction_counts.get(actor_id, 0)) == 1:
+				state.add_message("遗迹拾荒者压低声音示警：别急着翻，附近的怪物已经被惊动了。再靠近一步，就会真的冲过来。")
+				_refresh_views()
+				return true
+			_trigger_world_ruin_enemy_waves(5)
 			return _claim_world_ruin_record(ruin_record)
 		_:
 			return false
@@ -1193,6 +1192,14 @@ func _claim_world_ruin_record(ruin_record: Dictionary) -> bool:
 	_refresh_key_program_ui()
 	_refresh_views()
 	return true
+
+
+func _trigger_world_ruin_enemy_waves(wave_count: int) -> void:
+	if _world_slice_controller == null or state == null:
+		return
+	state.world_enemy_spawn_profile = "event_alert"
+	for wave_index in range(maxi(1, wave_count)):
+		_world_slice_controller.refresh_streamed_enemies(state, "ruin_npc_wave_%d" % (wave_index + 1))
 
 
 func _find_world_slice_npc_by_id(npc_id: String):

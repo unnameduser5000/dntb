@@ -1,4 +1,4 @@
-# 地牢编排师：禁忌之键（DNTB）
+# 地牢编排师（DNTB）
 
 Dungeon Arranger: Forbidden Keys (`DNTB`) is a Godot 4 tactical roguelite prototype about programmable direction keys, derived weapon techniques, grid combat, relic-like modifiers, and short run progression.
 
