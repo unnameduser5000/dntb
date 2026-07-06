@@ -2665,6 +2665,10 @@ func get_save_data() -> Dictionary:
 	var player_xp := 0 if state == null else int(state.player_xp)
 	var player_level := 1 if state == null else int(state.player_level)
 	var world_enemy_spawn_profile := "calm" if state == null else String(state.world_enemy_spawn_profile)
+	var explored_cells_data: Array = []
+	if state != null:
+		for explored_cell in state.explored_cells:
+			explored_cells_data.append({"x": int(explored_cell.x), "y": int(explored_cell.y)})
 	return {
 		"current_map_node_index": _current_map_node_index,
 		"current_room_index": _current_room_index,
@@ -2683,6 +2687,7 @@ func get_save_data() -> Dictionary:
 		"player_xp": player_xp,
 		"player_level": player_level,
 		"world_enemy_spawn_profile": world_enemy_spawn_profile,
+		"explored_cells": explored_cells_data,
 		"tracked_world_actor_id": "" if state == null else String(state.tracked_world_actor_id),
 		"tracked_world_npc_id": "" if state == null else String(state.tracked_world_npc_id),
 		"show_tracked_world_actor_hint": false if state == null else bool(state.show_tracked_world_actor_hint),
@@ -2768,6 +2773,7 @@ func _restore_world_slice_state_from_save(data: Dictionary) -> void:
 		state.player.san = min(_run_player_san, _run_player_max_san)
 		state.player.atk = _run_player_atk
 		_restore_saved_player_transform(data)
+	_restore_saved_explored_cells(data)
 	_apply_run_modifiers_to_player()
 	if _battle_presentation != null:
 		_battle_presentation.reset_for_state(state)
@@ -2800,6 +2806,25 @@ func _restore_saved_player_transform(data: Dictionary) -> void:
 	var saved_facing := _vector2i_from_save_value(data.get("player_facing", state.player.facing), state.player.facing)
 	if saved_facing != Vector2i.ZERO:
 		state.player.facing = saved_facing
+
+
+func _restore_saved_explored_cells(data: Dictionary) -> void:
+	if state == null or state.map_data == null:
+		return
+	state.explored_cells.clear()
+	state.explored_cell_set.clear()
+	var raw_cells = data.get("explored_cells", [])
+	if raw_cells is Array:
+		for raw_cell in raw_cells:
+			var explored_cell := _vector2i_from_save_value(raw_cell, Vector2i(-1, -1))
+			if explored_cell == Vector2i(-1, -1):
+				continue
+			if not state.map_data.is_inside(explored_cell):
+				continue
+			if state.explored_cell_set.has(explored_cell):
+				continue
+			state.explored_cells.append(explored_cell)
+			state.explored_cell_set[explored_cell] = true
 
 
 func _vector2i_from_save_value(value, fallback: Vector2i = Vector2i.ZERO) -> Vector2i:
