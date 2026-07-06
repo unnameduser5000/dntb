@@ -14,7 +14,7 @@ extends Control
 @export var max_db: float = -12.0
 @export var neon_colors: Array[Color] = [
 	Color(0.18, 0.92, 1.0),
-	Color(0.92, 0.25, 0.78),
+	Color(1.0, 0.92, 0.35),
 	Color(1.0, 0.45, 0.18),
 	Color(0.35, 0.75, 1.0),
 ]

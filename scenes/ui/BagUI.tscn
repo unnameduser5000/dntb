@@ -65,7 +65,7 @@ theme_type_variation = &"ScreenTitle"
 theme_override_font_sizes/font_size = 20
 text = "按键编排"
 
-[node name="EditableLabel" parent="BagPanel/Margin/Content/LeftPanel/Header"]
+[node name="EditableLabel" type="Label" parent="BagPanel/Margin/Content/LeftPanel/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"ScreenHint"

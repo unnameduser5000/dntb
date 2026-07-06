@@ -182,8 +182,8 @@ const MAP_NODES := [
 @onready var board_view = $BoardView
 @onready var camera = $Camera2D
 @onready var battle_ui = $CanvasLayer/BattleUI
-@onready var world_loading_overlay = $CanvasLayer/WorldLoadingOverlay
-@onready var tile_reveal_loading_screen = $CanvasLayer/TileRevealLoadingScreen
+@onready var world_loading_overlay = $CanvasLayerLoading/WorldLoadingOverlay
+@onready var tile_reveal_loading_screen = $CanvasLayerLoading/TileRevealLoadingScreen
 @onready var turn_controller = $TurnController
 @onready var resolver = $ActionResolver
 @onready var enemy_planner = $EnemyPlanner
@@ -566,7 +566,8 @@ func start_world_slice_debug() -> void:
 	if tile_reveal_loading_screen != null and tile_reveal_loading_screen.visible:
 		tile_reveal_loading_screen.set_progress(1.0)
 		await get_tree().create_timer(1.0).timeout
-	if tile_reveal_loading_screen != null:
+		await tile_reveal_loading_screen.fade_to_black_and_hide()
+	elif tile_reveal_loading_screen != null:
 		tile_reveal_loading_screen.hide_loading()
 	elif world_loading_overlay != null:
 		world_loading_overlay.hide_loading()

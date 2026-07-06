@@ -26,12 +26,16 @@ anchors_preset = 0
 z_index = 20
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1819777371]
+layer = 2
 
 [node name="BattleUI" parent="CanvasLayer" unique_id=175595060 instance=ExtResource("3_ui")]
 
-[node name="WorldLoadingOverlay" parent="CanvasLayer" instance=ExtResource("8_loading")]
+[node name="CanvasLayerLoading" type="CanvasLayer" parent="."]
+layer = 5
 
-[node name="TileRevealLoadingScreen" parent="CanvasLayer" instance=ExtResource("4_loading")]
+[node name="WorldLoadingOverlay" parent="CanvasLayerLoading" instance=ExtResource("8_loading")]
+
+[node name="TileRevealLoadingScreen" parent="CanvasLayerLoading" instance=ExtResource("4_loading")]
 visible = false
 
 [node name="TurnController" type="Node" parent="." unique_id=1343878795]

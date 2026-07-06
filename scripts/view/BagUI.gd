@@ -323,7 +323,7 @@ func _make_slot_token_button(token_id: String, source_slot_id: String, source_in
 		_token_label(token_id),
 		_editable,
 		_token_tooltip(token_id, 1, false),
-		token_cell_size,
+		_scaled_token_cell_size(),
 		source_slot_id == _adhesive_slot_id,
 		_disabled_slot_ids.has(source_slot_id)
 	)
@@ -343,8 +343,10 @@ func _make_pool_token_button(token_id: String, source_index: int, stack_count: i
 		_token_label(token_id, stack_count),
 		_editable,
 		_token_tooltip(token_id, stack_count, true),
-		token_cell_size,
-		false
+		_scaled_token_cell_size(),
+		false,
+		false,
+		stack_count
 	)
 	if not token.drop_requested.is_connected(_on_key_dropped):
 		token.drop_requested.connect(_on_key_dropped)
@@ -355,7 +357,7 @@ func _make_pool_token_button(token_id: String, source_index: int, stack_count: i
 
 func _make_key_slot_empty_cell() -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = token_cell_size
+	panel.custom_minimum_size = _scaled_token_cell_size()
 	panel.theme_type_variation = &"ScreenPanel"
 	panel.tooltip_text = "空槽位"
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -366,7 +368,7 @@ func _make_key_slot_empty_cell() -> Control:
 func _make_pool_empty_token_cell() -> Control:
 	var panel := UiPoolDropCellScript.new()
 	panel.setup(_editable)
-	panel.custom_minimum_size = token_cell_size
+	panel.custom_minimum_size = _scaled_token_cell_size()
 	panel.theme_type_variation = &"ScreenPanel"
 	panel.tooltip_text = "空槽位"
 	panel.add_theme_stylebox_override("panel", _make_square_stylebox(Color(0.15, 0.17, 0.2, 0.95), Color(0.34, 0.38, 0.45, 0.9)))
@@ -377,7 +379,7 @@ func _make_pool_empty_token_cell() -> Control:
 
 func _key_slot_panel_min_height() -> float:
 	var visible_rows := int(ceil(float(maxi(1, key_slot_visible_capacity)) / float(maxi(1, key_slot_token_columns))))
-	return 44.0 + float(visible_rows) * (token_cell_size.y + 4.0) + 18.0
+	return 44.0 + float(visible_rows) * (_scaled_token_cell_size().y + 4.0) + 18.0
 
 
 func _key_grid_min_size() -> Vector2:
@@ -388,6 +390,14 @@ func _key_grid_min_size() -> Vector2:
 	var width := float(column_count) * key_slot_panel_min_width + float(column_count - 1) * horizontal_gap
 	var height := float(row_count) * _key_slot_panel_min_height() + float(row_count - 1) * vertical_gap
 	return Vector2(width, height)
+
+
+func _scaled_token_cell_size() -> Vector2:
+	var viewport := get_viewport()
+	if viewport == null:
+		return token_cell_size
+	var scale := viewport.get_visible_rect().size.y / 1080.0
+	return token_cell_size * scale
 
 
 func _token_tooltip(token_id: String, stack_count: int, show_stack: bool) -> String:
