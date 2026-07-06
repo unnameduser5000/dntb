@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-DNTB is a Godot 4 tactical roguelite prototype. The core idea is programmable direction keys: the player edits twelve physical key slots (`QWER / ASDF / ZXCV`) at camp/rest nodes and tavern safe areas, and during combat those slots are locked. Pressing a key executes the slot's token chain.
+Dungeon Arranger (`DNTB`) is a Godot 4 tactical roguelite prototype. The core idea is programmable direction keys: the player edits twelve physical key slots (`QWER / ASDF / ZXCV`) at camp/rest nodes and tavern safe areas, and during combat those slots are locked. Pressing a key executes the slot's token chain.
 
 The project is early-stage and intentionally small. Keep gameplay systems easy to inspect, test, and refactor.
 

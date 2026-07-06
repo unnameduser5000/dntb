@@ -1,6 +1,6 @@
-# DNTB
+# 地牢编排师（DNTB）
 
-DNTB is a Godot 4 tactical roguelite prototype about programmable direction keys, derived weapon techniques, grid combat, relic-like modifiers, and short run progression.
+Dungeon Arranger (`DNTB`) is a Godot 4 tactical roguelite prototype about programmable direction keys, derived weapon techniques, grid combat, relic-like modifiers, and short run progression.
 
 The project is early-stage and intentionally small. The current focus is keeping gameplay systems easy to inspect, test, and refactor.
 

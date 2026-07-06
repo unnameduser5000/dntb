@@ -2,6 +2,7 @@ class_name BattleUI
 extends Control
 
 const CenterNavDialScript := preload("res://scripts/view/CenterNavDial.gd")
+const GAME_TITLE := "地牢编排师"
 
 signal start_requested
 signal reward_chosen(index: int)
@@ -277,13 +278,13 @@ func show_title() -> void:
 	_rest_continue_button.visible = false
 	_auto_toggle_button.visible = false
 	_auto_speed_button.visible = false
-	_show_overlay("别按那个键", "Tab 键打开背包调整按键编排，进战斗后按键执行，真实结果再驱动武器连招。", [
+	_show_overlay(GAME_TITLE, "Tab 键打开背包调整按键编排，进战斗后按键执行，真实结果再驱动武器连招。", [
 		{"text": "开始游戏", "callback": func() -> void: start_requested.emit()},
 	])
 
 
 func is_title_visible() -> bool:
-	return _overlay.visible and _overlay_title.text == "别按那个键"
+	return _overlay.visible and _overlay_title.text == GAME_TITLE
 
 
 func show_battle() -> void:
