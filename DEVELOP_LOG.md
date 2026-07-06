@@ -1,5 +1,54 @@
 # Develop Log
 
+## 2026-07-06 Randomized level-up permanent buff offers
+
+- Fixed a world-slice POI NPC persistence bug where ruin guides could appear to
+  disappear or overwrite each other's state because multiple ruin NPCs shared
+  the same `ruin_guide` key in interaction/tracking dictionaries.
+- POI NPC interactions now distinguish between actor type id and per-instance
+  progress id, so each ruin guide keeps its own dialogue/progression state while
+  still using the shared `ruin_guide` behavior branch.
+- Added POI NPC keepalive in `WorldSliceController.refresh_streamed_enemies()`:
+  before and after streamed enemy refreshes, missing POI NPCs are restored, and
+  if their intended spawn cell is occupied by a non-player, non-POI actor, that
+  lower-priority actor is removed so the POI NPC keeps the slot.
+- Result: ruin guides and other POI NPCs now have higher priority than ordinary
+  monsters/actors for spawn-slot ownership and no longer disappear during enemy
+  streaming or state-key collisions.
+
+- Changed level-up permanent buff generation in `scripts/view/Game.gd` from a
+  fixed top-of-list selection to a random 3-choice draw from the full modifier
+  pool.
+- The draw now uses `RandomService.shuffle_copy()` so the offer order remains
+  deterministic per run seed and save/load flow.
+- Rule update: one level-up offer cannot contain the same permanent buff twice,
+  but later level-ups are allowed to roll already owned permanent buffs again so
+  the effect can stack.
+- Updated `scripts/tests/SmokeTest.gd` to stop asserting a fixed first reward;
+  the smoke test now verifies that level-up rewards:
+  - always return 3 choices
+  - come from the known modifier pool
+  - do not duplicate a modifier within a single offer
+  - can roll an already owned modifier again across later offers
+- Updated `docs/01_系统设计文档.md` and `docs/03_测试与验证.md` to match the new
+  permanent-buff selection rule.
+- Follow-up: increased new-run seed entropy so repeated quick restarts are less
+  likely to reuse the same permanent-buff offer sequence by accident.
+- Added a usable save/load flow on top of the existing `SaveService` providers:
+  - main menu now shows `继续游戏` when the default save slot exists
+  - pause menu now provides `保存游戏` and `保存并返回主菜单`
+  - `Game` save data now persists the active world-slice run context needed for
+    resume, including player position/facing, XP/level, run seed, key program,
+    modifier list, and world interaction progress
+- Current resume scope is centered on world-slice continuity: loading restores
+  the saved world seed and repositions the player into the regenerated slice,
+  then reapplies run stats and world interaction state on top.
+- `Game.start_run()` and `start_world_slice_debug()` now generate and propagate a
+  high-precision runtime seed based on unix time plus `Time.get_ticks_usec()`.
+- `WorldSliceController._make_random_seed()` now also includes microsecond ticks
+  in addition to the monotonic counter, reducing same-second seed collisions for
+  quick `F6` world regenerations.
+
 ## 2026-07-06 CI smoke-test timeout fix
 
 - Symptom: every GitHub Actions `Smoke Test` run on `main` hung until manually

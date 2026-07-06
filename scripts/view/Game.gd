@@ -54,7 +54,6 @@ const ACTION_GREAT_SWEEP := preload("res://data/actions/great_sweep.tres")
 const ACTION_MOVE_KEY := preload("res://data/actions/move_key.tres")
 
 const MOD_ECHO_STRIKE := preload("res://data/modifiers/echo_strike.tres")
-const MOD_ECHO_STEP := preload("res://data/modifiers/echo_step.tres")
 const MOD_FORCE_PRISM := preload("res://data/modifiers/force_prism.tres")
 const MOD_LONG_DRAW := preload("res://data/modifiers/long_draw.tres")
 const MOD_BLOOD_DRAIN := preload("res://data/modifiers/blood_drain.tres")
@@ -267,7 +266,6 @@ func _ready() -> void:
 	}
 	_modifier_by_id = {
 		"echo_strike": MOD_ECHO_STRIKE,
-		"echo_step": MOD_ECHO_STEP,
 		"force_prism": MOD_FORCE_PRISM,
 		"long_draw": MOD_LONG_DRAW,
 		"blood_drain": MOD_BLOOD_DRAIN,
@@ -502,12 +500,12 @@ func start_run() -> void:
 	elif world_loading_overlay != null:
 		world_loading_overlay.show_loading("生成地图中", "准备世界参数…", 0.0)
 	await get_tree().process_frame
-	start_world_slice_debug()
+	start_world_slice_debug(_make_runtime_seed("world_slice_run"))
 	_play_music_for_state()
 
 
 func start_run_legacy() -> void:
-	_start_new_run(Time.get_datetime_string_from_system())
+	_start_new_run(_make_runtime_seed("legacy_run"))
 
 
 func start_room_chain_legacy() -> void:
@@ -517,10 +515,14 @@ func start_seeded_run(seed_value) -> void:
 	_start_new_run(seed_value)
 
 
-func start_world_slice_debug() -> void:
+func start_world_slice_debug(seed_value: String = "") -> void:
 	_ensure_action_helpers()
 	_world_npc_interaction_counts.clear()
 	_world_ruin_claims.clear()
+	_run_seed = seed_value if not seed_value.is_empty() else _make_runtime_seed("world_slice_debug")
+	var random_service = get_node_or_null("/root/RandomService")
+	if random_service != null:
+		random_service.set_seed(_run_seed)
 	if state != null:
 		state.player_xp = 0
 		state.player_level = 1
@@ -538,7 +540,7 @@ func start_world_slice_debug() -> void:
 	_hidden_boss_locked_keys.clear()
 	_slime_god_phase_two_triggered = false
 	_close_world_npc_dialogue(false)
-	state = await _world_slice_controller.create_demo_state_with_progress("", Callable(self, "_on_world_generation_progress")) if _world_slice_controller != null else null
+	state = await _world_slice_controller.create_demo_state_with_progress(_run_seed, Callable(self, "_on_world_generation_progress")) if _world_slice_controller != null else null
 	if state == null:
 		return
 	_current_rewards = []
@@ -572,6 +574,10 @@ func start_world_slice_debug() -> void:
 	elif world_loading_overlay != null:
 		world_loading_overlay.hide_loading()
 	_play_music_for_state()
+
+
+func _make_runtime_seed(prefix: String = "run") -> String:
+	return "%s_%d_%d" % [prefix, int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
 
 
 func _on_world_generation_progress(progress_data: Dictionary) -> void:
@@ -969,12 +975,6 @@ func _refresh_views() -> void:
 		_battle_presentation.sync_views(state, snap_actor_views)
 		sync_views_ms = Time.get_ticks_msec() - sync_started_at
 
-	# Streamed enemies may have been spawned/despawned during the view refresh.
-	# Recompute world-slice visibility and music so newly visible enemies are
-	# reflected immediately (e.g. switching to elite music on sight).
-	if bool(state.is_world_slice):
-		_refresh_world_visibility("player_moved")
-
 	var hud_started_at: int = Time.get_ticks_msec()
 	battle_ui.update_state(state)
 	state.last_refresh_hud_ms = float(Time.get_ticks_msec() - hud_started_at)
@@ -1082,9 +1082,11 @@ func _try_interact_with_world_npc() -> bool:
 	if line.is_empty():
 		line = "只是安静地点了点头。"
 	var actor_id := String(result.get("actor_id", result.get("npc_id", "")))
+	var actor_type_id := String(result.get("actor_type_id", actor_id))
+	var actor_progress_id := String(result.get("actor_progress_id", actor_id))
 	var actor_name := String(result.get("actor_name", result.get("npc_name", speaker)))
 	var actor = result.get("actor")
-	line = _resolve_world_actor_dialogue_line(actor_id, line)
+	line = _resolve_world_actor_dialogue_line(actor_type_id, actor_progress_id, line)
 	state.tracked_world_actor_id = actor_id
 	state.show_tracked_world_actor_hint = true
 	state.world_actor_display_names[actor_id] = actor_name
@@ -1096,7 +1098,7 @@ func _try_interact_with_world_npc() -> bool:
 	if is_instance_valid(battle_ui):
 		battle_ui.show_world_npc_dialogue(speaker, line)
 	state.add_message("%s：%s" % [speaker, line])
-	var handled_poi_npc := _try_resolve_world_poi_npc_interaction(actor_id, actor)
+	var handled_poi_npc := _try_resolve_world_poi_npc_interaction(actor_type_id, actor_progress_id, actor)
 	if handled_poi_npc:
 		return true
 	var dialogue_resource_path := String(result.get("dialogue_resource_path", ""))
@@ -1108,9 +1110,16 @@ func _try_interact_with_world_npc() -> bool:
 	return true
 
 
-func _resolve_world_actor_dialogue_line(actor_id: String, fallback_line: String) -> String:
-	if actor_id == "tavern_keeper" and int(_world_npc_interaction_counts.get(actor_id, 0)) == 1:
+func _resolve_world_actor_dialogue_line(actor_type_id: String, actor_progress_id: String, fallback_line: String) -> String:
+	if actor_type_id == "tavern_keeper" and int(_world_npc_interaction_counts.get(actor_progress_id, 0)) == 1:
 		return "“别急着出门。我先把攻击 token 放进你的备用行动池；记得去分配键位，出手才会朝你面前劈出去。”"
+	if actor_type_id == "ruin_guide":
+		var interaction_count := int(_world_npc_interaction_counts.get(actor_progress_id, 0))
+		if interaction_count <= 1:
+			return "“先别动手翻。附近已经有东西在盯着这边了。再往前一步，它们就会扑上来。”"
+		if interaction_count == 2:
+			return "“来不及了，它们已经听见了。顶住这五波，我再带你翻下面的刻印。”"
+		return "“还没结束。要么继续撑住，要么就别再碰这片废墟。”"
 	return fallback_line
 
 
@@ -1127,8 +1136,8 @@ func _try_grant_world_actor_first_talk_reward(actor_id: String, speaker: String)
 	_refresh_key_program_ui()
 
 
-func _try_resolve_world_poi_npc_interaction(actor_id: String, actor) -> bool:
-	match actor_id:
+func _try_resolve_world_poi_npc_interaction(actor_type_id: String, actor_progress_id: String, actor) -> bool:
+	match actor_type_id:
 		"boss_gatekeeper":
 			state.add_message("守门人侧过身，让你踏入 Boss遗迹。")
 			_refresh_views()
@@ -1139,6 +1148,11 @@ func _try_resolve_world_poi_npc_interaction(actor_id: String, actor) -> bool:
 			var ruin_record := _record_for_world_poi_actor(actor)
 			if ruin_record.is_empty():
 				return false
+			if int(_world_npc_interaction_counts.get(actor_progress_id, 0)) == 1:
+				state.add_message("遗迹拾荒者压低声音示警：别急着翻，附近的怪物已经被惊动了。再靠近一步，就会真的冲过来。")
+				_refresh_views()
+				return true
+			_trigger_world_ruin_enemy_waves(5)
 			return _claim_world_ruin_record(ruin_record)
 		_:
 			return false
@@ -1193,6 +1207,14 @@ func _claim_world_ruin_record(ruin_record: Dictionary) -> bool:
 	_refresh_key_program_ui()
 	_refresh_views()
 	return true
+
+
+func _trigger_world_ruin_enemy_waves(wave_count: int) -> void:
+	if _world_slice_controller == null or state == null:
+		return
+	state.world_enemy_spawn_profile = "event_alert"
+	for wave_index in range(maxi(1, wave_count)):
+		_world_slice_controller.refresh_streamed_enemies(state, "ruin_npc_wave_%d" % (wave_index + 1))
 
 
 func _find_world_slice_npc_by_id(npc_id: String):
@@ -1741,6 +1763,10 @@ func _is_player_in_world_slice_rest_area() -> bool:
 			return true
 		if String(tag).begins_with("building:tavern_"):
 			return true
+	for npc_id in ["boss_gatekeeper", "ruin_guide"]:
+		var npc = _find_world_slice_npc_by_id(npc_id)
+		if npc != null and _world_interaction_cell_for_actor(npc) == state.player.grid_pos:
+			return true
 	return false
 
 func _update_enemy_preview() -> void:
@@ -2089,8 +2115,8 @@ func _build_rewards() -> Array:
 	if _current_room_index == 0:
 		return [
 			{"name": "获得遗物：回响刃", "kind": "add_modifier", "modifier": MOD_ECHO_STRIKE},
-			{"name": "获得遗物：回响步", "kind": "add_modifier", "modifier": MOD_ECHO_STEP},
 			{"name": "最大生命 +2", "kind": "max_hp", "value": 2},
+			{"name": "攻击 +1", "kind": "attack", "value": 1},
 		]
 
 	return [
@@ -2101,10 +2127,8 @@ func _build_rewards() -> Array:
 
 
 func _build_level_up_rewards() -> Array:
-	var rewards: Array = []
-	for modifier in [
+	var modifier_pool := [
 		MOD_ECHO_STRIKE,
-		MOD_ECHO_STEP,
 		MOD_FORCE_PRISM,
 		MOD_LONG_DRAW,
 		MOD_BLOOD_DRAIN,
@@ -2114,11 +2138,23 @@ func _build_level_up_rewards() -> Array:
 		MOD_LANCER_FOCUS,
 		MOD_CYCLONE_FURY,
 		MOD_BATTLE_TRANCE,
-	]:
+	]
+	var random_service = get_node_or_null("/root/RandomService")
+	var selected_modifiers: Array = []
+	while not modifier_pool.is_empty() and selected_modifiers.size() < 3:
+		var chosen_index := 0
+		if random_service != null and random_service.has_method("randi_range_value"):
+			chosen_index = int(random_service.randi_range_value(0, modifier_pool.size() - 1))
+		else:
+			chosen_index = randi_range(0, modifier_pool.size() - 1)
+		selected_modifiers.append(modifier_pool[chosen_index])
+		modifier_pool.remove_at(chosen_index)
+	var rewards: Array = []
+	for modifier in selected_modifiers:
 		if modifier == null:
 			continue
 		var modifier_id := String(modifier.id)
-		if modifier_id.is_empty() or _run_modifier_ids.has(modifier_id):
+		if modifier_id.is_empty():
 			continue
 		rewards.append({
 			"name": "升级增益：%s" % String(modifier.display_name),
@@ -2163,7 +2199,7 @@ func _add_run_modifier(modifier) -> bool:
 	if modifier == null:
 		return false
 	var modifier_id := String(modifier.id)
-	if modifier_id.is_empty() or _run_modifier_ids.has(modifier_id):
+	if modifier_id.is_empty():
 		return false
 
 	_run_modifier_ids.append(modifier_id)
@@ -2182,9 +2218,6 @@ func _apply_run_modifiers_to_player() -> void:
 func _apply_modifier_to_actor(actor, modifier) -> void:
 	if actor == null or modifier == null:
 		return
-	for existing_modifier in actor.effect_modifiers:
-		if existing_modifier != null and String(existing_modifier.id) == String(modifier.id):
-			return
 	actor.effect_modifiers.append(modifier)
 
 func _modifier_for_id(modifier_id: String):
@@ -2625,9 +2658,22 @@ func _register_save_provider() -> void:
 func get_save_data() -> Dictionary:
 	_ensure_action_helpers()
 	var key_program_save: Dictionary = _action_program.get_save_data()
+	var player_cell: Vector2i = Vector2i.ZERO if state == null or state.player == null else state.player.grid_pos
+	var player_facing: Vector2i = Vector2i.RIGHT if state == null or state.player == null else state.player.facing
+	var current_state_kind := "" if state == null else String(state.map_node_kind)
+	var is_world_slice_state := false if state == null else bool(state.is_world_slice)
+	var player_xp := 0 if state == null else int(state.player_xp)
+	var player_level := 1 if state == null else int(state.player_level)
+	var world_enemy_spawn_profile := "calm" if state == null else String(state.world_enemy_spawn_profile)
+	var explored_cells_data: Array = []
+	if state != null:
+		for explored_cell in state.explored_cells:
+			explored_cells_data.append({"x": int(explored_cell.x), "y": int(explored_cell.y)})
 	return {
 		"current_map_node_index": _current_map_node_index,
 		"current_room_index": _current_room_index,
+		"current_state_kind": current_state_kind,
+		"is_world_slice_state": is_world_slice_state,
 		"run_player_max_hp": _run_player_max_hp,
 		"run_player_hp": _run_player_hp,
 		"run_player_max_san": _run_player_max_san,
@@ -2636,6 +2682,16 @@ func get_save_data() -> Dictionary:
 		"run_regen_progress": _run_regen_progress,
 		"run_seed": _run_seed,
 		"run_modifier_ids": _run_modifier_ids,
+		"player_grid_pos": {"x": player_cell.x, "y": player_cell.y},
+		"player_facing": {"x": player_facing.x, "y": player_facing.y},
+		"player_xp": player_xp,
+		"player_level": player_level,
+		"world_enemy_spawn_profile": world_enemy_spawn_profile,
+		"explored_cells": explored_cells_data,
+		"tracked_world_actor_id": "" if state == null else String(state.tracked_world_actor_id),
+		"tracked_world_npc_id": "" if state == null else String(state.tracked_world_npc_id),
+		"show_tracked_world_actor_hint": false if state == null else bool(state.show_tracked_world_actor_hint),
+		"show_tracked_world_npc_hint": false if state == null else bool(state.show_tracked_world_npc_hint),
 		"world_npc_interaction_counts": _world_npc_interaction_counts.duplicate(true),
 		"world_ruin_claims": _world_ruin_claims.duplicate(true),
 		"key_slots": key_program_save["key_slots"],
@@ -2655,6 +2711,8 @@ func load_save_data(data: Dictionary) -> void:
 	_run_player_atk = int(data.get("run_player_atk", PLAYER_DEF.atk))
 	_run_regen_progress = float(data.get("run_regen_progress", 0.0))
 	_run_seed = data.get("run_seed", "")
+	var saved_state_kind := String(data.get("current_state_kind", ""))
+	var saved_is_world_slice := bool(data.get("is_world_slice_state", saved_state_kind == "world_slice"))
 	var interaction_counts = data.get("world_npc_interaction_counts", {})
 	var ruin_claims = data.get("world_ruin_claims", {})
 	_world_npc_interaction_counts = interaction_counts.duplicate(true) if typeof(interaction_counts) == TYPE_DICTIONARY else {}
@@ -2668,10 +2726,112 @@ func load_save_data(data: Dictionary) -> void:
 
 	_load_key_program(data)
 	_refresh_inventory_ui()
-	_start_map_node(_current_map_node_index)
+	if saved_is_world_slice:
+		_restore_world_slice_state_from_save(data)
+	else:
+		_start_map_node(_current_map_node_index)
+		if state != null:
+			state.player_xp = int(data.get("player_xp", 0))
+			state.player_level = maxi(1, int(data.get("player_level", 1)))
 	_play_music_for_state()
 
 func _load_key_program(data: Dictionary) -> void:
 	_ensure_action_helpers()
 	_action_program.load_save_data(data)
 	_refresh_key_program_ui()
+
+
+func _restore_world_slice_state_from_save(data: Dictionary) -> void:
+	if _world_slice_controller == null:
+		_start_map_node(_current_map_node_index)
+		return
+	_close_world_npc_dialogue(false)
+	_world_npc_dialogue_active = false
+	_world_npc_dialogue_npc_id = ""
+	_world_autopath_active = false
+	_world_autopath_target = Vector2i(-1, -1)
+	_world_autopath_steps.clear()
+	_world_autopath_last_step_msec = 0
+	_world_autopath_step_scheduled = false
+	_pending_level_reward = false
+	_current_rewards = []
+	state = _world_slice_controller.create_demo_state(_run_seed)
+	if state == null:
+		_start_map_node(_current_map_node_index)
+		return
+	state.player_xp = int(data.get("player_xp", 0))
+	state.player_level = maxi(1, int(data.get("player_level", 1)))
+	state.world_enemy_spawn_profile = String(data.get("world_enemy_spawn_profile", "calm"))
+	state.tracked_world_actor_id = String(data.get("tracked_world_actor_id", ""))
+	state.tracked_world_npc_id = String(data.get("tracked_world_npc_id", ""))
+	state.show_tracked_world_actor_hint = bool(data.get("show_tracked_world_actor_hint", false))
+	state.show_tracked_world_npc_hint = bool(data.get("show_tracked_world_npc_hint", false))
+	if state.player != null:
+		state.player.max_hp = _run_player_max_hp
+		state.player.hp = min(_run_player_hp, _run_player_max_hp)
+		state.player.max_san = _run_player_max_san
+		state.player.san = min(_run_player_san, _run_player_max_san)
+		state.player.atk = _run_player_atk
+		_restore_saved_player_transform(data)
+	_restore_saved_explored_cells(data)
+	_apply_run_modifiers_to_player()
+	if _battle_presentation != null:
+		_battle_presentation.reset_for_state(state)
+		_battle_presentation.use_world_slice_fast_timing_profile()
+		_battle_presentation.set_wait_for_presentation_completion(false)
+	enemy_planner.enemies_are_static = false
+	turn_controller.start_battle(state)
+	if board_view != null:
+		board_view.world_slice_window_size = Vector2i(29, 29)
+		board_view.reset_camera()
+	battle_ui.show_battle()
+	_restore_auto_advance_mode()
+	_update_world_slice_editability(true)
+	_refresh_world_visibility("load_save")
+	_refresh_views()
+	set_game_visible(true)
+
+
+func _restore_saved_player_transform(data: Dictionary) -> void:
+	if state == null or state.player == null or state.grid == null or state.map_data == null:
+		return
+	var saved_cell := _vector2i_from_save_value(data.get("player_grid_pos", state.player.grid_pos), state.player.grid_pos)
+	if saved_cell != state.player.grid_pos and state.map_data.is_walkable(saved_cell):
+		var occupant = state.grid.get_actor(saved_cell)
+		if occupant != null and occupant != state.player:
+			state.grid.remove_actor(occupant)
+			state.actors.erase(occupant)
+		if state.grid.can_enter(saved_cell):
+			state.grid.move_actor(state.player, saved_cell)
+	var saved_facing := _vector2i_from_save_value(data.get("player_facing", state.player.facing), state.player.facing)
+	if saved_facing != Vector2i.ZERO:
+		state.player.facing = saved_facing
+
+
+func _restore_saved_explored_cells(data: Dictionary) -> void:
+	if state == null or state.map_data == null:
+		return
+	state.explored_cells.clear()
+	state.explored_cell_set.clear()
+	var raw_cells = data.get("explored_cells", [])
+	if raw_cells is Array:
+		for raw_cell in raw_cells:
+			var explored_cell := _vector2i_from_save_value(raw_cell, Vector2i(-1, -1))
+			if explored_cell == Vector2i(-1, -1):
+				continue
+			if not state.map_data.is_inside(explored_cell):
+				continue
+			if state.explored_cell_set.has(explored_cell):
+				continue
+			state.explored_cells.append(explored_cell)
+			state.explored_cell_set[explored_cell] = true
+
+
+func _vector2i_from_save_value(value, fallback: Vector2i = Vector2i.ZERO) -> Vector2i:
+	if value is Vector2i:
+		return value
+	if typeof(value) == TYPE_DICTIONARY:
+		return Vector2i(int(value.get("x", fallback.x)), int(value.get("y", fallback.y)))
+	if value is Array and value.size() >= 2:
+		return Vector2i(int(value[0]), int(value[1]))
+	return fallback

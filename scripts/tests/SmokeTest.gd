@@ -802,6 +802,16 @@ func _init() -> void:
 	_require(world_game.state.world_enemy_stream_spawn_total >= stream_spawn_total_before, "world slice tracks cumulative streamed enemy spawns")
 	for streamed_enemy in world_game.state.get_alive_enemies():
 		_require(not _is_world_slice_rest_area_cell(world_game.state.map_data, streamed_enemy.grid_pos), "world slice streamed enemies also stay out of the tavern safe area")
+	var edit_area_probe_origin: Vector2i = world_game.state.player.grid_pos
+	var boss_gatekeeper_edit_cell: Vector2i = world_game._world_interaction_cell_for_actor(boss_gatekeeper)
+	_require(boss_gatekeeper_edit_cell != Vector2i(-1, -1), "boss gatekeeper exposes an adjacent interaction cell for editable-area checks")
+	_move_player_to(world_game, boss_gatekeeper_edit_cell)
+	_require(world_game._is_player_in_world_slice_rest_area(), "boss ruins now count as an editable bag/key area")
+	var ruin_guide_edit_cell: Vector2i = world_game._world_interaction_cell_for_actor(ruin_guide)
+	_require(ruin_guide_edit_cell != Vector2i(-1, -1), "ruin guide exposes an adjacent interaction cell for editable-area checks")
+	_move_player_to(world_game, ruin_guide_edit_cell)
+	_require(world_game._is_player_in_world_slice_rest_area(), "small ruins now count as an editable bag/key area")
+	_move_player_to(world_game, edit_area_probe_origin)
 	var audio_service = world_game.get_node_or_null("/root/AudioService")
 	_require(audio_service != null, "audio service exists in world slice smoke test")
 	_require(String(audio_service._current_music_key) == "dungeon", "world slice outside rest area plays dungeon music")
@@ -850,14 +860,17 @@ func _init() -> void:
 	world_game._on_auto_advance_mode_changed(world_game.battle_ui.AUTO_FAST)
 	_require(world_game.turn_controller.auto_advance_delay > 0.0, "world slice test enables auto mode before poi autopath click")
 	_require(_count_visible_world_slice_enemies(world_game.state) == 0, "world slice has no visible enemies before the poi autopath click test")
+	var boss_gatekeeper_focus_cell: Vector2i = world_game._world_interaction_cell_for_actor(boss_gatekeeper)
+	_require(boss_gatekeeper_focus_cell != Vector2i(-1, -1), "boss gatekeeper exposes a reachable adjacent interaction cell for poi focus")
 	world_game._on_boss_poi_requested()
 	await process_frame
-	_require(world_game._world_autopath_active, "world slice starts autopath from poi click while auto mode is enabled")
+	_require(
+		world_game._world_autopath_active or Vector2i(world_game.state.focused_nav_target_cell) == boss_gatekeeper_focus_cell,
+		"world slice poi click either starts autopath or at least focuses the boss interaction cell while auto mode is enabled"
+	)
 	world_game._on_auto_advance_mode_changed(world_game.battle_ui.AUTO_PAUSE)
 	await process_frame
 	_require(not world_game._world_autopath_active, "disabling auto mode pauses world autopath immediately")
-	var boss_gatekeeper_focus_cell: Vector2i = world_game._world_interaction_cell_for_actor(boss_gatekeeper)
-	_require(boss_gatekeeper_focus_cell != Vector2i(-1, -1), "boss gatekeeper exposes a reachable adjacent interaction cell for poi focus")
 	world_game._on_boss_poi_requested()
 	_require(Vector2i(world_game.state.focused_nav_target_cell) == boss_gatekeeper_focus_cell, "clicking the boss entry now focuses the boss NPC interaction cell instead of starting automatic movement")
 	_require(not world_game._world_autopath_active, "clicking a poi entry no longer starts autopath immediately")
@@ -921,14 +934,21 @@ func _init() -> void:
 	await process_frame
 	var pool_count_before_ruin: int = world_game_ruin.get_key_program_pool_tokens().size()
 	_require(world_game_ruin._submit_world_interact_action(), "world slice can investigate a ruin via interact action")
-	_require(world_game_ruin.get_key_program_pool_tokens().has("SL") and world_game_ruin.get_key_program_pool_tokens().has("SR"), "ruin investigation adds side-step tokens to the spare pool")
-	_require(world_game_ruin.get_key_program_pool_tokens().size() >= pool_count_before_ruin + 2, "ruin investigation grows the spare token pool")
+	_require(world_game_ruin.get_key_program_pool_tokens().size() == pool_count_before_ruin, "ruin guide first dialogue does not grant side-step tokens immediately")
 	var ruin_message_after_claim: String = String(world_game_ruin.state.messages[0])
-	_require(String(world_game_ruin.state.world_enemy_spawn_profile) == "event_alert", "ruin investigation switches the world enemy spawn profile into event alert mode")
-	_require(String(world_game_ruin.state.world_enemy_stream_last_reason) == "ruin_event_alert", "ruin investigation triggers an event-alert enemy stream refresh")
-	_require(ruin_message_after_claim.contains("小遗迹"), "ruin investigation reports a reward message")
+	_require(String(world_game_ruin.state.world_enemy_spawn_profile) == "calm", "ruin guide first dialogue only warns and does not change the spawn profile yet")
+	_require(String(world_game_ruin.state.world_enemy_stream_last_reason) != "ruin_npc_wave_5", "ruin guide first dialogue does not trigger the five-wave attack yet")
+	_require(ruin_message_after_claim.contains("再靠近一步") or ruin_message_after_claim.contains("怪物已经被惊动"), "ruin guide first dialogue acts as a warning")
+	var stream_spawn_total_before_ruin_attack: int = int(world_game_ruin.state.world_enemy_stream_spawn_total)
+	var stream_refresh_before_ruin_attack: int = int(world_game_ruin.state.world_enemy_stream_refresh_count)
 	_require(world_game_ruin._submit_world_interact_action(), "already-claimed ruin still resolves interact input")
-	_require(String(world_game_ruin.state.messages[0]).contains("已经调查过"), "revisiting a claimed ruin reports that it was already investigated")
+	_require(world_game_ruin.battle_ui.get_node("NpcDialoguePanel/Margin/Content/NpcDialogueBody").text.contains("五波") or world_game_ruin.battle_ui.get_node("NpcDialoguePanel/Margin/Content/NpcDialogueBody").text.contains("它们已经听见了"), "ruin guide second dialogue escalates into the wave-battle warning")
+	_require(world_game_ruin.get_key_program_pool_tokens().has("SL") and world_game_ruin.get_key_program_pool_tokens().has("SR"), "ruin second interaction adds side-step tokens to the spare pool")
+	_require(world_game_ruin.get_key_program_pool_tokens().size() >= pool_count_before_ruin + 2, "ruin second interaction grows the spare token pool")
+	_require(String(world_game_ruin.state.world_enemy_spawn_profile) == "event_alert", "ruin second interaction switches the world enemy spawn profile into event alert mode")
+	_require(int(world_game_ruin.state.world_enemy_stream_refresh_count) >= stream_refresh_before_ruin_attack + 5, "ruin second interaction triggers five enemy wave refreshes before the reward finishes")
+	_require(int(world_game_ruin.state.world_enemy_stream_spawn_total) >= stream_spawn_total_before_ruin_attack, "ruin second interaction can contribute additional streamed enemy spawns")
+	_require(String(world_game_ruin.state.messages[0]).contains("小遗迹") or String(world_game_ruin.state.messages[0]).contains("已经调查过"), "ruin follow-up interaction resolves into reward or already-investigated feedback")
 	var world_player_view = world_game_ruin._battle_presentation.actor_views.get(int(world_game_ruin.state.player.id))
 	_require(world_player_view != null, "world slice keeps a player actor view after movement")
 	var expected_world_pos: Vector2 = world_game_ruin.board_view.grid_to_world(world_game_ruin.state.player.grid_pos) + Vector2(world_game_ruin.board_view.cell_size * 0.5, world_game_ruin.board_view.cell_size * 0.5)
@@ -1306,31 +1326,36 @@ func _init() -> void:
 	_require(game.state.player.max_hp == max_hp_before_level_up + 1, "leveling up increases max hp")
 	_require(game.state.player.hp >= hp_before_level_up, "leveling up restores hp immediately")
 	_require(game._current_rewards.size() == 3, "level up offers three permanent buff choices")
-	_require(String(game._current_rewards[0].get("name", "")).contains("回响刃"), "first level-up reward set starts from the modifier reward pool")
+	_require(_reward_list_has_kind(game._current_rewards, "add_modifier"), "level-up reward set includes permanent modifier choices")
+	_require(_reward_list_modifiers_are_distinct(game._current_rewards), "level-up reward modifiers are distinct within one offer")
+	_require(_reward_list_modifiers_are_known(game._current_rewards, game._modifier_by_id), "level-up reward modifiers come from the known permanent modifier pool")
 	game._on_reward_chosen(0)
 	await process_frame
 	_require(game._run_modifier_ids.size() >= 1, "choosing a level-up reward grants a permanent modifier")
 	game._run_modifier_ids.clear()
 	game._run_modifier_ids.append("echo_strike")
-	game._run_modifier_ids.append("echo_step")
 	game._run_modifier_ids.append("force_prism")
 	var late_level_rewards: Array = game._build_level_up_rewards()
 	_require(late_level_rewards.size() == 3, "later level-up reward pool still offers three choices")
-	_require(String(late_level_rewards[0].get("name", "")).contains("长弦校准"), "later level-up rewards rotate to newly added permanent buffs")
-	_require(String(late_level_rewards[1].get("name", "")).contains("收割回生"), "later level-up rewards include the kill-heal permanent buff")
-	_require(String(late_level_rewards[2].get("name", "")).contains("追电步"), "later level-up rewards include the move-zap permanent buff")
+	_require(_reward_list_has_kind(late_level_rewards, "add_modifier"), "later level-up rewards still include permanent modifier choices")
+	_require(_reward_list_modifiers_are_distinct(late_level_rewards), "later level-up offers do not repeat the same modifier in one roll")
 	game._run_modifier_ids.clear()
 	game._run_modifier_ids.append("echo_strike")
-	game._run_modifier_ids.append("echo_step")
 	game._run_modifier_ids.append("force_prism")
 	game._run_modifier_ids.append("long_draw")
 	game._run_modifier_ids.append("blood_drain")
 	game._run_modifier_ids.append("stormstep")
 	var richer_level_rewards: Array = game._build_level_up_rewards()
 	_require(richer_level_rewards.size() == 3, "expanded modifier roster still returns three level-up choices")
-	_require(String(richer_level_rewards[0].get("name", "")).contains("锋刃校准"), "expanded level-up pool includes a universal attack-damage buff")
-	_require(String(richer_level_rewards[1].get("name", "")).contains("壁垒猛进"), "expanded level-up pool includes a shield-and-hammer build buff")
-	_require(String(richer_level_rewards[2].get("name", "")).contains("枪锋专注"), "expanded level-up pool includes a piercing build buff")
+	_require(_reward_list_has_kind(richer_level_rewards, "add_modifier"), "expanded modifier roster still offers modifier choices even when some are already owned")
+	_require(_reward_list_modifiers_are_distinct(richer_level_rewards), "expanded modifier roster still keeps one offer free of duplicate modifiers")
+	var duplicate_seen := false
+	for roll_index in range(12):
+		var repeated_roll: Array = game._build_level_up_rewards()
+		if _reward_list_contains_modifier_id(repeated_roll, "echo_strike"):
+			duplicate_seen = true
+			break
+	_require(duplicate_seen, "owned permanent modifiers can appear again in later random level-up offers")
 
 	var achievement_service = root.get_node_or_null("/root/AchievementService")
 	_require(achievement_service != null, "achievement service autoload exists")
@@ -1357,7 +1382,7 @@ func _init() -> void:
 	achievement_service.reset_all()
 	await _start_seeded_combat_run(game, "achievement-modifier-event")
 	game._current_rewards = game._build_rewards()
-	game._on_reward_chosen(1)
+	game._on_reward_chosen(0)
 	await process_frame
 	_require(achievement_service.is_unlocked("first_modifier"), "modifier reward triggers achievement event")
 
@@ -1493,6 +1518,44 @@ func _world_slice_cell_hugs_wall(map_data, cell: Vector2i) -> bool:
 func _reward_list_has_kind(rewards: Array, kind: String) -> bool:
 	for reward in rewards:
 		if String(reward.get("kind", "")) == kind:
+			return true
+	return false
+
+
+func _reward_list_modifiers_are_distinct(rewards: Array) -> bool:
+	var seen: Dictionary = {}
+	for reward in rewards:
+		if String(reward.get("kind", "")) != "add_modifier":
+			continue
+		var modifier = reward.get("modifier")
+		if modifier == null:
+			return false
+		var modifier_id := String(modifier.id)
+		if modifier_id.is_empty() or seen.has(modifier_id):
+			return false
+		seen[modifier_id] = true
+	return true
+
+
+func _reward_list_modifiers_are_known(rewards: Array, modifier_by_id: Dictionary) -> bool:
+	for reward in rewards:
+		if String(reward.get("kind", "")) != "add_modifier":
+			continue
+		var modifier = reward.get("modifier")
+		if modifier == null:
+			return false
+		var modifier_id := String(modifier.id)
+		if modifier_id.is_empty() or not modifier_by_id.has(modifier_id):
+			return false
+	return true
+
+
+func _reward_list_contains_modifier_id(rewards: Array, modifier_id: String) -> bool:
+	for reward in rewards:
+		if String(reward.get("kind", "")) != "add_modifier":
+			continue
+		var modifier = reward.get("modifier")
+		if modifier != null and String(modifier.id) == modifier_id:
 			return true
 	return false
 

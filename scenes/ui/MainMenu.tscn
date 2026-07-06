@@ -82,6 +82,11 @@ layout_mode = 2
 theme_type_variation = &"PrimaryButton"
 text = "开始游戏"
 
+[node name="ContinueButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "继续游戏"
+
 [node name="SettingsButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
 unique_name_in_owner = true
 layout_mode = 2
@@ -95,6 +100,11 @@ text = "退出游戏"
 [node name="FooterSpacer" type="Control" parent="Panel/Margin/Content"]
 custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
+
+[node name="PrivacyButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "隐私声明"
 
 [node name="Hint" type="Label" parent="Panel/Margin/Content"]
 layout_mode = 2

@@ -442,15 +442,24 @@ func _spawn_world_poi_npcs(state, reserved: Dictionary) -> int:
 		var npc_def = NPC_DEF_BY_ID.get(npc_id)
 		if npc_def == null:
 			continue
+		var record_id := String(record.get("id", npc_id))
+		var actor_key := record_id if not record_id.is_empty() else npc_id
+		if _find_world_poi_npc_actor(state, actor_key) != null:
+			continue
 		var spawn_cell := _pick_world_poi_npc_cell(state, record, reserved)
 		if spawn_cell == Vector2i(-1, -1):
 			continue
+		var occupant = state.grid.get_actor(spawn_cell)
+		if occupant != null and occupant != state.player:
+			if occupant.tags.has("poi_npc") or occupant.tags.has("safe_zone_npc"):
+				continue
+			state.grid.remove_actor(occupant)
+			state.actors.erase(occupant)
 		var interaction_cell := Vector2i(record.get("interaction_cell", Vector2i(-1, -1)))
 		var facing := _step_direction_toward(spawn_cell, interaction_cell if interaction_cell != Vector2i(-1, -1) else state.player.grid_pos)
 		var npc = _add_actor(state, npc_def, spawn_cell, facing)
 		if npc == null:
 			continue
-		var record_id := String(record.get("id", npc_id))
 		npc.grid_item_id = record_id
 		if not npc.tags.has("npc"):
 			npc.tags.append("npc")
@@ -461,10 +470,10 @@ func _spawn_world_poi_npcs(state, reserved: Dictionary) -> int:
 		if not record_id.is_empty() and not npc.tags.has("poi_record:%s" % record_id):
 			npc.tags.append("poi_record:%s" % record_id)
 		reserved[spawn_cell] = true
-		state.world_actor_positions[npc_id] = spawn_cell
-		state.world_actor_display_names[npc_id] = String(npc.display_name)
-		state.world_npc_positions[npc_id] = spawn_cell
-		state.world_npc_display_names[npc_id] = String(npc.display_name)
+		state.world_actor_positions[actor_key] = spawn_cell
+		state.world_actor_display_names[actor_key] = String(npc.display_name)
+		state.world_npc_positions[actor_key] = spawn_cell
+		state.world_npc_display_names[actor_key] = String(npc.display_name)
 		spawned += 1
 	return spawned
 
@@ -482,9 +491,13 @@ func _pick_world_poi_npc_cell(state, record: Dictionary, reserved: Dictionary) -
 		if reserved.has(cell) or not state.map_data.is_walkable(cell):
 			continue
 		var occupant = state.grid.get_actor(cell)
-		if occupant != null and occupant != state.player:
+		if occupant == state.player:
+			continue
+		if occupant != null and (occupant.tags.has("poi_npc") or occupant.tags.has("safe_zone_npc")):
 			continue
 		var score := -float(cell.distance_squared_to(state.player.grid_pos))
+		if occupant != null:
+			score += 6.0
 		for neighbor_dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 			var neighbor_cell: Vector2i = cell + neighbor_dir
 			var map_cell = state.map_data.get_cell(neighbor_cell)
@@ -787,8 +800,10 @@ func _add_enemy_actor(state, actor_def, cell: Vector2i, facing: Vector2i):
 func refresh_streamed_enemies(state, reason: String = "manual") -> void:
 	if state == null or not bool(state.is_world_slice) or state.player == null or state.map_data == null or state.grid == null:
 		return
+	_ensure_world_poi_npcs_present(state)
 	var despawned: int = _despawn_far_streamed_enemies(state)
 	var spawned: int = _spawn_streamed_enemies_near_player(state)
+	_ensure_world_poi_npcs_present(state)
 	state.world_enemy_stream_refresh_count += 1
 	state.world_enemy_stream_last_spawned = spawned
 	state.world_enemy_stream_last_despawned = despawned
@@ -796,6 +811,29 @@ func refresh_streamed_enemies(state, reason: String = "manual") -> void:
 	state.world_enemy_stream_despawn_total += despawned
 	state.world_enemy_stream_last_reason = reason
 	state.world_enemy_stream_target = STREAM_DESIRED_ACTIVE_ENEMY_COUNT
+
+
+func _ensure_world_poi_npcs_present(state) -> void:
+	if state == null or state.map_data == null or state.player == null or state.grid == null:
+		return
+	var reserved: Dictionary = {}
+	for actor in state.actors:
+		if actor != null and not actor.is_dead():
+			reserved[actor.grid_pos] = true
+	_spawn_world_poi_npcs(state, reserved)
+
+
+func _find_world_poi_npc_actor(state, actor_key: String):
+	if state == null or actor_key.is_empty():
+		return null
+	for actor in state.actors:
+		if actor == null or actor.is_dead():
+			continue
+		if not actor.tags.has("poi_npc"):
+			continue
+		if String(actor.grid_item_id) == actor_key:
+			return actor
+	return null
 
 
 func _despawn_far_streamed_enemies(state) -> int:
@@ -981,4 +1019,4 @@ func _build_default_map_config():
 
 func _make_random_seed() -> String:
 	_seed_counter += 1
-	return "world_slice_%d_%d" % [int(Time.get_unix_time_from_system()), _seed_counter]
+	return "world_slice_%d_%d_%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec(), _seed_counter]

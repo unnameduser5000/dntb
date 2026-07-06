@@ -21,7 +21,10 @@ func interact(state, progress_by_actor_id: Dictionary) -> Dictionary:
 		return {"handled": false}
 
 	var actor_def = actor.def
-	var actor_id: String = String(actor_def.id if actor_def != null else actor.grid_item_id)
+	var actor_type_id: String = String(actor_def.id if actor_def != null else actor.grid_item_id)
+	var actor_id: String = actor_type_id
+	if actor.tags.has("poi_npc") and not String(actor.grid_item_id).is_empty():
+		actor_id = String(actor.grid_item_id)
 	var lines: PackedStringArray = PackedStringArray()
 	if actor_def != null and _has_property(actor_def, "interaction_lines"):
 		lines = PackedStringArray(actor_def.get("interaction_lines"))
@@ -54,6 +57,8 @@ func interact(state, progress_by_actor_id: Dictionary) -> Dictionary:
 		"handled": true,
 		"actor": actor,
 		"actor_id": actor_id,
+		"actor_type_id": actor_type_id,
+		"actor_progress_id": actor_id,
 		"actor_name": String(actor.display_name),
 		"title": title,
 		"prompt": prompt,

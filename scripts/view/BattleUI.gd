@@ -2,7 +2,7 @@ class_name BattleUI
 extends Control
 
 const CenterNavDialScript := preload("res://scripts/view/CenterNavDial.gd")
-const GAME_TITLE := "地牢编排师：禁忌之键"
+const GAME_TITLE := "地牢编排师"
 
 signal start_requested
 signal reward_chosen(index: int)

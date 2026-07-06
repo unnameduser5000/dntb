@@ -10,10 +10,10 @@ config_version=5
 
 [application]
 
-config/name="地牢编排师：禁忌之键"
+config/name="地牢编排师"
 run/main_scene="res://scenes/game/App.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
-config/icon="res://icon.svg"
+config/icon="res://art/imported/ui/图标/游戏图标/HKJN7239.PNG"
 
 [autoload]
 
