@@ -82,6 +82,11 @@ layout_mode = 2
 theme_type_variation = &"PrimaryButton"
 text = "开始游戏"
 
+[node name="ContinueButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "继续游戏"
+
 [node name="SettingsButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
 unique_name_in_owner = true
 layout_mode = 2

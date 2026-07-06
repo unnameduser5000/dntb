@@ -238,7 +238,7 @@ func render(state) -> void:
 		_render_window_origin = render_window.position
 		_render_window_size = render_window.size
 		_ensure_cell_pool(_render_window_size)
-		_apply_world_slice_layout()
+		_apply_world_slice_layout(state)
 	else:
 		if state != null and state.grid != null:
 			render_window = Rect2i(Vector2i.ZERO, Vector2i(state.grid.width, state.grid.height))
@@ -436,22 +436,23 @@ func _compute_render_window(state) -> Rect2i:
 	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
 		return Rect2i(Vector2i.ZERO, Vector2i.ZERO)
 
-	var camera_pos: Vector2 = Vector2.ZERO
-	if _camera_node != null:
-		camera_pos = _camera_node.position
+	var player_cell: Vector2i = Vector2i.ZERO
+	if state.player != null:
+		player_cell = Vector2i(state.player.grid_pos)
 
 	var cell_stride: float = float(cell_size + 1) * _camera_zoom
 	if cell_stride <= 0.0:
 		cell_stride = float(cell_size + 1)
 
+	var player_center_px := Vector2(player_cell) * float(cell_size + 1) + Vector2(cell_size * 0.5, cell_size * 0.5)
 	var half_viewport: Vector2 = viewport_size * 0.5
 	var origin_cell := Vector2i(
-		floori((camera_pos.x - half_viewport.x) / cell_stride) - world_slice_render_margin_cells,
-		floori((camera_pos.y - half_viewport.y) / cell_stride) - world_slice_render_margin_cells
+		floori((player_center_px.x - half_viewport.x) / cell_stride) - world_slice_render_margin_cells,
+		floori((player_center_px.y - half_viewport.y) / cell_stride) - world_slice_render_margin_cells
 	)
 	var end_cell := Vector2i(
-		ceili((camera_pos.x + half_viewport.x) / cell_stride) + world_slice_render_margin_cells,
-		ceili((camera_pos.y + half_viewport.y) / cell_stride) + world_slice_render_margin_cells
+		ceili((player_center_px.x + half_viewport.x) / cell_stride) + world_slice_render_margin_cells,
+		ceili((player_center_px.y + half_viewport.y) / cell_stride) + world_slice_render_margin_cells
 	)
 	var window_size: Vector2i = Vector2i(
 		clampi(end_cell.x - origin_cell.x, 1, grid_width),
@@ -754,27 +755,26 @@ func _compute_pool_size() -> Vector2i:
 	return Vector2i(max(1, world_slice_window_size.x), max(1, world_slice_window_size.y))
 
 
-func _apply_world_slice_layout() -> void:
+func _apply_world_slice_layout(state = null) -> void:
 	var viewport_rect: Rect2 = get_viewport_rect()
 	if viewport_rect.size.x <= 0.0 or viewport_rect.size.y <= 0.0:
 		return
 
 	if world_slice_camera_follow:
-		# Camera-follow mode uses Camera2D.position as a data marker for the
-		# world-pixel coordinate that should appear at the viewport center. Because
-		# BoardView is a Control, the Camera2D itself does not scroll it; we compute
-		# BoardView.position so the already-clamped render-window origin cell lands
-		# at the correct screen pixel.
+		# Camera-follow mode keeps BoardView anchored directly from the player's grid
+		# cell, so long walks cannot accumulate drift between the actor view and the
+		# visibility window center.
 		var cell_stride: float = float(cell_size + 1)
 		var viewport_center: Vector2 = viewport_rect.size * 0.5
-		var camera_pos: Vector2 = Vector2.ZERO
-		if _camera_node != null:
-			camera_pos = _camera_node.position
-
-		board_origin = viewport_center - camera_pos + Vector2(_render_window_origin) * cell_stride
+		var player_cell: Vector2i = Vector2i.ZERO
+		if state != null and state.player != null:
+			player_cell = Vector2i(state.player.grid_pos)
+		var player_local_center := Vector2(player_cell - _render_window_origin) * cell_stride + Vector2(cell_size * 0.5, cell_size * 0.5)
+		board_origin = viewport_center - player_local_center
 		_camera_offset = Vector2.ZERO
 		_camera_zoom = 1.0
 		if _camera_node != null:
+			_camera_node.position = Vector2(player_cell) * cell_stride + Vector2(cell_size * 0.5, cell_size * 0.5)
 			_camera_node.enabled = false
 		_apply_camera_transform()
 		return

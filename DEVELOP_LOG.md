@@ -34,6 +34,15 @@
   permanent-buff selection rule.
 - Follow-up: increased new-run seed entropy so repeated quick restarts are less
   likely to reuse the same permanent-buff offer sequence by accident.
+- Added a usable save/load flow on top of the existing `SaveService` providers:
+  - main menu now shows `继续游戏` when the default save slot exists
+  - pause menu now provides `保存游戏` and `保存并返回主菜单`
+  - `Game` save data now persists the active world-slice run context needed for
+    resume, including player position/facing, XP/level, run seed, key program,
+    modifier list, and world interaction progress
+- Current resume scope is centered on world-slice continuity: loading restores
+  the saved world seed and repositions the player into the regenerated slice,
+  then reapplies run stats and world interaction state on top.
 - `Game.start_run()` and `start_world_slice_debug()` now generate and propagate a
   high-precision runtime seed based on unix time plus `Time.get_ticks_usec()`.
 - `WorldSliceController._make_random_seed()` now also includes microsecond ticks

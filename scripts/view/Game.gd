@@ -2658,9 +2658,18 @@ func _register_save_provider() -> void:
 func get_save_data() -> Dictionary:
 	_ensure_action_helpers()
 	var key_program_save: Dictionary = _action_program.get_save_data()
+	var player_cell: Vector2i = Vector2i.ZERO if state == null or state.player == null else state.player.grid_pos
+	var player_facing: Vector2i = Vector2i.RIGHT if state == null or state.player == null else state.player.facing
+	var current_state_kind := "" if state == null else String(state.map_node_kind)
+	var is_world_slice_state := false if state == null else bool(state.is_world_slice)
+	var player_xp := 0 if state == null else int(state.player_xp)
+	var player_level := 1 if state == null else int(state.player_level)
+	var world_enemy_spawn_profile := "calm" if state == null else String(state.world_enemy_spawn_profile)
 	return {
 		"current_map_node_index": _current_map_node_index,
 		"current_room_index": _current_room_index,
+		"current_state_kind": current_state_kind,
+		"is_world_slice_state": is_world_slice_state,
 		"run_player_max_hp": _run_player_max_hp,
 		"run_player_hp": _run_player_hp,
 		"run_player_max_san": _run_player_max_san,
@@ -2669,6 +2678,15 @@ func get_save_data() -> Dictionary:
 		"run_regen_progress": _run_regen_progress,
 		"run_seed": _run_seed,
 		"run_modifier_ids": _run_modifier_ids,
+		"player_grid_pos": player_cell,
+		"player_facing": player_facing,
+		"player_xp": player_xp,
+		"player_level": player_level,
+		"world_enemy_spawn_profile": world_enemy_spawn_profile,
+		"tracked_world_actor_id": "" if state == null else String(state.tracked_world_actor_id),
+		"tracked_world_npc_id": "" if state == null else String(state.tracked_world_npc_id),
+		"show_tracked_world_actor_hint": false if state == null else bool(state.show_tracked_world_actor_hint),
+		"show_tracked_world_npc_hint": false if state == null else bool(state.show_tracked_world_npc_hint),
 		"world_npc_interaction_counts": _world_npc_interaction_counts.duplicate(true),
 		"world_ruin_claims": _world_ruin_claims.duplicate(true),
 		"key_slots": key_program_save["key_slots"],
@@ -2688,6 +2706,8 @@ func load_save_data(data: Dictionary) -> void:
 	_run_player_atk = int(data.get("run_player_atk", PLAYER_DEF.atk))
 	_run_regen_progress = float(data.get("run_regen_progress", 0.0))
 	_run_seed = data.get("run_seed", "")
+	var saved_state_kind := String(data.get("current_state_kind", ""))
+	var saved_is_world_slice := bool(data.get("is_world_slice_state", saved_state_kind == "world_slice"))
 	var interaction_counts = data.get("world_npc_interaction_counts", {})
 	var ruin_claims = data.get("world_ruin_claims", {})
 	_world_npc_interaction_counts = interaction_counts.duplicate(true) if typeof(interaction_counts) == TYPE_DICTIONARY else {}
@@ -2701,10 +2721,82 @@ func load_save_data(data: Dictionary) -> void:
 
 	_load_key_program(data)
 	_refresh_inventory_ui()
-	_start_map_node(_current_map_node_index)
+	if saved_is_world_slice:
+		_restore_world_slice_state_from_save(data)
+	else:
+		_start_map_node(_current_map_node_index)
+		if state != null:
+			state.player_xp = int(data.get("player_xp", 0))
+			state.player_level = maxi(1, int(data.get("player_level", 1)))
 	_play_music_for_state()
 
 func _load_key_program(data: Dictionary) -> void:
 	_ensure_action_helpers()
 	_action_program.load_save_data(data)
 	_refresh_key_program_ui()
+
+
+func _restore_world_slice_state_from_save(data: Dictionary) -> void:
+	if _world_slice_controller == null:
+		_start_map_node(_current_map_node_index)
+		return
+	_close_world_npc_dialogue(false)
+	_world_npc_dialogue_active = false
+	_world_npc_dialogue_npc_id = ""
+	_world_autopath_active = false
+	_world_autopath_target = Vector2i(-1, -1)
+	_world_autopath_steps.clear()
+	_world_autopath_last_step_msec = 0
+	_world_autopath_step_scheduled = false
+	_pending_level_reward = false
+	_current_rewards = []
+	state = _world_slice_controller.create_demo_state(_run_seed)
+	if state == null:
+		_start_map_node(_current_map_node_index)
+		return
+	state.player_xp = int(data.get("player_xp", 0))
+	state.player_level = maxi(1, int(data.get("player_level", 1)))
+	state.world_enemy_spawn_profile = String(data.get("world_enemy_spawn_profile", "calm"))
+	state.tracked_world_actor_id = String(data.get("tracked_world_actor_id", ""))
+	state.tracked_world_npc_id = String(data.get("tracked_world_npc_id", ""))
+	state.show_tracked_world_actor_hint = bool(data.get("show_tracked_world_actor_hint", false))
+	state.show_tracked_world_npc_hint = bool(data.get("show_tracked_world_npc_hint", false))
+	if state.player != null:
+		state.player.max_hp = _run_player_max_hp
+		state.player.hp = min(_run_player_hp, _run_player_max_hp)
+		state.player.max_san = _run_player_max_san
+		state.player.san = min(_run_player_san, _run_player_max_san)
+		state.player.atk = _run_player_atk
+		_restore_saved_player_transform(data)
+	_apply_run_modifiers_to_player()
+	if _battle_presentation != null:
+		_battle_presentation.reset_for_state(state)
+		_battle_presentation.use_world_slice_fast_timing_profile()
+		_battle_presentation.set_wait_for_presentation_completion(false)
+	enemy_planner.enemies_are_static = false
+	turn_controller.start_battle(state)
+	if board_view != null:
+		board_view.world_slice_window_size = Vector2i(29, 29)
+		board_view.reset_camera()
+	battle_ui.show_battle()
+	_restore_auto_advance_mode()
+	_update_world_slice_editability(true)
+	_refresh_world_visibility("load_save")
+	_refresh_views()
+	set_game_visible(true)
+
+
+func _restore_saved_player_transform(data: Dictionary) -> void:
+	if state == null or state.player == null or state.grid == null or state.map_data == null:
+		return
+	var saved_cell := Vector2i(data.get("player_grid_pos", state.player.grid_pos))
+	if saved_cell != state.player.grid_pos and state.map_data.is_walkable(saved_cell):
+		var occupant = state.grid.get_actor(saved_cell)
+		if occupant != null and occupant != state.player:
+			state.grid.remove_actor(occupant)
+			state.actors.erase(occupant)
+		if state.grid.can_enter(saved_cell):
+			state.grid.move_actor(state.player, saved_cell)
+	var saved_facing := Vector2i(data.get("player_facing", state.player.facing))
+	if saved_facing != Vector2i.ZERO:
+		state.player.facing = saved_facing

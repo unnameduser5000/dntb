@@ -22,9 +22,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -195.0
-offset_top = -128.0
+offset_top = -176.0
 offset_right = 195.0
-offset_bottom = 128.0
+offset_bottom = 176.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -50,6 +50,16 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"PrimaryButton"
 text = "继续游戏"
+
+[node name="SaveButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "保存游戏"
+
+[node name="SaveAndMenuButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
+unique_name_in_owner = true
+layout_mode = 2
+text = "保存并返回主菜单"
 
 [node name="SettingsButton" parent="Panel/Margin/Content" instance=ExtResource("4_button")]
 unique_name_in_owner = true
