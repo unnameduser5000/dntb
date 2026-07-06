@@ -897,6 +897,41 @@ func _init() -> void:
 	world_game_debug.queue_free()
 	await process_frame
 
+	var world_game_echo = GameScene.instantiate()
+	root.add_child(world_game_echo)
+	await process_frame
+	world_game_echo.start_world_slice_debug()
+	await process_frame
+	world_game_echo._run_modifier_ids.append("echo_step")
+	world_game_echo._apply_run_modifiers_to_player()
+	var tavern_keeper_echo = _find_world_slice_npc(world_game_echo, "tavern_keeper")
+	_require(tavern_keeper_echo != null, "echo step test world still spawns the tavern keeper NPC")
+	var tavern_keeper_talk_cell_echo: Vector2i = _find_walkable_adjacent_world_cell(world_game_echo.state, tavern_keeper_echo.grid_pos)
+	_require(tavern_keeper_talk_cell_echo != Vector2i(-1, -1), "echo step test world exposes a reachable tavern interaction cell")
+	var echo_step_origin: Vector2i = tavern_keeper_talk_cell_echo - (tavern_keeper_echo.grid_pos - tavern_keeper_talk_cell_echo)
+	if world_game_echo.state.map_data.is_walkable(echo_step_origin):
+		_move_player_to(world_game_echo, echo_step_origin)
+		if world_game_echo._world_slice_controller != null:
+			world_game_echo._world_slice_controller.on_player_moved(world_game_echo.state, tavern_keeper_talk_cell_echo, echo_step_origin)
+		world_game_echo.state.player.facing = tavern_keeper_echo.grid_pos - world_game_echo.state.player.grid_pos
+		var echo_step_delta: Vector2i = tavern_keeper_talk_cell_echo - echo_step_origin
+		var echo_step_key := ""
+		match echo_step_delta:
+			Vector2i.UP:
+				echo_step_key = "W"
+			Vector2i.DOWN:
+				echo_step_key = "S"
+			Vector2i.LEFT:
+				echo_step_key = "A"
+			Vector2i.RIGHT:
+				echo_step_key = "D"
+		if not echo_step_key.is_empty():
+			world_game_echo._submit_key_chain(echo_step_key)
+		await process_frame
+		_require(world_game_echo.state.player.grid_pos == tavern_keeper_talk_cell_echo, "echo step does not overshoot the NPC interaction cell in world slice")
+	world_game_echo.queue_free()
+	await process_frame
+
 	var world_game_ruin = GameScene.instantiate()
 	root.add_child(world_game_ruin)
 	await process_frame
