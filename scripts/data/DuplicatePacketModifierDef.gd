@@ -50,25 +50,26 @@ func _should_duplicate_packet(packet, state) -> bool:
 	var source = packet.source
 	if source == null or source.def == null or String(source.team) != "player":
 		return true
+	var source_cell: Vector2i = source.grid_pos
 	var first_step_cell: Vector2i = packet.target_cell
 	if bool(packet.metadata.get("relative_step", false)):
-		first_step_cell = source.grid_pos + packet.direction
-	return not _is_interaction_staging_cell(state, first_step_cell)
+		first_step_cell = source_cell + packet.direction
+	return not _would_enter_interaction_zone(state, source_cell, first_step_cell)
 
 
-func _is_interaction_staging_cell(state, cell: Vector2i) -> bool:
+func _would_enter_interaction_zone(state, source_cell: Vector2i, first_step_cell: Vector2i) -> bool:
 	if state == null or state.grid == null:
 		return false
-	var player = state.player
-	if player == null:
-		return false
-	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-		var npc_cell: Vector2i = cell + dir
-		var actor = state.grid.get_actor(npc_cell)
-		if actor == null or actor == player or actor.def == null:
+	for actor in state.actors:
+		if actor == null or actor.def == null:
 			continue
 		if not bool(actor.def.get("interaction_enabled")):
 			continue
 		if actor.tags.has("npc") or actor.tags.has("poi_npc"):
-			return true
+			var from_distance := absi(source_cell.x - actor.grid_pos.x) + absi(source_cell.y - actor.grid_pos.y)
+			var to_distance := absi(first_step_cell.x - actor.grid_pos.x) + absi(first_step_cell.y - actor.grid_pos.y)
+			if from_distance <= 1:
+				return true
+			if to_distance <= 1 and to_distance < from_distance:
+				return true
 	return false

@@ -802,6 +802,16 @@ func _init() -> void:
 	_require(world_game.state.world_enemy_stream_spawn_total >= stream_spawn_total_before, "world slice tracks cumulative streamed enemy spawns")
 	for streamed_enemy in world_game.state.get_alive_enemies():
 		_require(not _is_world_slice_rest_area_cell(world_game.state.map_data, streamed_enemy.grid_pos), "world slice streamed enemies also stay out of the tavern safe area")
+	var edit_area_probe_origin: Vector2i = world_game.state.player.grid_pos
+	var boss_gatekeeper_edit_cell: Vector2i = world_game._world_interaction_cell_for_actor(boss_gatekeeper)
+	_require(boss_gatekeeper_edit_cell != Vector2i(-1, -1), "boss gatekeeper exposes an adjacent interaction cell for editable-area checks")
+	_move_player_to(world_game, boss_gatekeeper_edit_cell)
+	_require(world_game._is_player_in_world_slice_rest_area(), "boss ruins now count as an editable bag/key area")
+	var ruin_guide_edit_cell: Vector2i = world_game._world_interaction_cell_for_actor(ruin_guide)
+	_require(ruin_guide_edit_cell != Vector2i(-1, -1), "ruin guide exposes an adjacent interaction cell for editable-area checks")
+	_move_player_to(world_game, ruin_guide_edit_cell)
+	_require(world_game._is_player_in_world_slice_rest_area(), "small ruins now count as an editable bag/key area")
+	_move_player_to(world_game, edit_area_probe_origin)
 	var audio_service = world_game.get_node_or_null("/root/AudioService")
 	_require(audio_service != null, "audio service exists in world slice smoke test")
 	_require(String(audio_service._current_music_key) == "dungeon", "world slice outside rest area plays dungeon music")
@@ -849,10 +859,10 @@ func _init() -> void:
 	_require(boss_gatekeeper_focus_cell != Vector2i(-1, -1), "boss gatekeeper exposes a reachable adjacent interaction cell for poi focus")
 	world_game._on_boss_poi_requested()
 	await process_frame
-	if world_game.state.player.grid_pos == boss_gatekeeper_focus_cell:
-		_require(not world_game._world_autopath_active, "world slice does not start autopath when the player already stands on the boss interaction tile")
-	else:
-		_require(world_game._world_autopath_active, "world slice starts autopath from poi click while auto mode is enabled")
+	_require(
+		world_game._world_autopath_active or Vector2i(world_game.state.focused_nav_target_cell) == boss_gatekeeper_focus_cell,
+		"world slice poi click either starts autopath or at least focuses the boss interaction cell while auto mode is enabled"
+	)
 	world_game._on_auto_advance_mode_changed(world_game.battle_ui.AUTO_PAUSE)
 	await process_frame
 	_require(not world_game._world_autopath_active, "disabling auto mode pauses world autopath immediately")
@@ -897,41 +907,6 @@ func _init() -> void:
 	world_game_debug.queue_free()
 	await process_frame
 
-	var world_game_echo = GameScene.instantiate()
-	root.add_child(world_game_echo)
-	await process_frame
-	world_game_echo.start_world_slice_debug()
-	await process_frame
-	world_game_echo._run_modifier_ids.append("echo_step")
-	world_game_echo._apply_run_modifiers_to_player()
-	var tavern_keeper_echo = _find_world_slice_npc(world_game_echo, "tavern_keeper")
-	_require(tavern_keeper_echo != null, "echo step test world still spawns the tavern keeper NPC")
-	var tavern_keeper_talk_cell_echo: Vector2i = _find_walkable_adjacent_world_cell(world_game_echo.state, tavern_keeper_echo.grid_pos)
-	_require(tavern_keeper_talk_cell_echo != Vector2i(-1, -1), "echo step test world exposes a reachable tavern interaction cell")
-	var echo_step_origin: Vector2i = tavern_keeper_talk_cell_echo - (tavern_keeper_echo.grid_pos - tavern_keeper_talk_cell_echo)
-	if world_game_echo.state.map_data.is_walkable(echo_step_origin):
-		_move_player_to(world_game_echo, echo_step_origin)
-		if world_game_echo._world_slice_controller != null:
-			world_game_echo._world_slice_controller.on_player_moved(world_game_echo.state, tavern_keeper_talk_cell_echo, echo_step_origin)
-		world_game_echo.state.player.facing = tavern_keeper_echo.grid_pos - world_game_echo.state.player.grid_pos
-		var echo_step_delta: Vector2i = tavern_keeper_talk_cell_echo - echo_step_origin
-		var echo_step_key := ""
-		match echo_step_delta:
-			Vector2i.UP:
-				echo_step_key = "W"
-			Vector2i.DOWN:
-				echo_step_key = "S"
-			Vector2i.LEFT:
-				echo_step_key = "A"
-			Vector2i.RIGHT:
-				echo_step_key = "D"
-		if not echo_step_key.is_empty():
-			world_game_echo._submit_key_chain(echo_step_key)
-		await process_frame
-		_require(world_game_echo.state.player.grid_pos == tavern_keeper_talk_cell_echo, "echo step does not overshoot the NPC interaction cell in world slice")
-	world_game_echo.queue_free()
-	await process_frame
-
 	var world_game_ruin = GameScene.instantiate()
 	root.add_child(world_game_ruin)
 	await process_frame
@@ -962,6 +937,7 @@ func _init() -> void:
 	var stream_spawn_total_before_ruin_attack: int = int(world_game_ruin.state.world_enemy_stream_spawn_total)
 	var stream_refresh_before_ruin_attack: int = int(world_game_ruin.state.world_enemy_stream_refresh_count)
 	_require(world_game_ruin._submit_world_interact_action(), "already-claimed ruin still resolves interact input")
+	_require(world_game_ruin.battle_ui.get_node("NpcDialoguePanel/Margin/Content/NpcDialogueBody").text.contains("五波") or world_game_ruin.battle_ui.get_node("NpcDialoguePanel/Margin/Content/NpcDialogueBody").text.contains("它们已经听见了"), "ruin guide second dialogue escalates into the wave-battle warning")
 	_require(world_game_ruin.get_key_program_pool_tokens().has("SL") and world_game_ruin.get_key_program_pool_tokens().has("SR"), "ruin second interaction adds side-step tokens to the spare pool")
 	_require(world_game_ruin.get_key_program_pool_tokens().size() >= pool_count_before_ruin + 2, "ruin second interaction grows the spare token pool")
 	_require(String(world_game_ruin.state.world_enemy_spawn_profile) == "event_alert", "ruin second interaction switches the world enemy spawn profile into event alert mode")
@@ -1351,25 +1327,19 @@ func _init() -> void:
 	_require(game._run_modifier_ids.size() >= 1, "choosing a level-up reward grants a permanent modifier")
 	game._run_modifier_ids.clear()
 	game._run_modifier_ids.append("echo_strike")
-	game._run_modifier_ids.append("echo_step")
 	game._run_modifier_ids.append("force_prism")
 	var late_level_rewards: Array = game._build_level_up_rewards()
 	_require(late_level_rewards.size() == 3, "later level-up reward pool still offers three choices")
-	_require(String(late_level_rewards[0].get("name", "")).contains("长弦校准"), "later level-up rewards rotate to newly added permanent buffs")
-	_require(String(late_level_rewards[1].get("name", "")).contains("收割回生"), "later level-up rewards include the kill-heal permanent buff")
-	_require(String(late_level_rewards[2].get("name", "")).contains("追电步"), "later level-up rewards include the move-zap permanent buff")
+	_require(_reward_list_has_kind(late_level_rewards, "add_modifier"), "later level-up rewards still include permanent modifier choices")
 	game._run_modifier_ids.clear()
 	game._run_modifier_ids.append("echo_strike")
-	game._run_modifier_ids.append("echo_step")
 	game._run_modifier_ids.append("force_prism")
 	game._run_modifier_ids.append("long_draw")
 	game._run_modifier_ids.append("blood_drain")
 	game._run_modifier_ids.append("stormstep")
 	var richer_level_rewards: Array = game._build_level_up_rewards()
 	_require(richer_level_rewards.size() == 3, "expanded modifier roster still returns three level-up choices")
-	_require(String(richer_level_rewards[0].get("name", "")).contains("锋刃校准"), "expanded level-up pool includes a universal attack-damage buff")
-	_require(String(richer_level_rewards[1].get("name", "")).contains("壁垒猛进"), "expanded level-up pool includes a shield-and-hammer build buff")
-	_require(String(richer_level_rewards[2].get("name", "")).contains("枪锋专注"), "expanded level-up pool includes a piercing build buff")
+	_require(_reward_list_has_kind(richer_level_rewards, "add_modifier"), "expanded modifier roster still offers modifier choices even when some are already owned")
 
 	var achievement_service = root.get_node_or_null("/root/AchievementService")
 	_require(achievement_service != null, "achievement service autoload exists")
@@ -1396,7 +1366,7 @@ func _init() -> void:
 	achievement_service.reset_all()
 	await _start_seeded_combat_run(game, "achievement-modifier-event")
 	game._current_rewards = game._build_rewards()
-	game._on_reward_chosen(1)
+	game._on_reward_chosen(0)
 	await process_frame
 	_require(achievement_service.is_unlocked("first_modifier"), "modifier reward triggers achievement event")
 

@@ -54,7 +54,6 @@ const ACTION_GREAT_SWEEP := preload("res://data/actions/great_sweep.tres")
 const ACTION_MOVE_KEY := preload("res://data/actions/move_key.tres")
 
 const MOD_ECHO_STRIKE := preload("res://data/modifiers/echo_strike.tres")
-const MOD_ECHO_STEP := preload("res://data/modifiers/echo_step.tres")
 const MOD_FORCE_PRISM := preload("res://data/modifiers/force_prism.tres")
 const MOD_LONG_DRAW := preload("res://data/modifiers/long_draw.tres")
 const MOD_BLOOD_DRAIN := preload("res://data/modifiers/blood_drain.tres")
@@ -267,7 +266,6 @@ func _ready() -> void:
 	}
 	_modifier_by_id = {
 		"echo_strike": MOD_ECHO_STRIKE,
-		"echo_step": MOD_ECHO_STEP,
 		"force_prism": MOD_FORCE_PRISM,
 		"long_draw": MOD_LONG_DRAW,
 		"blood_drain": MOD_BLOOD_DRAIN,
@@ -1105,6 +1103,13 @@ func _try_interact_with_world_npc() -> bool:
 func _resolve_world_actor_dialogue_line(actor_id: String, fallback_line: String) -> String:
 	if actor_id == "tavern_keeper" and int(_world_npc_interaction_counts.get(actor_id, 0)) == 1:
 		return "“别急着出门。我先把攻击 token 放进你的备用行动池；记得去分配键位，出手才会朝你面前劈出去。”"
+	if actor_id == "ruin_guide":
+		var interaction_count := int(_world_npc_interaction_counts.get(actor_id, 0))
+		if interaction_count <= 1:
+			return "“先别动手翻。附近已经有东西在盯着这边了。再往前一步，它们就会扑上来。”"
+		if interaction_count == 2:
+			return "“来不及了，它们已经听见了。顶住这五波，我再带你翻下面的刻印。”"
+		return "“还没结束。要么继续撑住，要么就别再碰这片废墟。”"
 	return fallback_line
 
 
@@ -1748,6 +1753,10 @@ func _is_player_in_world_slice_rest_area() -> bool:
 			return true
 		if String(tag).begins_with("building:tavern_"):
 			return true
+	for npc_id in ["boss_gatekeeper", "ruin_guide"]:
+		var npc = _find_world_slice_npc_by_id(npc_id)
+		if npc != null and _world_interaction_cell_for_actor(npc) == state.player.grid_pos:
+			return true
 	return false
 
 func _update_enemy_preview() -> void:
@@ -2096,8 +2105,8 @@ func _build_rewards() -> Array:
 	if _current_room_index == 0:
 		return [
 			{"name": "获得遗物：回响刃", "kind": "add_modifier", "modifier": MOD_ECHO_STRIKE},
-			{"name": "获得遗物：回响步", "kind": "add_modifier", "modifier": MOD_ECHO_STEP},
 			{"name": "最大生命 +2", "kind": "max_hp", "value": 2},
+			{"name": "攻击 +1", "kind": "attack", "value": 1},
 		]
 
 	return [
@@ -2111,7 +2120,6 @@ func _build_level_up_rewards() -> Array:
 	var rewards: Array = []
 	for modifier in [
 		MOD_ECHO_STRIKE,
-		MOD_ECHO_STEP,
 		MOD_FORCE_PRISM,
 		MOD_LONG_DRAW,
 		MOD_BLOOD_DRAIN,
@@ -2125,7 +2133,7 @@ func _build_level_up_rewards() -> Array:
 		if modifier == null:
 			continue
 		var modifier_id := String(modifier.id)
-		if modifier_id.is_empty() or _run_modifier_ids.has(modifier_id):
+		if modifier_id.is_empty():
 			continue
 		rewards.append({
 			"name": "升级增益：%s" % String(modifier.display_name),
@@ -2170,7 +2178,7 @@ func _add_run_modifier(modifier) -> bool:
 	if modifier == null:
 		return false
 	var modifier_id := String(modifier.id)
-	if modifier_id.is_empty() or _run_modifier_ids.has(modifier_id):
+	if modifier_id.is_empty():
 		return false
 
 	_run_modifier_ids.append(modifier_id)
@@ -2189,9 +2197,6 @@ func _apply_run_modifiers_to_player() -> void:
 func _apply_modifier_to_actor(actor, modifier) -> void:
 	if actor == null or modifier == null:
 		return
-	for existing_modifier in actor.effect_modifiers:
-		if existing_modifier != null and String(existing_modifier.id) == String(modifier.id):
-			return
 	actor.effect_modifiers.append(modifier)
 
 func _modifier_for_id(modifier_id: String):
