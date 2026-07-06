@@ -7,7 +7,7 @@
 script = ExtResource("1_actor")
 id = "slime_god"
 display_name = "黏神"
-max_hp = 18
+max_hp = 30
 atk = 4
 move_range = 2
 map_char = "G"
@@ -17,6 +17,6 @@ attack_action_id = "spin_axe"
 default_drop_key = ""
 drop_tier = 3
 view_scene = ExtResource("2_view")
-view_offset = Vector2(0, -8)
-view_scale = Vector2(1.25, 1.25)
+view_offset = Vector2(0, -30)
+view_scale = Vector2(3.0, 3.0)
 color = Color(0.58, 0.22, 0.72, 1)

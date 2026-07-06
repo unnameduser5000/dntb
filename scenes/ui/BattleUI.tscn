@@ -82,7 +82,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(46, 46)
 layout_mode = 2
 theme_type_variation = &"PrimaryButton"
-self_modulate = Color(1, 1, 1, 0.82)
+self_modulate = Color(1, 1, 1, 0.96)
 text = "⏸"
 
 [node name="AutoSpeedButton" parent="AutoControls" instance=ExtResource("4_button")]
@@ -90,7 +90,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(46, 46)
 layout_mode = 2
 theme_type_variation = &"PrimaryButton"
-self_modulate = Color(1, 1, 1, 0.82)
+self_modulate = Color(1, 1, 1, 0.96)
 text = "▷"
 
 [node name="BattlePanel" parent="." instance=ExtResource("3_panel")]

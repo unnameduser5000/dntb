@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="NpcDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/NpcDef.gd" id="1_npc"]
+[ext_resource type="PackedScene" path="res://scenes/actors/EnemyActorView.tscn" id="2_view"]
+
+[resource]
+script = ExtResource("1_npc")
+id = "boss_gatekeeper"
+display_name = "遗迹守门人"
+max_hp = 1
+max_san = 0
+atk = 0
+map_char = "G"
+team = "neutral"
+ai_type = "none"
+view_scene = ExtResource("2_view")
+color = Color(0.92, 0.82, 0.58, 1)
+interaction_enabled = true
+interaction_title = "遗迹守门人"
+interaction_prompt = "进入"
+interaction_lines = PackedStringArray("“门后的东西已经醒着了。你若真要下去，就上前来，我替你开路。”")

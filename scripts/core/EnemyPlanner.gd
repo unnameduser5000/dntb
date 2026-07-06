@@ -1,6 +1,7 @@
 class_name EnemyPlanner
 extends Node
 
+const ActionDefScript := preload("res://scripts/data/ActionDef.gd")
 const ActionInstanceScript := preload("res://scripts/runtime/ActionInstance.gd")
 
 @export var enemies_are_static: bool = true
@@ -54,6 +55,8 @@ func decide_enemy_action(enemy, state):
 	match String(enemy.def.ai_type):
 		"static":
 			return _decide_static_attack(enemy, state)
+		"boss_tactician":
+			return _decide_boss_tactician(enemy, state)
 		"line_keeper":
 			return _decide_line_keeper(enemy, state)
 		"slime_god":
@@ -151,6 +154,66 @@ func _decide_slime_god(enemy, state):
 	move.def = move_action
 	move.chosen_dir = move_dir
 	return move
+
+
+func _decide_boss_tactician(enemy, state):
+	if enemy == null or state == null or state.player == null:
+		return null
+	var distance: int = _manhattan(enemy.grid_pos, state.player.grid_pos)
+	var sweep_action = attack_actions_by_id.get("great_sweep")
+	var dash_action = attack_actions_by_id.get("dash")
+	var jump_action = attack_actions_by_id.get("jump")
+	var heavy_attack = attack_actions_by_id.get("charge_thrust")
+	if sweep_action != null:
+		var sweep_dir := _get_attack_dir_for_action(enemy, state, sweep_action)
+		if sweep_dir != Vector2i.ZERO:
+			return _make_specific_attack(enemy, sweep_dir, sweep_action)
+	if heavy_attack != null and distance <= 3:
+		var heavy_dir := _get_attack_dir_for_action(enemy, state, heavy_attack)
+		if heavy_dir != Vector2i.ZERO:
+			return _make_specific_attack(enemy, heavy_dir, heavy_attack)
+	if dash_action != null and distance >= 2 and distance <= 4:
+		var dash_dir := _line_step_toward(enemy.grid_pos, state.player.grid_pos)
+		if dash_dir != Vector2i.ZERO and _can_dash_land(enemy.grid_pos, dash_dir, state):
+			return _make_specific_attack(enemy, dash_dir, dash_action)
+	if jump_action != null and distance >= 2:
+		var behind_cell: Vector2i = state.player.grid_pos - state.player.facing
+		if _can_jump_behind_target(enemy, behind_cell, state):
+			var jump_dir: Vector2i = behind_cell - enemy.grid_pos
+			if absi(jump_dir.x) + absi(jump_dir.y) <= max(1, int(jump_action.range)):
+				return _make_specific_attack(enemy, jump_dir.sign(), jump_action)
+	if move_action == null:
+		return null
+	var move_dir := _get_path_step_towards(enemy.grid_pos, state.player.grid_pos, state.grid, state)
+	if move_dir == Vector2i.ZERO:
+		return null
+	var move = ActionInstanceScript.new()
+	move.actor = enemy
+	move.def = move_action
+	move.chosen_dir = move_dir
+	return move
+
+
+func _can_dash_land(origin: Vector2i, direction: Vector2i, state) -> bool:
+	if state == null or state.grid == null:
+		return false
+	for step in range(1, 3):
+		var cell := origin + direction * step
+		if not state.grid.is_inside(cell):
+			return false
+		if step < 2 and state.grid.is_blocked(cell):
+			return false
+		if step == 2 and not _can_enemy_enter_cell(state, cell):
+			return false
+	return true
+
+
+func _can_jump_behind_target(enemy, behind_cell: Vector2i, state) -> bool:
+	if enemy == null or state == null or state.grid == null:
+		return false
+	if behind_cell == enemy.grid_pos or not state.grid.is_inside(behind_cell):
+		return false
+	return _can_enemy_enter_cell(state, behind_cell)
 
 
 func _can_enemy_enter_cell(state, cell: Vector2i) -> bool:
@@ -259,18 +322,113 @@ func get_danger_cells(actions: Array) -> Array[Vector2i]:
 
 func get_threat_cells(state) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
+	for cell in get_threat_labels(state).keys():
+		var threat_cell: Vector2i = cell
+		if not result.has(threat_cell):
+			result.append(threat_cell)
+	return result
+
+
+func get_threat_labels(state) -> Dictionary:
+	var result: Dictionary = {}
 	if state == null or state.grid == null:
 		return result
+	for action in preview_enemy_actions(state):
+		if action == null or action.actor == null or action.def == null:
+			continue
+		if action.actor.def != null and int(action.actor.def.atk) <= 0:
+			continue
+		if int(action.def.kind) == int(ActionDefScript.ActionKind.ATTACK):
+			for cell in _get_attack_cells(action.actor.grid_pos, action.chosen_dir, action.def, state.grid):
+				if not result.has(cell):
+					result[cell] = _warning_label_for_action(action.def)
+			continue
+		if int(action.def.kind) != int(ActionDefScript.ActionKind.MOVE):
+			continue
+		var target_cell: Vector2i = action.actor.grid_pos + action.chosen_dir * max(1, int(action.def.range))
+		if not state.grid.is_inside(target_cell) or state.grid.is_blocked(target_cell):
+			continue
+		for followup_entry in _project_followup_threat_for_enemy(action.actor, target_cell, state):
+			var followup_cell: Vector2i = Vector2i(followup_entry.get("cell", Vector2i(-1, -1)))
+			if followup_cell == Vector2i(-1, -1) or result.has(followup_cell):
+				continue
+			result[followup_cell] = String(followup_entry.get("label", "逼近预警"))
 
-	for actor in state.actors:
-		if actor.team != "enemy" or actor.is_dead():
-			continue
-		if not _is_enemy_active_for_state(actor, state):
-			continue
-		for cell in get_enemy_threat_cells(actor, state):
+	return result
+
+
+func _project_followup_threat_for_enemy(enemy, target_cell: Vector2i, state) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if enemy == null:
+		return result
+	match String(enemy.def.ai_type):
+		"boss_tactician":
+			var sweep_action = attack_actions_by_id.get("great_sweep")
+			var thrust_action = attack_actions_by_id.get("charge_thrust")
+			for action_def in [sweep_action, thrust_action]:
+				if action_def == null:
+					continue
+				for cell in _project_attack_threat_from_cell(target_cell, action_def, state.grid):
+					_append_threat_entry(result, cell, _warning_label_for_action(action_def))
+			return result
+		"slime_god":
+			for action_def in [attack_actions_by_id.get("spin_axe"), attack_actions_by_id.get("charge_thrust"), attack_actions_by_id.get("slime_bind")]:
+				if action_def == null:
+					continue
+				for cell in _project_attack_threat_from_cell(target_cell, action_def, state.grid):
+					_append_threat_entry(result, cell, _warning_label_for_action(action_def))
+			return result
+		_:
+			var followup_attack = _attack_action_for_enemy(enemy)
+			if followup_attack == null:
+				return result
+			for cell in _project_attack_threat_from_cell(target_cell, followup_attack, state.grid):
+				_append_threat_entry(result, cell, _warning_label_for_action(followup_attack))
+			return result
+
+
+func _append_threat_entry(entries: Array[Dictionary], cell: Vector2i, label: String) -> void:
+	for entry in entries:
+		if Vector2i(entry.get("cell", Vector2i(-1, -1))) == cell:
+			return
+	entries.append({
+		"cell": cell,
+		"label": label,
+	})
+
+
+func _warning_label_for_action(action_def) -> String:
+	if action_def == null:
+		return "危险预警"
+	match String(action_def.id):
+		"attack":
+			return "攻击预警"
+		"spin_axe":
+			return "环扫预警"
+		"great_sweep":
+			return "横扫预警"
+		"charge_thrust":
+			return "冲刺预警"
+		"slime_bind":
+			return "黏缚预警"
+		"dash":
+			return "冲锋预警"
+		"jump":
+			return "跳袭预警"
+		_:
+			return "%s预警" % String(action_def.display_name if action_def.get("display_name") != null else action_def.id)
+
+
+func _project_attack_threat_from_cell(origin: Vector2i, action_def, grid) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	if action_def == null:
+		return result
+	if String(action_def.id) == "spin_axe":
+		return _get_attack_cells(origin, Vector2i.UP, action_def, grid)
+	for raw_direction in CARDINAL_DIRECTIONS:
+		for cell in _get_attack_cells(origin, raw_direction, action_def, grid):
 			if not result.has(cell):
 				result.append(cell)
-
 	return result
 
 

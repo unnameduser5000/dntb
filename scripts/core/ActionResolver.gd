@@ -99,6 +99,34 @@ func _resolve_jump(action, state, actor, dir: Vector2i, distance: int) -> void:
 	var move_packets: Array = apply_effect_move_to_cell(actor, landing_cell, state, action, [&"action_move", &"jump"])
 	if not did_any_packet_move(move_packets):
 		_add_message(state, "%s 的跳跃失败了。" % actor.def.display_name)
+		return
+	_try_boss_jump_knockback(action, state, actor)
+
+
+func _try_boss_jump_knockback(action, state, actor) -> void:
+	if action == null or state == null or actor == null or actor.def == null or state.player == null:
+		return
+	if String(actor.def.id) != "boss" or String(action.def.id) != "jump":
+		return
+	if absi(actor.grid_pos.x - state.player.grid_pos.x) + absi(actor.grid_pos.y - state.player.grid_pos.y) != 1:
+		return
+	var knockback_dirs: Array[Vector2i] = []
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		if state.grid == null or not state.grid.is_inside(state.player.grid_pos + dir):
+			continue
+		knockback_dirs.append(dir)
+	if knockback_dirs.is_empty():
+		return
+	var random_service = get_node_or_null("/root/RandomService")
+	var chosen_index := 0
+	if random_service != null and random_service.has_method("randi_range_value"):
+		chosen_index = int(random_service.randi_range_value(0, knockback_dirs.size() - 1))
+	else:
+		chosen_index = randi_range(0, knockback_dirs.size() - 1)
+	var knockback_dir: Vector2i = Vector2i(knockback_dirs[chosen_index])
+	var knockback_packets: Array = apply_effect_knockback(actor, state.player, knockback_dir, 1, state, action, [&"boss_jump_knockback", &"impact"])
+	if get_total_knockback_moved(knockback_packets) > 0:
+		_add_message(state, "%s 落地时将玩家撞退了一格。" % actor.def.display_name)
 
 func _resolve_attack(action, state):
 	var actor = action.actor
@@ -686,6 +714,11 @@ func _check_battle_end(state) -> void:
 			state.battle_finished = true
 			state.victory = false
 			_add_message(state, "鐜╁鍊掍笅浜嗐€?")
+			return
+		if String(state.map_node_kind) == "boss" and state.get_alive_enemies().is_empty():
+			state.battle_finished = true
+			state.victory = true
+			_add_message(state, "Boss 已被消灭。")
 		return
 
 	if state.player == null or state.player.is_dead():

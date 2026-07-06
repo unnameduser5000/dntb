@@ -324,6 +324,10 @@ func show_reward(rewards: Array, title_text: String = "选择奖励", body_text:
 func show_result(victory: bool) -> void:
 	var title := "通关" if victory else "失败"
 	var body := "你打穿了这个盒装小样。" if victory else "玩家倒下了。再跑一局。"
+	show_custom_result(title, body)
+
+
+func show_custom_result(title: String, body: String) -> void:
 	_show_overlay(title, body, [
 		{"text": "重新开始", "callback": func() -> void: restart_requested.emit()},
 	])
@@ -431,6 +435,10 @@ func set_auto_advance_mode(mode: int) -> void:
 	auto_advance_mode_changed.emit(_auto_advance_mode)
 
 
+func is_auto_advance_enabled() -> bool:
+	return _auto_advance_mode != AUTO_PAUSE
+
+
 func _update_auto_advance_button() -> void:
 	_ensure_auto_icons()
 	_auto_toggle_button.text = ""
@@ -452,7 +460,7 @@ func _is_fast_enabled() -> bool:
 func _apply_auto_button_visuals(button: Button, is_active: bool) -> void:
 	if button == null:
 		return
-	button.self_modulate = Color(1, 1, 1, 0.98) if is_active else Color(1, 1, 1, 0.42)
+	button.self_modulate = Color(1, 1, 1, 1.0) if is_active else Color(1, 1, 1, 0.82)
 	button.add_theme_stylebox_override("normal", _make_auto_button_style(is_active, false))
 	button.add_theme_stylebox_override("hover", _make_auto_button_style(is_active, true))
 	button.add_theme_stylebox_override("pressed", _make_auto_button_style(is_active, true))

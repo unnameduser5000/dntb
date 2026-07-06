@@ -540,7 +540,9 @@ func _describe_cell(cell: Vector2i, state) -> Dictionary:
 		danger_cell["char"] = "!"
 		danger_cell["font_color"] = Color(1.0, 0.18, 0.22, 1.0) if is_danger else Color(0.92, 0.28, 0.94, 1.0)
 		danger_cell["border_color"] = Color(1.0, 0.14, 0.18, 0.98) if is_danger else Color(0.88, 0.26, 0.96, 0.98)
-		danger_cell["tooltip"] = (actor_tooltip + "\n" if not actor_tooltip.is_empty() else "") + ("Threatened by enemy action" if is_danger else "Persistent corruption zone")
+		danger_cell["border_width"] = 2 if is_danger else 2
+		var danger_label := String(state.danger_cell_labels.get(cell, "危险预警")) if is_danger and state.get("danger_cell_labels") != null else "危险预警"
+		danger_cell["tooltip"] = (actor_tooltip + "\n" if not actor_tooltip.is_empty() else "") + (danger_label if is_danger else "Persistent corruption zone")
 		return danger_cell
 
 	var terrain_cell := _describe_terrain_cell(cell, state, is_visible)
@@ -1013,30 +1015,32 @@ func _apply_dynamic_palette(label: Label, cell_data: Dictionary) -> void:
 	var border_variant = cell_data.get("border_color", null)
 	var tile_texture_id: String = String(cell_data.get("tile_texture_id", ""))
 	var fog_overlay_alpha: float = clampf(float(cell_data.get("fog_overlay_alpha", 0.0)), 0.0, 1.0)
+	var border_width: int = maxi(1, int(cell_data.get("border_width", 1)))
 	if bg_variant is Color and font_variant is Color and border_variant is Color:
 		var bg_color: Color = bg_variant
 		var font_color: Color = font_variant
 		var border_color: Color = border_variant
 		if not tile_texture_id.is_empty():
-			label.add_theme_stylebox_override("normal", _textured_stylebox_for_palette(tile_texture_id, bg_color, font_color, border_color, fog_overlay_alpha))
+			label.add_theme_stylebox_override("normal", _textured_stylebox_for_palette(tile_texture_id, bg_color, font_color, border_color, border_width, fog_overlay_alpha))
 		else:
-			label.add_theme_stylebox_override("normal", _stylebox_for_palette(bg_color, border_color))
+			label.add_theme_stylebox_override("normal", _stylebox_for_palette(bg_color, border_color, border_width))
 		label.add_theme_color_override("font_color", font_color)
 	else:
 		label.remove_theme_stylebox_override("normal")
 		label.remove_theme_color_override("font_color")
 
 
-func _stylebox_for_palette(bg_color: Color, border_color: Color) -> StyleBoxFlat:
-	var cache_key := "%s|%s" % [bg_color.to_html(), border_color.to_html()]
+func _stylebox_for_palette(bg_color: Color, border_color: Color, border_width: int = 1) -> StyleBoxFlat:
+	var safe_border_width := maxi(1, border_width)
+	var cache_key := "%s|%s|%d" % [bg_color.to_html(), border_color.to_html(), safe_border_width]
 	if _stylebox_cache.has(cache_key):
 		return _stylebox_cache[cache_key]
 	var style := StyleBoxFlat.new()
 	style.bg_color = bg_color
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 1
-	style.border_width_bottom = 1
+	style.border_width_left = safe_border_width
+	style.border_width_top = safe_border_width
+	style.border_width_right = safe_border_width
+	style.border_width_bottom = safe_border_width
 	style.border_color = border_color
 	style.corner_radius_top_left = 2
 	style.corner_radius_top_right = 2
@@ -1046,12 +1050,13 @@ func _stylebox_for_palette(bg_color: Color, border_color: Color) -> StyleBoxFlat
 	return style
 
 
-func _textured_stylebox_for_palette(tile_texture_id: String, bg_color: Color, font_color: Color, border_color: Color, fog_overlay_alpha: float = 0.0) -> StyleBoxTexture:
-	var cache_key := "%s|%s|%s|%s|%.3f" % [tile_texture_id, bg_color.to_html(), font_color.to_html(), border_color.to_html(), fog_overlay_alpha]
+func _textured_stylebox_for_palette(tile_texture_id: String, bg_color: Color, font_color: Color, border_color: Color, border_width: int = 1, fog_overlay_alpha: float = 0.0) -> StyleBoxTexture:
+	var safe_border_width := maxi(1, border_width)
+	var cache_key := "%s|%s|%s|%s|%d|%.3f" % [tile_texture_id, bg_color.to_html(), font_color.to_html(), border_color.to_html(), safe_border_width, fog_overlay_alpha]
 	if _texture_stylebox_cache.has(cache_key):
 		return _texture_stylebox_cache[cache_key]
 	var style := StyleBoxTexture.new()
-	style.texture = _get_tile_texture(tile_texture_id, bg_color, font_color, border_color, fog_overlay_alpha)
+	style.texture = _get_tile_texture(tile_texture_id, bg_color, font_color, border_color, safe_border_width, fog_overlay_alpha)
 	style.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
 	style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
 	_texture_stylebox_cache[cache_key] = style
@@ -1118,17 +1123,18 @@ func _tile_texture_id_for_map_cell(map_cell) -> String:
 			return "plain"
 
 
-func _generate_tile_texture(tile_texture_id: String, bg_color: Color, font_color: Color, border_color: Color) -> Texture2D:
+func _generate_tile_texture(tile_texture_id: String, bg_color: Color, font_color: Color, border_color: Color, border_width: int = 1) -> Texture2D:
 	var size: int = 64
+	var safe_border_width := maxi(1, border_width)
 	var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	image.fill(bg_color)
 	var dark: Color = bg_color.lerp(border_color, 0.72)
 	var light: Color = bg_color.lerp(font_color, 0.5)
 	var strong: Color = font_color.lerp(Color.WHITE, 0.2)
-	_fill_rect(image, Rect2i(0, 0, size, 1), border_color)
-	_fill_rect(image, Rect2i(0, size - 1, size, 1), border_color)
-	_fill_rect(image, Rect2i(0, 0, 1, size), border_color)
-	_fill_rect(image, Rect2i(size - 1, 0, 1, size), border_color)
+	_fill_rect(image, Rect2i(0, 0, size, safe_border_width), border_color)
+	_fill_rect(image, Rect2i(0, size - safe_border_width, size, safe_border_width), border_color)
+	_fill_rect(image, Rect2i(0, 0, safe_border_width, size), border_color)
+	_fill_rect(image, Rect2i(size - safe_border_width, 0, safe_border_width, size), border_color)
 
 	match tile_texture_id:
 		"plain":
@@ -1222,18 +1228,18 @@ func _generate_tile_texture(tile_texture_id: String, bg_color: Color, font_color
 	return ImageTexture.create_from_image(image)
 
 
-func _get_tile_texture(tile_texture_id: String, bg_color: Color, font_color: Color, border_color: Color, fog_overlay_alpha: float = 0.0) -> Texture2D:
+func _get_tile_texture(tile_texture_id: String, bg_color: Color, font_color: Color, border_color: Color, border_width: int = 1, fog_overlay_alpha: float = 0.0) -> Texture2D:
 	var loaded: Texture2D = _load_tile_texture_asset(tile_texture_id)
 	if loaded != null:
 		return _texture_with_fog_variant(tile_texture_id, loaded, fog_overlay_alpha)
-	var generated := _generate_tile_texture(tile_texture_id, bg_color, font_color, border_color)
+	var generated := _generate_tile_texture(tile_texture_id, bg_color, font_color, border_color, border_width)
 	return _texture_with_fog_variant("%s#generated" % tile_texture_id, generated, fog_overlay_alpha)
 
 
 ## SmokeTest uses this to verify that explored-cell fog still darkens real PNG
 ## tiles after moving away from flat debug-color rendering.
 func debug_get_tile_texture_variant(tile_texture_id: String, fog_overlay_alpha: float = 0.0) -> Texture2D:
-	return _get_tile_texture(tile_texture_id, Color.WHITE, Color.WHITE, Color.BLACK, fog_overlay_alpha)
+	return _get_tile_texture(tile_texture_id, Color.WHITE, Color.WHITE, Color.BLACK, 1, fog_overlay_alpha)
 
 
 func _texture_with_fog_variant(cache_id: String, source_texture: Texture2D, fog_overlay_alpha: float) -> Texture2D:

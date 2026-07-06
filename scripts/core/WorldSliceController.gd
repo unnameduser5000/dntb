@@ -18,6 +18,8 @@ const GOBLIN_SLINGER_DEF := preload("res://data/actors/goblin_slinger.tres")
 const AOE_SLIME_DEF := preload("res://data/actors/aoe_slime.tres")
 const SPLIT_SLIME_DEF := preload("res://data/actors/split_slime.tres")
 const TAVERN_KEEPER_DEF := preload("res://data/actors/tavern_keeper.tres")
+const BOSS_GATEKEEPER_DEF := preload("res://data/actors/boss_gatekeeper.tres")
+const RUIN_GUIDE_DEF := preload("res://data/actors/ruin_guide.tres")
 
 const WORLD_GRID_SIZE := Vector2i(256, 256)
 const DEFAULT_FOV_RADIUS := 8
@@ -36,6 +38,8 @@ const WORLD_ENEMY_PROFILE_WEIGHTS := {
 }
 const NPC_DEF_BY_ID := {
 	"tavern_keeper": TAVERN_KEEPER_DEF,
+	"boss_gatekeeper": BOSS_GATEKEEPER_DEF,
+	"ruin_guide": RUIN_GUIDE_DEF,
 }
 
 var _next_actor_id: int = 0
@@ -286,6 +290,7 @@ func _apply_generated_map_state(state, visibility_reason: String) -> void:
 	var reserved: Dictionary = {}
 	reserved[player_cell] = true
 	_spawn_safe_zone_npcs(state, reserved)
+	_spawn_world_poi_npcs(state, reserved)
 	_orient_player_toward_tracked_world_npc(state)
 
 	var prop_cell: Vector2i = _pick_prop_cell(state.map_data, reserved)
@@ -417,6 +422,78 @@ func _find_player_tavern_record(map_data) -> Dictionary:
 			best_distance = distance
 			best_record = record
 	return best_record
+
+
+func _spawn_world_poi_npcs(state, reserved: Dictionary) -> int:
+	if state == null or state.map_data == null or state.player == null:
+		return 0
+	var spawned := 0
+	for record_value in state.map_data.get_poi_records():
+		var record: Dictionary = Dictionary(record_value)
+		var poi_type := String(record.get("type", ""))
+		var npc_id := ""
+		match poi_type:
+			"challenge_entrance":
+				npc_id = "boss_gatekeeper"
+			"ruin":
+				npc_id = "ruin_guide"
+			_:
+				continue
+		var npc_def = NPC_DEF_BY_ID.get(npc_id)
+		if npc_def == null:
+			continue
+		var spawn_cell := _pick_world_poi_npc_cell(state, record, reserved)
+		if spawn_cell == Vector2i(-1, -1):
+			continue
+		var interaction_cell := Vector2i(record.get("interaction_cell", Vector2i(-1, -1)))
+		var facing := _step_direction_toward(spawn_cell, interaction_cell if interaction_cell != Vector2i(-1, -1) else state.player.grid_pos)
+		var npc = _add_actor(state, npc_def, spawn_cell, facing)
+		if npc == null:
+			continue
+		var record_id := String(record.get("id", npc_id))
+		npc.grid_item_id = record_id
+		if not npc.tags.has("npc"):
+			npc.tags.append("npc")
+		if not npc.tags.has("poi_npc"):
+			npc.tags.append("poi_npc")
+		if not npc.tags.has("poi_npc:%s" % poi_type):
+			npc.tags.append("poi_npc:%s" % poi_type)
+		if not record_id.is_empty() and not npc.tags.has("poi_record:%s" % record_id):
+			npc.tags.append("poi_record:%s" % record_id)
+		reserved[spawn_cell] = true
+		state.world_actor_positions[npc_id] = spawn_cell
+		state.world_actor_display_names[npc_id] = String(npc.display_name)
+		state.world_npc_positions[npc_id] = spawn_cell
+		state.world_npc_display_names[npc_id] = String(npc.display_name)
+		spawned += 1
+	return spawned
+
+
+func _pick_world_poi_npc_cell(state, record: Dictionary, reserved: Dictionary) -> Vector2i:
+	if state == null or state.map_data == null or state.grid == null:
+		return Vector2i(-1, -1)
+	var interaction_cell := Vector2i(record.get("interaction_cell", Vector2i(-1, -1)))
+	if interaction_cell == Vector2i(-1, -1):
+		return Vector2i(-1, -1)
+	var best := Vector2i(-1, -1)
+	var best_score := -INF
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var cell: Vector2i = interaction_cell + dir
+		if reserved.has(cell) or not state.map_data.is_walkable(cell):
+			continue
+		var occupant = state.grid.get_actor(cell)
+		if occupant != null and occupant != state.player:
+			continue
+		var score := -float(cell.distance_squared_to(state.player.grid_pos))
+		for neighbor_dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var neighbor_cell: Vector2i = cell + neighbor_dir
+			var map_cell = state.map_data.get_cell(neighbor_cell)
+			if map_cell != null and not bool(map_cell.walkable):
+				score += 2.5
+		if score > best_score:
+			best = cell
+			best_score = score
+	return best
 
 
 func _pick_safe_zone_npc_cell_for_slot(map_data, tavern_record: Dictionary, reserved: Dictionary, slot: Dictionary) -> Vector2i:

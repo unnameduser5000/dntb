@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="NpcDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/NpcDef.gd" id="1_npc"]
+[ext_resource type="PackedScene" path="res://scenes/actors/EnemyActorView.tscn" id="2_view"]
+
+[resource]
+script = ExtResource("1_npc")
+id = "ruin_guide"
+display_name = "遗迹拾荒者"
+max_hp = 1
+max_san = 0
+atk = 0
+map_char = "R"
+team = "neutral"
+ai_type = "none"
+view_scene = ExtResource("2_view")
+color = Color(0.78, 0.9, 0.74, 1)
+interaction_enabled = true
+interaction_title = "遗迹拾荒者"
+interaction_prompt = "调查"
+interaction_lines = PackedStringArray("“这片碎墙底下还埋着能用的步法刻印。要翻就现在翻，怪物闻到动静就会围过来。”")

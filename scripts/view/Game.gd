@@ -224,6 +224,7 @@ var _player_input_locked := false
 var _bag_open := false
 var _shell_overlay_active := false
 var _auto_submitting_plan := false
+var _auto_advance_mode := AUTO_ADVANCE_PAUSE
 var _boss_adhesive_key_id := ""
 var _boss_hidden_layer_triggered := false
 var _boss_hidden_layer_active := false
@@ -370,6 +371,14 @@ func _unhandled_input(event: InputEvent) -> void:
 				if board_view != null:
 					board_view.reset_camera()
 					_refresh_views()
+				get_viewport().set_input_as_handled()
+				return
+			if OS.is_debug_build() and event.keycode == KEY_COMMA:
+				_debug_enter_boss_room()
+				get_viewport().set_input_as_handled()
+				return
+			if OS.is_debug_build() and event.keycode == KEY_PERIOD:
+				_debug_set_player_san(15)
 				get_viewport().set_input_as_handled()
 				return
 			if OS.is_debug_build() and event.keycode == KEY_SEMICOLON:
@@ -524,6 +533,7 @@ func start_world_slice_debug() -> void:
 	_boss_hidden_layer_triggered = false
 	_boss_hidden_layer_active = false
 	_hidden_boss_locked_keys.clear()
+	_slime_god_phase_two_triggered = false
 	_close_world_npc_dialogue(false)
 	state = await _world_slice_controller.create_demo_state_with_progress("", Callable(self, "_on_world_generation_progress")) if _world_slice_controller != null else null
 	if state == null:
@@ -545,6 +555,7 @@ func start_world_slice_debug() -> void:
 		board_view.world_slice_window_size = Vector2i(29, 29)
 		board_view.reset_camera()
 	battle_ui.show_battle()
+	_restore_auto_advance_mode()
 	_update_world_slice_editability(true)
 	_refresh_world_visibility("init")
 	_refresh_views()
@@ -573,6 +584,7 @@ func _start_new_run(seed_value) -> void:
 	_boss_hidden_layer_triggered = false
 	_boss_hidden_layer_active = false
 	_hidden_boss_locked_keys.clear()
+	_slime_god_phase_two_triggered = false
 	_pending_level_reward = false
 	_player_input_locked = false
 	_current_room_index = 0
@@ -632,6 +644,7 @@ func _start_room(room_index: int) -> void:
 	_refresh_key_program_ui()
 	_refresh_inventory_ui()
 	battle_ui.show_battle()
+	_restore_auto_advance_mode()
 	_refresh_views()
 	_play_music_for_state()
 
@@ -647,6 +660,7 @@ func _start_boss_dungeon_node(node: Dictionary) -> void:
 	_world_autopath_last_step_msec = 0
 	_world_autopath_step_scheduled = false
 	_close_world_npc_dialogue(false)
+	_slime_god_phase_two_triggered = false
 	state = _create_boss_dungeon_state(node)
 	_clear_key_slot_preview(false)
 	_apply_run_modifiers_to_player()
@@ -664,6 +678,7 @@ func _start_boss_dungeon_node(node: Dictionary) -> void:
 		board_view.reset_camera()
 	_setup_boss_adhesive_key()
 	battle_ui.show_battle()
+	_restore_auto_advance_mode()
 	_refresh_world_visibility("boss_dungeon_init")
 	_refresh_views()
 	_play_music_for_state()
@@ -685,6 +700,7 @@ func _start_rest_node(node: Dictionary) -> void:
 	_refresh_key_program_ui()
 	_refresh_inventory_ui()
 	battle_ui.show_rest_site(String(node.get("label", "休息处")), "这里可以拖拽调整行动 token 与按键槽。整理好后继续前进。")
+	_restore_auto_advance_mode()
 	_refresh_views()
 	_play_music_for_state()
 
@@ -778,7 +794,12 @@ func _on_battle_finished(victory: bool) -> void:
 			"room_index": _current_room_index,
 			"map_node_index": _current_map_node_index,
 		})
-		battle_ui.show_result(true)
+		var result_title := "胜利"
+		var result_body := "Boss 已被消灭，这趟 run 通关了。"
+		if _boss_hidden_layer_active:
+			result_title = "隐藏胜利"
+			result_body = "黏神已被消灭。你穿过了隐藏层的污染核心。"
+		battle_ui.show_custom_result(result_title, result_body)
 		_play_music_for_state()
 		return
 
@@ -854,8 +875,19 @@ func _advance_to_next_map_node(choice_index: int = 0) -> void:
 		return
 
 	var safe_choice := clampi(choice_index, 0, next_nodes.size() - 1)
+	_sync_run_player_state_from_current_state()
 	_start_map_node(int(next_nodes[safe_choice]))
 	_play_music_for_state()
+
+
+func _sync_run_player_state_from_current_state() -> void:
+	if state == null or state.player == null:
+		return
+	_run_player_max_hp = max(1, int(state.player.max_hp))
+	_run_player_hp = clampi(int(state.player.hp), 0, _run_player_max_hp)
+	_run_player_max_san = max(0, int(state.player.max_san))
+	_run_player_san = clampi(int(state.player.san), 0, _run_player_max_san)
+	_run_player_atk = max(0, int(state.player.atk))
 
 
 func _play_music_for_state() -> void:
@@ -1042,6 +1074,7 @@ func _try_interact_with_world_npc() -> bool:
 		line = "只是安静地点了点头。"
 	var actor_id := String(result.get("actor_id", result.get("npc_id", "")))
 	var actor_name := String(result.get("actor_name", result.get("npc_name", speaker)))
+	var actor = result.get("actor")
 	line = _resolve_world_actor_dialogue_line(actor_id, line)
 	state.tracked_world_actor_id = actor_id
 	state.show_tracked_world_actor_hint = true
@@ -1054,6 +1087,9 @@ func _try_interact_with_world_npc() -> bool:
 	if is_instance_valid(battle_ui):
 		battle_ui.show_world_npc_dialogue(speaker, line)
 	state.add_message("%s：%s" % [speaker, line])
+	var handled_poi_npc := _try_resolve_world_poi_npc_interaction(actor_id, actor)
+	if handled_poi_npc:
+		return true
 	var dialogue_resource_path := String(result.get("dialogue_resource_path", ""))
 	if not dialogue_resource_path.is_empty():
 		var dialogue_service = get_node_or_null("/root/DialogueService")
@@ -1082,49 +1118,39 @@ func _try_grant_world_actor_first_talk_reward(actor_id: String, speaker: String)
 	_refresh_key_program_ui()
 
 
-func _submit_world_interact_action() -> bool:
-	if state == null or not bool(state.is_world_slice) or state.player == null:
-		return false
-	if _actor_interaction_service == null:
-		return false
-	var has_target: bool = _actor_interaction_service.find_interactable_actor(state) != null
-	if not has_target:
-		if _try_interact_with_world_boss_entrance():
-			return true
-		if _try_interact_with_world_ruin():
-			return true
-		if _world_npc_dialogue_active:
-			return _try_interact_with_world_npc()
-		if _is_player_in_world_slice_rest_area():
-			state.add_message("你环顾了一圈，但附近没有人接话。")
+func _try_resolve_world_poi_npc_interaction(actor_id: String, actor) -> bool:
+	match actor_id:
+		"boss_gatekeeper":
+			state.add_message("守门人侧过身，让你踏入 Boss遗迹。")
 			_refresh_views()
+			_sync_run_player_state_from_current_state()
+			_start_map_node(_find_first_map_node_index_by_kind(MAP_NODE_BOSS, _current_map_node_index))
 			return true
-		return false
-	if state.phase != "planning" or state.battle_finished:
-		return true
-	var interact_action = _build_world_interact_action()
-	if interact_action == null:
-		return false
-	turn_controller.submit_player_plan([interact_action])
-	return true
+		"ruin_guide":
+			var ruin_record := _record_for_world_poi_actor(actor)
+			if ruin_record.is_empty():
+				return false
+			return _claim_world_ruin_record(ruin_record)
+		_:
+			return false
 
 
-func _try_interact_with_world_boss_entrance() -> bool:
-	if state == null or not bool(state.is_world_slice) or state.player == null or state.map_data == null:
-		return false
-	var challenge_record: Dictionary = _find_challenge_record_at_player()
-	if challenge_record.is_empty():
-		return false
-	state.add_message("你站在 Boss遗迹入口前，推门进入深处。")
-	_refresh_views()
-	_start_map_node(_find_first_map_node_index_by_kind(MAP_NODE_BOSS, _current_map_node_index))
-	return true
+func _record_for_world_poi_actor(actor) -> Dictionary:
+	if actor == null or state == null or state.map_data == null:
+		return {}
+	for tag in actor.tags:
+		var text := String(tag)
+		if not text.begins_with("poi_record:"):
+			continue
+		var record_id := text.trim_prefix("poi_record:")
+		for record_value in state.map_data.get_poi_records():
+			var record: Dictionary = Dictionary(record_value)
+			if String(record.get("id", "")) == record_id:
+				return record
+	return {}
 
 
-func _try_interact_with_world_ruin() -> bool:
-	if state == null or not bool(state.is_world_slice) or state.player == null or state.map_data == null:
-		return false
-	var ruin_record: Dictionary = _find_ruin_record_at_player()
+func _claim_world_ruin_record(ruin_record: Dictionary) -> bool:
 	if ruin_record.is_empty():
 		return false
 	var ruin_id: String = String(ruin_record.get("id", ""))
@@ -1160,8 +1186,76 @@ func _try_interact_with_world_ruin() -> bool:
 	return true
 
 
+func _find_world_slice_npc_by_id(npc_id: String):
+	if state == null:
+		return null
+	for actor in state.actors:
+		if actor == null or actor.is_dead() or actor.def == null:
+			continue
+		if not actor.tags.has("npc"):
+			continue
+		if String(actor.def.id) == npc_id:
+			return actor
+	return null
+
+
+func _world_interaction_cell_for_actor(actor) -> Vector2i:
+	if actor == null or state == null or state.map_data == null or state.grid == null or state.player == null:
+		return Vector2i(-1, -1)
+	var preferred_cell: Vector2i = actor.grid_pos - actor.facing
+	if preferred_cell != Vector2i(-1, -1) and state.map_data.is_walkable(preferred_cell):
+		var preferred_occupant = state.grid.get_actor(preferred_cell)
+		if preferred_occupant == null or preferred_occupant == state.player:
+			return preferred_cell
+	var best := Vector2i(-1, -1)
+	var best_distance := INF
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var cell: Vector2i = actor.grid_pos + dir
+		if not state.map_data.is_walkable(cell):
+			continue
+		var occupant = state.grid.get_actor(cell)
+		if occupant != null and occupant != state.player:
+			continue
+		var distance := float(state.player.grid_pos.distance_squared_to(cell))
+		if distance < best_distance:
+			best = cell
+			best_distance = distance
+	return best
+
+
+func _submit_world_interact_action() -> bool:
+	if state == null or not bool(state.is_world_slice) or state.player == null:
+		return false
+	if _actor_interaction_service == null:
+		return false
+	var target_actor = _actor_interaction_service.find_interactable_actor(state)
+	var has_target: bool = target_actor != null
+	if not has_target:
+		if _world_npc_dialogue_active:
+			return _try_interact_with_world_npc()
+		if _is_player_in_world_slice_rest_area():
+			state.add_message("你环顾了一圈，但附近没有人接话。")
+			_refresh_views()
+			return true
+		return false
+	if target_actor != null and target_actor.tags.has("poi_npc"):
+		return _try_interact_with_world_npc()
+	if state.phase != "planning" or state.battle_finished:
+		return true
+	var interact_action = _build_world_interact_action()
+	if interact_action == null:
+		return false
+	turn_controller.submit_player_plan([interact_action])
+	return true
+
+
 func _on_boss_poi_requested() -> void:
 	if state == null:
+		return
+	var boss_gatekeeper = _find_world_slice_npc_by_id("boss_gatekeeper")
+	if boss_gatekeeper != null:
+		var interaction_cell := _world_interaction_cell_for_actor(boss_gatekeeper)
+		_focus_world_poi(interaction_cell if interaction_cell != Vector2i(-1, -1) else Vector2i(boss_gatekeeper.grid_pos), "Boss遗迹")
 		return
 	_focus_world_poi(Vector2i(state.tracked_boss_poi_cell), "Boss遗迹")
 
@@ -1175,6 +1269,11 @@ func _on_safe_zone_poi_requested() -> void:
 func _on_ruin_poi_requested() -> void:
 	if state == null:
 		return
+	var ruin_guide = _find_world_slice_npc_by_id("ruin_guide")
+	if ruin_guide != null:
+		var interaction_cell := _world_interaction_cell_for_actor(ruin_guide)
+		_focus_world_poi(interaction_cell if interaction_cell != Vector2i(-1, -1) else Vector2i(ruin_guide.grid_pos), "最近小遗迹")
+		return
 	_focus_world_poi(Vector2i(state.tracked_nearest_ruin_cell), "最近小遗迹")
 
 
@@ -1184,6 +1283,9 @@ func _focus_world_poi(target_cell: Vector2i, label: String) -> void:
 	if target_cell == Vector2i(-1, -1):
 		state.add_message("%s 当前未定位。" % label)
 		_refresh_views()
+		return
+	if turn_controller != null and float(turn_controller.auto_advance_delay) > 0.0:
+		_start_world_autopath(target_cell, label)
 		return
 	state.focused_nav_target_cell = target_cell
 	state.focused_nav_target_label = label
@@ -1281,7 +1383,6 @@ func _call_world_autopath_step() -> void:
 	if _world_slice_has_visible_enemy():
 		_stop_world_autopath(false)
 		state.add_message("视野内出现敌人，自动跑图已暂停。")
-		battle_ui.set_auto_advance_mode(AUTO_ADVANCE_PAUSE)
 		_play_music_for_state()
 		_refresh_views()
 		return
@@ -1438,7 +1539,6 @@ func _on_actor_damaged(actor, amount: int) -> void:
 	if actor != null and state != null and state.player != null and actor == state.player:
 		_stop_world_autopath(false)
 		state.add_message("受到伤害，自动跑图已停止。")
-		battle_ui.set_auto_advance_mode(AUTO_ADVANCE_PAUSE)
 		_play_music_for_state()
 		_refresh_views()
 
@@ -1638,6 +1738,7 @@ func _update_enemy_preview() -> void:
 	if state.phase != "planning" or state.battle_finished:
 		state.enemy_intents = []
 		state.danger_cells = []
+		state.danger_cell_labels.clear()
 		state.preview_move_cells = []
 		state.preview_attack_cells = []
 		return
@@ -1648,7 +1749,12 @@ func _update_enemy_preview() -> void:
 		intents.append(enemy_planner.describe_action(action))
 
 	state.enemy_intents = intents
+	if _is_world_slice_state() and not _is_boss_dungeon_state():
+		state.danger_cells = []
+		state.danger_cell_labels.clear()
+		return
 	state.danger_cells = enemy_planner.get_threat_cells(state)
+	state.danger_cell_labels = enemy_planner.get_threat_labels(state)
 
 func _create_room_state(room_index: int):
 	var room: Dictionary = ROOMS[room_index]
@@ -1699,8 +1805,8 @@ func _create_boss_dungeon_state(node: Dictionary):
 		int((BOSS_DUNGEON_MAP_SIZE.y - BOSS_DUNGEON_CHAMBER_SIZE.y) / 2)
 	)
 	var chamber_center := chamber_origin + Vector2i(int(BOSS_DUNGEON_CHAMBER_SIZE.x / 2), int(BOSS_DUNGEON_CHAMBER_SIZE.y / 2))
-	var player_cell := chamber_center + Vector2i(0, 18)
-	var boss_cell := chamber_center + Vector2i(0, -18)
+	var player_cell := chamber_center + Vector2i(0, 12)
+	var boss_cell := chamber_center + Vector2i(0, 4)
 
 	var player = _add_actor(new_state, PLAYER_DEF, player_cell)
 	player.facing = Vector2i.UP
@@ -2297,16 +2403,28 @@ func _kill_all_enemies_debug() -> void:
 	if state == null:
 		return
 	var enemies: Array = state.get_alive_enemies().duplicate()
+	var hit_count := 0
 	for enemy in enemies:
 		if enemy == null:
 			continue
-		enemy.hp = 0
-		if state.grid != null:
+		if not state.visible_cells.is_empty() and not state.visible_cells.has(enemy.grid_pos):
+			continue
+		hit_count += 1
+		if resolver != null and resolver.has_method("apply_damage"):
+			resolver.apply_damage(state.player, enemy, 9999, state)
+		elif resolver != null and resolver.has_method("_kill_actor"):
+			enemy.hp = 0
+			resolver._kill_actor(enemy, state)
+		elif state.grid != null:
+			enemy.hp = 0
 			state.grid.remove_actor(enemy)
-		state.actors.erase(enemy)
-		if _battle_presentation != null:
-			_battle_presentation.handle_actor_died(enemy)
-	state.add_message("[debug] 已清除当前层的所有怪物。")
+			state.actors.erase(enemy)
+			if _battle_presentation != null:
+				_battle_presentation.handle_actor_died(enemy)
+	if hit_count > 0:
+		state.add_message("[debug] 已对视野内 %d 个敌人造成致死伤害。" % hit_count)
+	else:
+		state.add_message("[debug] 当前视野内没有可处理的敌人。")
 	_refresh_views()
 
 
@@ -2324,6 +2442,26 @@ func _restore_player_debug_state() -> void:
 	state.add_message("[debug] 玩家状态已恢复：HP 50/50，SAN 100/100。")
 	_refresh_inventory_ui()
 	_refresh_views()
+
+
+func _debug_set_player_san(value: int) -> void:
+	if state == null or state.player == null:
+		return
+	var clamped_value := clampi(value, 0, state.player.max_san)
+	state.player.san = clamped_value
+	_run_player_san = clamped_value
+	state.add_message("[debug] 玩家 SAN 已调整到 %d。" % clamped_value)
+	_refresh_inventory_ui()
+	_refresh_views()
+
+
+func _debug_enter_boss_room() -> void:
+	if state == null:
+		return
+	state.add_message("[debug] 直接进入 Boss 房。")
+	_refresh_views()
+	_sync_run_player_state_from_current_state()
+	_start_map_node(_find_first_map_node_index_by_kind(MAP_NODE_BOSS, _current_map_node_index))
 
 
 func _toggle_bag() -> void:
@@ -2356,6 +2494,7 @@ func _close_bag_if_open() -> void:
 
 
 func _on_auto_advance_mode_changed(mode: int) -> void:
+	_auto_advance_mode = mode
 	match mode:
 		AUTO_ADVANCE_PAUSE:
 			turn_controller.auto_advance_delay = 0.0
@@ -2363,7 +2502,19 @@ func _on_auto_advance_mode_changed(mode: int) -> void:
 			turn_controller.auto_advance_delay = AUTO_PLAY_DELAY
 		AUTO_ADVANCE_FAST:
 			turn_controller.auto_advance_delay = AUTO_FAST_DELAY
+	if mode == AUTO_ADVANCE_PAUSE and _world_autopath_active:
+		_stop_world_autopath(false)
+		if state != null:
+			state.add_message("已关闭自动播放，自动跑图已暂停。")
+			_refresh_views()
+			return
 	_update_auto_advance_state()
+
+
+func _restore_auto_advance_mode() -> void:
+	if not is_instance_valid(battle_ui):
+		return
+	battle_ui.set_auto_advance_mode(_auto_advance_mode)
 
 
 func _update_auto_advance_state() -> void:

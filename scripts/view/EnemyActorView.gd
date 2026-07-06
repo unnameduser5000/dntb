@@ -56,7 +56,7 @@ func _build_debug_enemy_frames(actor_def_id: String) -> SpriteFrames:
 	var slime_body := _load_imported_texture_cached(IMPORTED_ENEMY_SLIME_BODY_PATH)
 
 	match actor_def_id:
-		"tavern_keeper":
+		"tavern_keeper", "boss_gatekeeper", "ruin_guide":
 			var npc_front := _load_imported_texture_cached(IMPORTED_NPC_FRONT_PATH)
 			var npc_back := _load_imported_texture_cached(IMPORTED_NPC_BACK_PATH)
 			var npc_side_left := _load_imported_texture_cached(IMPORTED_NPC_SIDE_LEFT_PATH)
@@ -88,9 +88,9 @@ func _build_debug_enemy_frames(actor_def_id: String) -> SpriteFrames:
 			_add_animation(frames, &"hit", [texture], false, 10.0)
 			_add_animation(frames, &"die", [texture], false, 8.0)
 		"boss":
-			var texture := _load_imported_texture_cached(IMPORTED_ENEMY_SLIME_SHIELD_TAG_PATH)
+			var texture := _load_imported_texture_cached(IMPORTED_ENEMY_KING_PATH)
 			if texture == null:
-				texture = _load_imported_texture_cached(IMPORTED_ENEMY_KING_PATH)
+				texture = _load_imported_texture_cached(IMPORTED_ENEMY_SLIME_SHIELD_TAG_PATH)
 			_add_animation(frames, &"idle", [texture], true, 4.0)
 			_add_animation(frames, &"move", [texture], true, 6.0)
 			_add_animation(frames, &"action_start", [texture], false, 8.0)

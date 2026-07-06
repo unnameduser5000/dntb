@@ -26,6 +26,7 @@ var map_node_index: int = 0
 var map_node_kind: String = "combat"
 var map_node_label: String = ""
 var danger_cells: Array = []
+var danger_cell_labels: Dictionary = {}
 var persistent_danger_cells: Array[Vector2i] = []
 var enemy_intents: Array = []
 var preview_move_cells: Array = []

@@ -32,7 +32,7 @@ func _init() -> void:
 	_require(game.state.player.hp == 8, "player starts with 8 hp")
 	_require(game.state.get_alive_enemies().size() == 2, "first room has two enemies")
 	_require(game.state.get_alive_enemies().any(func(actor): return actor != null and String(actor.def.id) == "wisp"), "first room now includes a non-attacking starter enemy")
-	_require(game.state.danger_cells.has(Vector2i(2, 1)), "enemy attack range is previewed")
+	_require(not game.state.danger_cells.has(Vector2i(2, 1)), "danger preview no longer treats harmless enemies as real attack threats")
 
 	var enemy = game.state.get_alive_enemies()[0]
 	game.state.grid.remove_actor(enemy)
@@ -608,13 +608,20 @@ func _init() -> void:
 	_require(String(world_game.state.messages[0]).contains("酒馆休息区"), "world slice start announces tavern rest-area editing")
 	_require(_count_world_slice_props(world_game.state) >= 1, "world slice places at least one world prop")
 	var world_npcs: Array = world_game.get_world_slice_npcs()
-	_require(world_npcs.size() == 1, "world slice spawns exactly one tavern host NPC near the world spawn")
+	_require(world_npcs.size() >= 3, "world slice spawns tavern, boss-gate and ruin-guide NPCs")
 	for npc in world_npcs:
-		_require(npc.tags.has("safe_zone_npc"), "world slice NPCs are tagged as safe-zone residents")
-		_require(_is_world_slice_rest_area_cell(world_game.state.map_data, npc.grid_pos), "world slice keeps NPCs inside the tavern safe area")
+		if String(npc.def.id) == "tavern_keeper":
+			_require(npc.tags.has("safe_zone_npc"), "tavern NPC keeps the safe-zone resident tag")
+			_require(_is_world_slice_rest_area_cell(world_game.state.map_data, npc.grid_pos), "world slice keeps tavern NPCs inside the tavern safe area")
 	var tavern_keeper = _find_world_slice_npc(world_game, "tavern_keeper")
 	_require(tavern_keeper != null, "world slice includes the tavern keeper NPC")
 	_require(bool(tavern_keeper.def.get("interaction_enabled")), "world slice tavern NPC now uses the shared actor interaction capability")
+	var boss_gatekeeper = _find_world_slice_npc(world_game, "boss_gatekeeper")
+	_require(boss_gatekeeper != null, "world slice includes the boss gatekeeper NPC")
+	_require(bool(boss_gatekeeper.def.get("interaction_enabled")), "boss gatekeeper uses the shared actor interaction capability")
+	var ruin_guide = _find_world_slice_npc(world_game, "ruin_guide")
+	_require(ruin_guide != null, "world slice includes the ruin guide NPC")
+	_require(bool(ruin_guide.def.get("interaction_enabled")), "ruin guide uses the shared actor interaction capability")
 	var tavern_record: Dictionary = _find_world_slice_poi_record(world_game.state.map_data, "tavern")
 	_require(not tavern_record.is_empty(), "world slice exposes the tavern poi record")
 	_require(not Array(tavern_record.get("entrance_cells", [])).has(tavern_keeper.grid_pos), "world slice NPC does not spawn directly on a tavern entrance cell")
@@ -724,12 +731,16 @@ func _init() -> void:
 	_require(_count_visible_world_slice_enemies(world_game.state) > 0, "world slice has at least one visible enemy before the autopath click test")
 	var autopath_turn_before_click: int = int(world_game.state.turn_count)
 	var autopath_player_before_click: Vector2i = world_game.state.player.grid_pos
+	var ruin_guide_for_click = _find_world_slice_npc(world_game, "ruin_guide")
+	_require(ruin_guide_for_click != null, "world slice includes the ruin guide NPC before the blocked autopath click test")
+	var ruin_guide_interaction_cell: Vector2i = world_game._world_interaction_cell_for_actor(ruin_guide_for_click)
+	_require(ruin_guide_interaction_cell != Vector2i(-1, -1), "ruin guide exposes a reachable adjacent interaction cell for poi focus")
 	world_game._on_ruin_poi_requested()
 	await process_frame
 	_require(not world_game._world_autopath_active, "world slice does not start autopath when an enemy is already visible")
 	_require(world_game.state.turn_count == autopath_turn_before_click, "blocked autopath click does not consume a turn")
 	_require(world_game.state.player.grid_pos == autopath_player_before_click, "blocked autopath click does not move the player")
-	_require(Vector2i(world_game.state.focused_nav_target_cell) == Vector2i(world_game.state.tracked_nearest_ruin_cell), "clicking a poi now focuses the target cell even when enemies are visible")
+	_require(Vector2i(world_game.state.focused_nav_target_cell) == ruin_guide_interaction_cell, "clicking a poi now focuses the corresponding NPC interaction cell even when enemies are visible")
 	_require(String(world_game.state.messages[0]).contains("不会自动移动"), "poi click now explains that it only points toward the target")
 	if autopath_blocker != null:
 		world_game.state.grid.remove_actor(autopath_blocker)
@@ -808,12 +819,38 @@ func _init() -> void:
 	_require(String(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/SafeZonePoiHint").text).contains("最近安全区："), "world slice sidebar shows the safe-zone direction instead of an auto-run action label")
 	_require(String(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/BossPoiHint").text).contains("Boss遗迹："), "world slice sidebar shows the boss direction instead of an auto-run action label")
 	_require(String(world_game.battle_ui.get_node("RunSidebar/PoiHintPanel/Margin/Content/RuinPoiHint").text).contains("最近小遗迹："), "world slice sidebar shows the ruin direction instead of an auto-run action label")
+	if visible_enemy != null:
+		world_game.state.grid.remove_actor(visible_enemy)
+		visible_enemy.hp = 0
+		world_game._refresh_world_visibility("cleanup_visible_enemy_music")
+		world_game._refresh_views()
+		await process_frame
+	for remaining_enemy in world_game.state.get_alive_enemies():
+		if remaining_enemy != null and world_game.state.visible_cells.has(remaining_enemy.grid_pos):
+			world_game.state.grid.remove_actor(remaining_enemy)
+			remaining_enemy.hp = 0
+	world_game._refresh_world_visibility("cleanup_visible_enemies_before_autopath")
+	world_game._refresh_views()
+	await process_frame
+	world_game._on_auto_advance_mode_changed(world_game.battle_ui.AUTO_FAST)
 	world_game._on_boss_poi_requested()
-	_require(Vector2i(world_game.state.focused_nav_target_cell) == Vector2i(world_game.state.tracked_boss_poi_cell), "clicking the boss entry now focuses the target instead of starting automatic movement")
+	await process_frame
+	_require(world_game._world_autopath_active, "world slice starts autopath from poi click while auto mode is enabled")
+	world_game._on_auto_advance_mode_changed(world_game.battle_ui.AUTO_PAUSE)
+	await process_frame
+	_require(not world_game._world_autopath_active, "disabling auto mode pauses world autopath immediately")
+	var boss_gatekeeper_focus_cell: Vector2i = world_game._world_interaction_cell_for_actor(boss_gatekeeper)
+	_require(boss_gatekeeper_focus_cell != Vector2i(-1, -1), "boss gatekeeper exposes a reachable adjacent interaction cell for poi focus")
+	world_game._on_boss_poi_requested()
+	_require(Vector2i(world_game.state.focused_nav_target_cell) == boss_gatekeeper_focus_cell, "clicking the boss entry now focuses the boss NPC interaction cell instead of starting automatic movement")
 	_require(not world_game._world_autopath_active, "clicking a poi entry no longer starts autopath immediately")
-	_move_player_to(world_game, boss_interaction_cell)
+	var auto_delay_before_boss_entry: float = float(world_game.turn_controller.auto_advance_delay)
+	var boss_gatekeeper_talk_cell: Vector2i = _find_walkable_adjacent_world_cell(world_game.state, boss_gatekeeper.grid_pos)
+	_require(boss_gatekeeper_talk_cell != Vector2i(-1, -1), "boss gatekeeper has a reachable adjacent interaction cell")
+	_move_player_to(world_game, boss_gatekeeper_talk_cell)
+	world_game.state.player.facing = boss_gatekeeper.grid_pos - world_game.state.player.grid_pos
 	if world_game._world_slice_controller != null:
-		world_game._world_slice_controller.on_player_moved(world_game.state, ruin_interaction_cell, boss_interaction_cell)
+		world_game._world_slice_controller.on_player_moved(world_game.state, ruin_interaction_cell, boss_gatekeeper_talk_cell)
 	world_game._refresh_views()
 	await process_frame
 	_require(world_game._submit_world_interact_action(), "world slice can enter the boss room via interact action")
@@ -822,8 +859,27 @@ func _init() -> void:
 	_require(world_game.state.is_world_slice, "boss poi interaction switches into the large-map state path")
 	_require(world_game.state.grid.width >= 256 and world_game.state.grid.height >= 256, "boss poi interaction enters a large boss dungeon map")
 	_require(not world_game._key_program_editable, "boss poi interaction keeps key slot editing locked")
+	_require(is_equal_approx(float(world_game.turn_controller.auto_advance_delay), auto_delay_before_boss_entry), "entering the boss room does not forcibly change the auto mode")
 	_require(world_game.state.messages.any(func(message): return String(message).contains("进入") or String(message).contains("黏附")), "boss poi interaction reports entry and boss-layer status messages")
 	world_game.queue_free()
+	await process_frame
+
+	var world_game_debug = GameScene.instantiate()
+	root.add_child(world_game_debug)
+	await process_frame
+	world_game_debug.start_world_slice_debug()
+	await process_frame
+	world_game_debug._debug_set_player_san(15)
+	world_game_debug.state.player.hp = 5
+	world_game_debug._run_player_hp = 5
+	_require(world_game_debug.state.player.san == 15, "debug period helper can clamp SAN to 15")
+	_require(world_game_debug._run_player_san == 15, "debug SAN helper also updates the persisted run sanity")
+	world_game_debug._debug_enter_boss_room()
+	await process_frame
+	_require(world_game_debug.state.map_node_kind == "boss", "debug comma helper can jump straight into the boss room")
+	_require(world_game_debug.state.room_name == "Boss地牢", "debug comma helper enters the configured boss dungeon layer")
+	_require(world_game_debug.state.player.hp == 5, "debug comma helper keeps the current hp when entering the boss room")
+	world_game_debug.queue_free()
 	await process_frame
 
 	var world_game_ruin = GameScene.instantiate()
@@ -836,9 +892,12 @@ func _init() -> void:
 	world_game_ruin._world_slice_controller.set_reveal_all_debug(world_game_ruin.state, true, "boss-room-test-reset")
 	var ruin_record_reset: Dictionary = _find_world_slice_poi_record(world_game_ruin.state.map_data, "ruin")
 	_require(not ruin_record_reset.is_empty(), "reset world slice still exposes a ruin poi record")
-	var ruin_interaction_cell_reset: Vector2i = Vector2i(ruin_record_reset.get("interaction_cell", Vector2i(-1, -1)))
-	_require(ruin_interaction_cell_reset != Vector2i(-1, -1), "reset ruin poi still exposes an interaction cell")
+	var ruin_guide_reset = _find_world_slice_npc(world_game_ruin, "ruin_guide")
+	_require(ruin_guide_reset != null, "reset world slice still spawns a ruin guide NPC")
+	var ruin_interaction_cell_reset: Vector2i = _find_walkable_adjacent_world_cell(world_game_ruin.state, ruin_guide_reset.grid_pos)
+	_require(ruin_interaction_cell_reset != Vector2i(-1, -1), "reset ruin guide exposes a reachable adjacent interaction cell")
 	_move_player_to(world_game_ruin, ruin_interaction_cell_reset)
+	world_game_ruin.state.player.facing = ruin_guide_reset.grid_pos - world_game_ruin.state.player.grid_pos
 	if world_game_ruin._world_slice_controller != null:
 		world_game_ruin._world_slice_controller.on_player_moved(world_game_ruin.state, world_game_ruin.state.player.grid_pos, ruin_interaction_cell_reset)
 	world_game_ruin._refresh_views()
@@ -884,12 +943,23 @@ func _init() -> void:
 	_require(String(monster_interaction_result.get("title", "")) == "絮语史莱姆", "monster interaction surfaces actor-specific interaction text")
 	game.state.grid.remove_actor(talkative_slime)
 	talkative_slime.hp = 0
+
 	var repeated_move_plan: Array = game._build_key_slot_plan(["R", "R"])
 	game.turn_controller.submit_player_plan(repeated_move_plan)
 	await process_frame
 	_require(repeated_move_plan[0].chain_speed == 1, "first repeated movement has speed 1")
 	_require(repeated_move_plan[1].chain_speed == 2, "second repeated movement has speed 2")
 	_require(game.state.player.grid_pos == Vector2i(4, 2), "repeated movement still executes both chained move actions")
+
+	await _start_seeded_combat_run(game, "debug-kill-all-enemies")
+	var xp_before_debug_kill: int = int(game.state.player_xp)
+	_require(game.state.get_alive_enemies().size() > 0, "debug kill test starts with living enemies")
+	game._kill_all_enemies_debug()
+	await process_frame
+	_require(game.state.get_alive_enemies().is_empty(), "debug kill clears all living enemies")
+	_require(game.state.battle_finished and game.state.victory, "debug kill routes through battle-end victory checks")
+	_require(int(game.state.player_xp) > xp_before_debug_kill, "debug kill grants kill xp through the normal death chain")
+	_require(game.state.messages.any(func(message): return String(message).contains("倒下")), "debug kill still emits the normal death log message")
 
 	await _start_seeded_combat_run(game, "effect-pipeline")
 	var duplicate_damage = DuplicateDamageModifierScript.new()
