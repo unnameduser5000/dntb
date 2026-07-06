@@ -1082,9 +1082,11 @@ func _try_interact_with_world_npc() -> bool:
 	if line.is_empty():
 		line = "只是安静地点了点头。"
 	var actor_id := String(result.get("actor_id", result.get("npc_id", "")))
+	var actor_type_id := String(result.get("actor_type_id", actor_id))
+	var actor_progress_id := String(result.get("actor_progress_id", actor_id))
 	var actor_name := String(result.get("actor_name", result.get("npc_name", speaker)))
 	var actor = result.get("actor")
-	line = _resolve_world_actor_dialogue_line(actor_id, line)
+	line = _resolve_world_actor_dialogue_line(actor_type_id, actor_progress_id, line)
 	state.tracked_world_actor_id = actor_id
 	state.show_tracked_world_actor_hint = true
 	state.world_actor_display_names[actor_id] = actor_name
@@ -1096,7 +1098,7 @@ func _try_interact_with_world_npc() -> bool:
 	if is_instance_valid(battle_ui):
 		battle_ui.show_world_npc_dialogue(speaker, line)
 	state.add_message("%s：%s" % [speaker, line])
-	var handled_poi_npc := _try_resolve_world_poi_npc_interaction(actor_id, actor)
+	var handled_poi_npc := _try_resolve_world_poi_npc_interaction(actor_type_id, actor_progress_id, actor)
 	if handled_poi_npc:
 		return true
 	var dialogue_resource_path := String(result.get("dialogue_resource_path", ""))
@@ -1108,11 +1110,11 @@ func _try_interact_with_world_npc() -> bool:
 	return true
 
 
-func _resolve_world_actor_dialogue_line(actor_id: String, fallback_line: String) -> String:
-	if actor_id == "tavern_keeper" and int(_world_npc_interaction_counts.get(actor_id, 0)) == 1:
+func _resolve_world_actor_dialogue_line(actor_type_id: String, actor_progress_id: String, fallback_line: String) -> String:
+	if actor_type_id == "tavern_keeper" and int(_world_npc_interaction_counts.get(actor_progress_id, 0)) == 1:
 		return "“别急着出门。我先把攻击 token 放进你的备用行动池；记得去分配键位，出手才会朝你面前劈出去。”"
-	if actor_id == "ruin_guide":
-		var interaction_count := int(_world_npc_interaction_counts.get(actor_id, 0))
+	if actor_type_id == "ruin_guide":
+		var interaction_count := int(_world_npc_interaction_counts.get(actor_progress_id, 0))
 		if interaction_count <= 1:
 			return "“先别动手翻。附近已经有东西在盯着这边了。再往前一步，它们就会扑上来。”"
 		if interaction_count == 2:
@@ -1134,8 +1136,8 @@ func _try_grant_world_actor_first_talk_reward(actor_id: String, speaker: String)
 	_refresh_key_program_ui()
 
 
-func _try_resolve_world_poi_npc_interaction(actor_id: String, actor) -> bool:
-	match actor_id:
+func _try_resolve_world_poi_npc_interaction(actor_type_id: String, actor_progress_id: String, actor) -> bool:
+	match actor_type_id:
 		"boss_gatekeeper":
 			state.add_message("守门人侧过身，让你踏入 Boss遗迹。")
 			_refresh_views()
@@ -1146,7 +1148,7 @@ func _try_resolve_world_poi_npc_interaction(actor_id: String, actor) -> bool:
 			var ruin_record := _record_for_world_poi_actor(actor)
 			if ruin_record.is_empty():
 				return false
-			if int(_world_npc_interaction_counts.get(actor_id, 0)) == 1:
+			if int(_world_npc_interaction_counts.get(actor_progress_id, 0)) == 1:
 				state.add_message("遗迹拾荒者压低声音示警：别急着翻，附近的怪物已经被惊动了。再靠近一步，就会真的冲过来。")
 				_refresh_views()
 				return true

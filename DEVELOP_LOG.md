@@ -2,6 +2,20 @@
 
 ## 2026-07-06 Randomized level-up permanent buff offers
 
+- Fixed a world-slice POI NPC persistence bug where ruin guides could appear to
+  disappear or overwrite each other's state because multiple ruin NPCs shared
+  the same `ruin_guide` key in interaction/tracking dictionaries.
+- POI NPC interactions now distinguish between actor type id and per-instance
+  progress id, so each ruin guide keeps its own dialogue/progression state while
+  still using the shared `ruin_guide` behavior branch.
+- Added POI NPC keepalive in `WorldSliceController.refresh_streamed_enemies()`:
+  before and after streamed enemy refreshes, missing POI NPCs are restored, and
+  if their intended spawn cell is occupied by a non-player, non-POI actor, that
+  lower-priority actor is removed so the POI NPC keeps the slot.
+- Result: ruin guides and other POI NPCs now have higher priority than ordinary
+  monsters/actors for spawn-slot ownership and no longer disappear during enemy
+  streaming or state-key collisions.
+
 - Changed level-up permanent buff generation in `scripts/view/Game.gd` from a
   fixed top-of-list selection to a random 3-choice draw from the full modifier
   pool.
