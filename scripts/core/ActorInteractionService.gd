@@ -6,19 +6,39 @@ func find_interactable_actor(state):
 	if state == null or state.player == null:
 		return null
 	var facing: Vector2i = state.player.facing
-	if facing == Vector2i.ZERO:
-		return null
-	var target_cell: Vector2i = state.player.grid_pos + facing
-	var actor = state.grid.get_actor(target_cell) if state.grid != null else null
-	if _is_interactable_actor(actor, state.player):
-		return actor
-	return null
+	if facing != Vector2i.ZERO:
+		var target_cell: Vector2i = state.player.grid_pos + facing
+		var actor = state.grid.get_actor(target_cell) if state.grid != null else null
+		if _is_interactable_actor(actor, state.player):
+			return actor
+	# If nothing is directly in front, fall back to any adjacent interactable actor.
+	# This makes NPC interaction less fiddly when the player is standing next to them.
+	var best_actor = null
+	var best_score := -INF
+	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+		var cell: Vector2i = state.player.grid_pos + dir
+		var actor = state.grid.get_actor(cell) if state.grid != null else null
+		if not _is_interactable_actor(actor, state.player):
+			continue
+		var score := 0.0
+		if dir == facing:
+			score += 100.0
+		score -= float(cell.distance_squared_to(state.player.grid_pos))
+		if score > best_score:
+			best_score = score
+			best_actor = actor
+	return best_actor
 
 
 func interact(state, progress_by_actor_id: Dictionary) -> Dictionary:
 	var actor = find_interactable_actor(state)
 	if actor == null:
 		return {"handled": false}
+
+	# Face the actor so the visual and subsequent movement feel consistent.
+	var delta: Vector2i = actor.grid_pos - state.player.grid_pos
+	if delta != Vector2i.ZERO:
+		state.player.facing = delta
 
 	var actor_def = actor.def
 	var actor_type_id: String = String(actor_def.id if actor_def != null else actor.grid_item_id)
@@ -92,12 +112,7 @@ func _is_interactable_actor(actor, player) -> bool:
 	if actor.def != null and _has_property(actor.def, "interaction_range"):
 		range_limit = maxi(1, int(actor.def.get("interaction_range")))
 	var distance: int = _manhattan(actor.grid_pos, player.grid_pos)
-	if distance > range_limit:
-		return false
-	var facing: Vector2i = player.facing
-	if facing == Vector2i.ZERO:
-		return false
-	return actor.grid_pos == player.grid_pos + facing
+	return distance <= range_limit
 
 
 func _manhattan(a: Vector2i, b: Vector2i) -> int:

@@ -6,6 +6,13 @@ extends Control
 ## a grid, and reveals tiles over time while the actual loading happens.
 
 const IMAGE_DIR := "res://art/imported/ui/loading/common"
+const IMAGE_PATHS: Array[String] = [
+	"res://art/imported/ui/loading/common/loading_common_0.jpg",
+	"res://art/imported/ui/loading/common/loading_common_1.jpg",
+	"res://art/imported/ui/loading/common/loading_common_2.jpg",
+	"res://art/imported/ui/loading/common/loading_common_3.jpg",
+	"res://art/imported/ui/loading/common/loading_common_4.jpg",
+]
 const GRID_COLUMNS := 80
 const GRID_ROWS := 45
 const TILE_COUNT := GRID_COLUMNS * GRID_ROWS
@@ -106,6 +113,7 @@ func _reset_and_start() -> void:
 	_update_tip()
 
 
+
 func fade_to_black_and_hide(fade_duration: float = 0.5) -> void:
 	var fade_rect := ColorRect.new()
 	fade_rect.color = Color.BLACK
@@ -136,21 +144,13 @@ func _update_tip() -> void:
 
 
 func _pick_random_image() -> Texture2D:
-	var dir := DirAccess.open(IMAGE_DIR)
-	if dir == null:
-		return null
-	var candidates: Array[String] = []
-	dir.list_dir_begin()
-	var file_name := dir.get_next()
-	while not file_name.is_empty():
-		if not dir.current_is_dir() and (file_name.ends_with(".jpg") or file_name.ends_with(".png")):
-			candidates.append(IMAGE_DIR.path_join(file_name))
-		file_name = dir.get_next()
-	dir.list_dir_end()
-	if candidates.is_empty():
-		return null
+	var candidates: Array[String] = IMAGE_PATHS.duplicate()
 	candidates.shuffle()
-	return load(candidates[0]) as Texture2D
+	for path in candidates:
+		var tex := ResourceLoader.load(path, "Texture2D", ResourceLoader.CACHE_MODE_IGNORE) as Texture2D
+		if tex != null:
+			return tex
+	return null
 
 
 func _create_tiles() -> void:

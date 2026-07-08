@@ -1285,8 +1285,9 @@ func _load_tile_texture_asset(tile_texture_id: String) -> Texture2D:
 	var candidates: Array[String] = _tile_texture_asset_candidates(tile_texture_id)
 	for candidate in candidates:
 		var resource_path := candidate if candidate.begins_with("res://") else TILE_TEXTURE_BASE_PATH + candidate + ".png"
-		if not FileAccess.file_exists(resource_path):
-			continue
+		# Do NOT gate loading on FileAccess.file_exists(): in exported builds the
+		# source PNG/JPG is not present in the PCK, but ResourceLoader remaps the
+		# path to the imported .ctex and returns the texture anyway.
 		var texture: Texture2D = ResourceLoader.load(resource_path, "Texture2D", ResourceLoader.CACHE_MODE_REUSE)
 		if texture == null:
 			continue
@@ -1344,7 +1345,7 @@ func _tile_texture_asset_candidates(tile_texture_id: String) -> Array[String]:
 		"plain":
 			return ["res://art/imported/world/biomes/biome_grassland.png", "plain"]
 		"forest":
-			return ["res://art/imported/world/foliage/tall_grass_generated.png", "res://art/imported/world/biomes/biome_grassland.png", "forest", "plain"]
+			return ["res://art/imported/world/biomes/tall_grass_generated.png", "res://art/imported/world/biomes/biome_grassland.png", "forest", "plain"]
 		"tree":
 			return ["res://art/imported/world/poi/poi_watchtower.png", "tree", "forest"]
 		"rock":

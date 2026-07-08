@@ -659,23 +659,20 @@ func _init() -> void:
 	world_game._refresh_views()
 	await process_frame
 	_require(String(world_game.state.tracked_world_npc_relative_hint) == "西（1 格）" or String(world_game.state.tracked_world_npc_relative_hint) == "东（1 格）" or String(world_game.state.tracked_world_npc_relative_hint) == "北（1 格）" or String(world_game.state.tracked_world_npc_relative_hint) == "南（1 格）", "world slice updates tracked NPC direction after the player moves next to the target")
-	world_game.state.player.facing = -(tavern_keeper.grid_pos - world_game.state.player.grid_pos)
-	var message_count_before_wrong_facing: int = world_game.state.messages.size()
-	_require(world_game._submit_world_interact_action(), "interact action still resolves input when facing the wrong direction")
-	_require(not world_game._world_npc_dialogue_active, "interact action does not open dialogue when the target is adjacent but not in front of the player")
-	_require(not world_game.battle_ui.is_world_npc_dialogue_visible(), "wrong-facing interact does not show the dialogue panel")
-	_require(world_game.state.messages.size() >= message_count_before_wrong_facing, "wrong-facing interact can still report that nothing in front responded")
-	world_game.state.player.facing = tavern_keeper.grid_pos - world_game.state.player.grid_pos
 	_require(_array_equals(world_game.get_key_program_slots()["F"], ["I"]), "world slice starts with the interact token on the physical F slot")
+	# Stand next to the tavern keeper while facing away. Interaction should still work.
+	world_game.state.player.facing = -(tavern_keeper.grid_pos - world_game.state.player.grid_pos)
+	var message_count_before_interact: int = world_game.state.messages.size()
 	var npc_turn_count_before_interact: int = int(world_game.state.turn_count)
-	_require(world_game._submit_world_interact_action(), "world slice can submit a dedicated interact action near a tavern NPC")
+	_require(world_game._submit_world_interact_action(), "interact action resolves input when an interactable NPC is adjacent")
 	await process_frame
 	_require(world_game.state.turn_count == npc_turn_count_before_interact, "world slice interact action does not consume a combat turn or trigger enemy follow-up")
-	_require(world_game._world_npc_dialogue_active, "world slice NPC interaction opens a dedicated dialogue state")
-	_require(world_game.battle_ui.is_world_npc_dialogue_visible(), "world slice NPC interaction shows a bottom dialogue panel")
+	_require(world_game._world_npc_dialogue_active, "interact action opens dialogue when an interactable NPC is adjacent, even if not directly in front")
+	_require(world_game.battle_ui.is_world_npc_dialogue_visible(), "adjacent NPC interact shows the dialogue panel regardless of facing")
+	_require(world_game.state.player.facing == tavern_keeper.grid_pos - world_game.state.player.grid_pos, "interacting auto-faces the player toward the adjacent NPC")
+	_require(world_game.state.messages.size() >= message_count_before_interact, "adjacent NPC interact reports the interaction in the message log")
 	_require(world_game.battle_ui.get_node("NpcDialoguePanel/Margin/Content/NpcDialogueTitle").text == "酒馆掌柜", "world slice dialogue panel shows the NPC speaker name")
 	_require(world_game.battle_ui.get_node("NpcDialoguePanel/Margin/Content/NpcDialogueBody").text.contains("备用行动池"), "tavern keeper first dialogue now teaches that the attack token goes into the spare pool")
-	_require(String(world_game.state.messages[0]).contains("酒馆掌柜"), "world slice NPC interaction adds tavern dialogue to the message log")
 	_require(world_game.get_key_program_pool_tokens().has("A"), "tavern keeper first dialogue adds the attack token into the spare pool")
 	_require(int(world_game._world_npc_interaction_counts.get("tavern_keeper", 0)) == 1, "tavern keeper first dialogue is tracked for one-time rewards")
 	var world_save_data: Dictionary = world_game.get_save_data()
@@ -855,6 +852,16 @@ func _init() -> void:
 		world_game.state.grid.remove_actor(cleanup_enemy)
 		cleanup_enemy.hp = 0
 	world_game._refresh_world_visibility("cleanup_all_enemies_before_autopath")
+	world_game._refresh_views()
+	await process_frame
+	# Move the player next to the boss gatekeeper so the autopath has a
+	# guaranteed 1-step route and is not blocked by random terrain.
+	var preliminary_focus_cell: Vector2i = world_game._world_interaction_cell_for_actor(boss_gatekeeper)
+	_require(preliminary_focus_cell != Vector2i(-1, -1), "boss gatekeeper exposes a reachable adjacent interaction cell for poi focus")
+	var player_staging_cell: Vector2i = _find_walkable_adjacent_world_cell(world_game.state, preliminary_focus_cell)
+	_require(player_staging_cell != Vector2i(-1, -1), "boss gatekeeper focus cell has a walkable neighbor for the player")
+	_move_player_to(world_game, player_staging_cell)
+	world_game._refresh_world_visibility("player_moved_to_boss_staging")
 	world_game._refresh_views()
 	await process_frame
 	world_game._on_auto_advance_mode_changed(world_game.battle_ui.AUTO_FAST)

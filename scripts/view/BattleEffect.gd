@@ -298,9 +298,10 @@ func _load_slime_effect_texture() -> Texture2D:
 	if _slime_effect_texture != null:
 		return _slime_effect_texture
 	var resource_path := "res://art/imported/characters/enemies/enemy_slime_effect.png"
-	if not FileAccess.file_exists(resource_path):
+	var texture: Texture2D = ResourceLoader.load(resource_path, "Texture2D", ResourceLoader.CACHE_MODE_REUSE)
+	if texture == null:
 		return null
-	var image: Image = Image.load_from_file(ProjectSettings.globalize_path(resource_path))
+	var image: Image = texture.get_image()
 	if image == null or image.is_empty():
 		return null
 	_slime_effect_texture = ImageTexture.create_from_image(image)

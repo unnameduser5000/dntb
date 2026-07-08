@@ -476,9 +476,12 @@ func _ensure_auto_icons() -> void:
 
 
 func _load_ui_texture(resource_path: String) -> Texture2D:
-	if resource_path.is_empty() or not FileAccess.file_exists(resource_path):
+	if resource_path.is_empty():
 		return null
-	var image: Image = Image.load_from_file(ProjectSettings.globalize_path(resource_path))
+	var texture: Texture2D = ResourceLoader.load(resource_path, "Texture2D", ResourceLoader.CACHE_MODE_REUSE)
+	if texture == null:
+		return null
+	var image: Image = texture.get_image()
 	if image == null or image.is_empty():
 		return null
 	return ImageTexture.create_from_image(image)

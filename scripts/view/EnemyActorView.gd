@@ -341,7 +341,7 @@ func _create_canvas() -> Image:
 
 
 func _load_imported_texture_cached(resource_path: String) -> Texture2D:
-	if resource_path.is_empty() or not FileAccess.file_exists(resource_path):
+	if resource_path.is_empty():
 		return null
 	var cached: Texture2D = _debug_texture_cache.get(resource_path)
 	if cached != null:
@@ -359,7 +359,7 @@ func _load_imported_texture_cached(resource_path: String) -> Texture2D:
 
 
 func _load_imported_texture(resource_path: String) -> Texture2D:
-	if resource_path.is_empty() or not FileAccess.file_exists(resource_path):
+	if resource_path.is_empty():
 		return null
 	var texture: Texture2D = ResourceLoader.load(resource_path, "Texture2D", ResourceLoader.CACHE_MODE_REUSE)
 	if texture == null:

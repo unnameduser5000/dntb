@@ -13,7 +13,7 @@ config_version=5
 config/name="地牢编排师"
 run/main_scene="res://scenes/game/App.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
-config/icon="res://art/imported/ui/图标/游戏图标/HKJN7239.PNG"
+config/icon="res://art/imported/ui/icons/app/HKJN7239.PNG"
 
 [autoload]
 
@@ -48,5 +48,7 @@ enabled=PackedStringArray("res://addons/dialogue_manager/plugin.cfg")
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+textures/vram_compression/import_s3tc_bptc=true
+textures/vram_compression/import_etc2_astc=true
 anti_aliasing/quality/use_taa=true
 2d/snap/snap_2d_transforms_to_pixel=true
