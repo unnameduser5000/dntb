@@ -228,6 +228,17 @@ func _init() -> void:
 	game._on_rest_continue_requested()
 	await process_frame
 	_require(game.state.map_node_kind == "boss", "rest continues to boss node")
+	_require(game.state.player_xp == game._run_player_xp, "boss dungeon state carries over player xp")
+	_require(game.state.player_level == game._run_player_level, "boss dungeon state carries over player level")
+	var boss_visibility_enemy = null
+	for candidate_enemy in game.state.get_alive_enemies():
+		if candidate_enemy != null and candidate_enemy.def != null and String(candidate_enemy.def.id) == "boss":
+			boss_visibility_enemy = candidate_enemy
+			break
+	_require(boss_visibility_enemy != null, "boss dungeon spawns the boss actor")
+	_require(bool(boss_visibility_enemy.revealed), "boss is visible on entering the boss dungeon")
+	if game._battle_presentation != null:
+		_require(game._battle_presentation.actor_views.has(int(boss_visibility_enemy.id)), "boss actor view is created on entering the boss dungeon")
 	_require(not game._key_program_editable, "boss node locks key slot editing")
 	_require(game.state.is_world_slice, "boss node now uses the large-map rendering/state path")
 	_require(game.state.grid.width >= 256 and game.state.grid.height >= 256, "boss node now generates a large dungeon map")

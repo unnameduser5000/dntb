@@ -195,6 +195,8 @@ var _run_player_max_hp := 8
 var _run_player_hp := 8
 var _run_player_max_san := 100
 var _run_player_san := 100
+var _run_player_xp := 0
+var _run_player_level := 1
 var _run_player_atk := 2
 var _run_regen_progress := 0.0
 var _run_seed = ""
@@ -526,6 +528,8 @@ func start_world_slice_debug(seed_value: String = "") -> void:
 	if state != null:
 		state.player_xp = 0
 		state.player_level = 1
+	_run_player_xp = 0
+	_run_player_level = 1
 	_run_regen_progress = 0.0
 	_pending_level_reward = false
 	_player_input_locked = false
@@ -620,6 +624,8 @@ func _start_new_run(seed_value) -> void:
 	_world_ruin_claims.clear()
 	if state != null:
 		state.player_xp = 0
+	_run_player_xp = 0
+	_run_player_level = 1
 	_run_modifier_ids.clear()
 	_setup_default_key_slots()
 	_refresh_inventory_ui()
@@ -903,6 +909,8 @@ func _sync_run_player_state_from_current_state() -> void:
 	_run_player_max_san = max(0, int(state.player.max_san))
 	_run_player_san = clampi(int(state.player.san), 0, _run_player_max_san)
 	_run_player_atk = max(0, int(state.player.atk))
+	_run_player_xp = int(state.player_xp)
+	_run_player_level = int(state.player_level)
 
 
 func _play_music_for_state() -> void:
@@ -1581,6 +1589,7 @@ func _on_actor_died(actor) -> void:
 		return
 	_try_spawn_split_children(actor)
 	state.player_xp += 1
+	_run_player_xp = int(state.player_xp)
 	state.add_message("击杀敌人，获得 1 点经验。当前经验：%d。" % int(state.player_xp))
 	_ensure_action_helpers()
 	if not _action_program.has_token("CA"):
@@ -1655,6 +1664,7 @@ func _try_trigger_level_up_reward() -> void:
 	if state.player_xp < target_xp:
 		return
 	state.player_level += 1
+	_run_player_level = int(state.player_level)
 	_run_player_max_hp += 1
 	_run_player_hp = min(_run_player_max_hp, _run_player_hp + 1)
 	if state.player != null:
@@ -1811,6 +1821,8 @@ func _create_room_state(room_index: int):
 	player.max_san = _run_player_max_san
 	player.san = min(_run_player_san, _run_player_max_san)
 	player.atk = _run_player_atk
+	new_state.player_xp = _run_player_xp
+	new_state.player_level = _run_player_level
 
 	for enemy_data in room["enemies"]:
 		_add_actor(new_state, _enemy_def(String(enemy_data["def"])), enemy_data["cell"])
@@ -1841,7 +1853,10 @@ func _create_boss_dungeon_state(node: Dictionary):
 	)
 	var chamber_center := chamber_origin + Vector2i(int(BOSS_DUNGEON_CHAMBER_SIZE.x / 2), int(BOSS_DUNGEON_CHAMBER_SIZE.y / 2))
 	var player_cell := chamber_center + Vector2i(0, 12)
-	var boss_cell := chamber_center + Vector2i(0, 4)
+	# Place the boss east of the central vertical axis. The central pillar at
+	# chamber_origin + (26, 34) blocks the straight north/south line of sight,
+	# which makes a center-aligned boss invisible on entry.
+	var boss_cell := chamber_center + Vector2i(6, 4)
 
 	var player = _add_actor(new_state, PLAYER_DEF, player_cell)
 	player.facing = Vector2i.UP
@@ -1850,6 +1865,8 @@ func _create_boss_dungeon_state(node: Dictionary):
 	player.max_san = _run_player_max_san
 	player.san = min(_run_player_san, _run_player_max_san)
 	player.atk = _run_player_atk
+	new_state.player_xp = _run_player_xp
+	new_state.player_level = _run_player_level
 
 	var boss_def = SLIME_GOD_DEF if _boss_hidden_layer_active else BOSS_DEF
 	var boss = _add_actor(new_state, boss_def, boss_cell)
@@ -1939,6 +1956,8 @@ func _create_rest_state(node: Dictionary):
 	player.max_san = _run_player_max_san
 	player.san = min(_run_player_san, _run_player_max_san)
 	player.atk = _run_player_atk
+	new_state.player_xp = _run_player_xp
+	new_state.player_level = _run_player_level
 
 	var heal_amount := int(node.get("heal", 0))
 	if heal_amount > 0:
@@ -2679,6 +2698,8 @@ func get_save_data() -> Dictionary:
 		"run_player_max_san": _run_player_max_san,
 		"run_player_san": _run_player_san,
 		"run_player_atk": _run_player_atk,
+		"run_player_xp": _run_player_xp,
+		"run_player_level": _run_player_level,
 		"run_regen_progress": _run_regen_progress,
 		"run_seed": _run_seed,
 		"run_modifier_ids": _run_modifier_ids,
@@ -2709,6 +2730,8 @@ func load_save_data(data: Dictionary) -> void:
 	_run_player_max_san = int(data.get("run_player_max_san", PLAYER_DEF.max_san))
 	_run_player_san = int(data.get("run_player_san", _run_player_max_san))
 	_run_player_atk = int(data.get("run_player_atk", PLAYER_DEF.atk))
+	_run_player_xp = int(data.get("run_player_xp", int(data.get("player_xp", 0))))
+	_run_player_level = maxi(1, int(data.get("run_player_level", int(data.get("player_level", 1)))))
 	_run_regen_progress = float(data.get("run_regen_progress", 0.0))
 	_run_seed = data.get("run_seed", "")
 	var saved_state_kind := String(data.get("current_state_kind", ""))
@@ -2731,8 +2754,8 @@ func load_save_data(data: Dictionary) -> void:
 	else:
 		_start_map_node(_current_map_node_index)
 		if state != null:
-			state.player_xp = int(data.get("player_xp", 0))
-			state.player_level = maxi(1, int(data.get("player_level", 1)))
+			state.player_xp = _run_player_xp
+			state.player_level = _run_player_level
 	_play_music_for_state()
 
 func _load_key_program(data: Dictionary) -> void:
@@ -2759,8 +2782,8 @@ func _restore_world_slice_state_from_save(data: Dictionary) -> void:
 	if state == null:
 		_start_map_node(_current_map_node_index)
 		return
-	state.player_xp = int(data.get("player_xp", 0))
-	state.player_level = maxi(1, int(data.get("player_level", 1)))
+	state.player_xp = _run_player_xp
+	state.player_level = _run_player_level
 	state.world_enemy_spawn_profile = String(data.get("world_enemy_spawn_profile", "calm"))
 	state.tracked_world_actor_id = String(data.get("tracked_world_actor_id", ""))
 	state.tracked_world_npc_id = String(data.get("tracked_world_npc_id", ""))
